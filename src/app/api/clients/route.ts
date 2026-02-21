@@ -8,6 +8,7 @@ export async function GET() {
             include: {
                 websiteConfig: true,
                 phoneConfig: true,
+                onboarding: true,
                 _count: {
                     select: {
                         jobs: true,
@@ -25,7 +26,7 @@ export async function GET() {
             const progress = c.onboardingProgress as Record<string, unknown> | null;
             return {
                 id: c.id,
-                company: c.company || "Unnamed",
+                company: c.company || c.onboarding?.businessName || (c.websiteConfig?.subdomain ? c.websiteConfig.subdomain.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : null) || "Unnamed",
                 name: c.name || "—",
                 email: c.email || "—",
                 plan: c.planTier,
