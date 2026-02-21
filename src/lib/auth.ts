@@ -1,6 +1,5 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
@@ -10,20 +9,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
             },
-            authorize(credentials) {
+            async authorize(credentials) {
                 const adminEmail = process.env.ADMIN_EMAIL;
                 const adminPassword = process.env.ADMIN_PASSWORD;
-                if (!adminEmail || !adminPassword) return null;
-                if (credentials?.email !== adminEmail) return null;
 
-                // Support both hashed and plain passwords
-                const passwordStr = String(credentials.password);
-                const isValid =
-                    adminPassword.startsWith("$2")
-                        ? bcrypt.compareSync(passwordStr, adminPassword)
-                        : passwordStr === adminPassword;
+                const inputEmail = String(credentials?.email || "").trim();
+                const inputPassword = String(credentials?.password || "");
 
-                if (!isValid) return null;
+                console.log("[AUTH] Attempt:", inputEmail, "| Admin configured:", !!adminEmail);
+
+                if (!adminEmail || !adminPassword) {
+                    console.log("[AUTH] FAIL: env vars missing");
+                    return null;
+                }
+                if (inputEmail !== adminEmail) {
+                    console.log("[AUTH] FAIL: email mismatch", JSON.stringify(inputEmail), "!==", JSON.stringify(adminEmail));
+                    return null;
+                }
+                if (inputPassword !== adminPassword) {
+                    console.log("[AUTH] FAIL: password mismatch");
+                    return null;
+                }
+
+                console.log("[AUTH] SUCCESS");
                 return { id: "admin", email: adminEmail, name: "Admin" };
             },
         }),
