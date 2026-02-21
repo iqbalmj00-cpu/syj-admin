@@ -99,7 +99,22 @@ export default function SettingsPage() {
                     <div className="card-body">
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                             {operations.map(op => (
-                                <button key={op.label} onClick={() => showToast(`${op.label} triggered`)} style={{
+                                <button key={op.label} onClick={async () => {
+                                    if (op.label === "Seed Demo Account") {
+                                        showToast("Seeding demo account...");
+                                        try {
+                                            const res = await fetch("/api/seed", { method: "POST" });
+                                            const data = await res.json();
+                                            if (res.ok) {
+                                                showToast(`Demo account created: ${data.company} — ${data.created.jobs} jobs, ${data.created.customers} customers, ${data.created.leads} leads`);
+                                            } else {
+                                                showToast(data.error || "Seed failed", "error");
+                                            }
+                                        } catch { showToast("Seed failed", "error"); }
+                                    } else {
+                                        showToast(`${op.label} triggered`);
+                                    }
+                                }} style={{
                                     padding: "12px 14px", borderRadius: 10,
                                     border: `1px solid ${op.color}20`, background: `${op.color}06`,
                                     textAlign: "left", cursor: "pointer", transition: "all 0.15s"
