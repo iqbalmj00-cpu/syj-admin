@@ -5,7 +5,9 @@ export async function GET() {
     try {
         const sites = await prisma.websiteConfig.findMany({
             include: {
-                user: { select: { id: true, company: true, email: true } },
+                user: {
+                    select: { id: true, company: true, email: true, onboarding: { select: { businessName: true } } },
+                },
             },
             orderBy: { updatedAt: "desc" },
         });
@@ -14,7 +16,7 @@ export async function GET() {
             sites.map(s => ({
                 id: s.id,
                 userId: s.userId,
-                company: s.user.company || "Unnamed",
+                company: s.user.company || s.user.onboarding?.businessName || s.subdomain.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || "Unnamed",
                 email: s.user.email,
                 subdomain: s.subdomain,
                 brandColor: s.brandColor,

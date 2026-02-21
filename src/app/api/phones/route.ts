@@ -10,6 +10,8 @@ export async function GET() {
                         id: true,
                         company: true,
                         email: true,
+                        onboarding: { select: { businessName: true } },
+                        websiteConfig: { select: { subdomain: true } },
                         _count: { select: { phoneCalls: true } },
                     },
                 },
@@ -21,7 +23,7 @@ export async function GET() {
             phones.map(p => ({
                 id: p.id,
                 userId: p.userId,
-                company: p.user.company || "Unnamed",
+                company: p.user.company || p.user.onboarding?.businessName || (p.user.websiteConfig?.subdomain ? p.user.websiteConfig.subdomain.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : null) || "Unnamed",
                 email: p.user.email,
                 phoneNumber: p.phoneNumber,
                 twilioSid: p.twilioSid,
