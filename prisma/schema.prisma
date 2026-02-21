@@ -1,0 +1,1403 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  name                 String?
+  email                String?               @unique
+  emailVerified        DateTime?
+  password             String?
+  company              String?
+  image                String?
+  gaPropertyId         String?
+  gaAccessToken        String?               @db.Text
+  gaRefreshToken       String?               @db.Text
+  role                 String                @default("owner") // owner | admin | dispatcher | finance | csr | viewer
+  orgId                String? // links team members to org owner's User.id
+  siteToken            String?               @unique @default(cuid())
+  accounts             Account[]
+  sessions             Session[]
+  onboarding           OnboardingSubmission?
+  leads                Lead[]
+  goals                UserGoal[]
+  websiteEvents        WebsiteEvent[]
+  phoneCalls           PhoneCall[]
+  quoteSessions        QuoteSession[]
+  customers            Customer[]
+  trucks               Truck[]
+  jobs                 Job[]
+  invoices             Invoice[]
+  // ── Master Plan relations ──
+  staff                Staff[]
+  notifications        Notification[]
+  reviews              Review[]
+  reviewTemplates      ReviewTemplate[]
+  campaigns            Campaign[]
+  priceBooks           PriceBook[]
+  locations            Location[]
+  crewAssignments      CrewAssignment[]
+  shiftSegments        ShiftSegment[]
+  dumpTickets          DumpTicket[]
+  websiteContent       WebsiteContent[]
+  widgetConfig         WidgetConfig?
+  automationConfig     AutomationConfig?
+  integrations         Integration[]
+  portalTokens         PortalToken[]         @relation("PortalTokens")
+  expenses             Expense[]
+  incidents            Incident[]
+  estimates            Estimate[]
+  teamInvites          TeamInvite[]
+  scheduleConfig       ScheduleConfig?
+  auditLogs            AuditLog[]
+  // ── Phase 1 new relations ──
+  recurringJobSeries   RecurringJobSeries[]
+  jobTags              JobTag[]
+  companyProfile       CompanyProfile?
+  dispatchMessages     DispatchMessage[]
+  referrals            Referral[]
+  customFields         CustomField[]
+  messageTemplates     MessageTemplate[]
+  communications       Communication[]
+  followUpTasks        FollowUpTask[]
+  // ── Onboarding Wizard relations ──
+  websiteConfig        WebsiteConfig?
+  stripeConnectAccount StripeConnectAccount?
+  phoneConfig          PhoneConfig?
+  // ── 19-Feature Plan relations ──
+  staffSchedules       StaffSchedule[]
+  staffTimeOffs        StaffTimeOff[]
+  maintenanceRecords   MaintenanceRecord[]
+  // ── Notification prefs ──
+  onboardingComplete   Boolean               @default(false)
+  notifyNewLead        Boolean               @default(true)
+  notifyBooking        Boolean               @default(true)
+  notifyWeeklyReport   Boolean               @default(true)
+  notificationPreferences Json? // { event_key: { email: bool, sms: bool, push: bool } }
+  dailyDigest          Boolean               @default(false)
+  reportRecipients     String? // comma-separated email addresses
+  reportFrequency      String                @default("weekly") // "daily" | "weekly"
+  onboardingProgress   Json? // tracks onboarding checklist completion
+  // ── SaaS Billing (Stripe) ──
+  saasStripeCustomerId String? // Stripe Customer for SaaS billing (NOT client invoicing)
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  planTier             String                @default("starter") // starter | growth | enterprise
+  planStatus           String                @default("trialing") // trialing | active | past_due | canceled
+  billingCancelledAt   DateTime?
+  cancelReason         String? // too_expensive | missing_features | switching | other
+  cancelFeedback       String?               @db.Text
+  retentionOfferShown  Boolean               @default(false)
+  lastLoginAt          DateTime? // last time owner viewed Command Center (for "new since" alerts)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  agentConfig          AgentConfig?
+  taxRates             TaxRate[]
+}
+
+model OnboardingSubmission {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName  String
+  location      String
+  fleetSize     String
+  serviceRadius Int?
+  baseRate      Float?
+  perCubicYard  Float?
+  minLoadFee    Float?
+  currentCRM    String?
+  websiteURL    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Lead {
+  id                String         @id @default(cuid())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  email             String?
+  phone             String?
+  address           String?
+  accessNotes       String?        @db.Text
+  source            String // phone_ai | photo_quote | website_form | manual
+  images            String[] // uploaded photo URLs from website form
+  description       String?        @db.Text // customer's "Items to remove" free text
+  requestedDate     DateTime? // preferred pickup date from form
+  metadata          Json? // calculator values (estimatedVolume, estimatedPrice, etc.)
+  status            String         @default("new") // new | contacted | quoted | booked | completed | lost
+  value             Float?
+  notes             String?        @db.Text
+  // ── Master Plan additions ──
+  aiManaged         Boolean        @default(false) // AI pipeline managing this lead
+  interestScore     Float? // 0–1 engagement score
+  lastAiMessage     String?        @db.Text // last AI-generated message
+  customerId        String?
+  customer          Customer?      @relation(fields: [customerId], references: [id])
+  jobs              Job[]
+  chatMessages      ChatMessage[]
+  followUpTasks     FollowUpTask[]
+  recoverySmsSentAt DateTime? // recovery SMS sent timestamp (max 1 per lead)
+  quotedAt          DateTime? // when lead was moved to "quoted" status
+  // ── Phase 1 additions ──
+  lostReason        String? // why lead was lost (e.g. price | timing | no_response)
+  lostReasonNotes   String?        @db.Text // free-text detail for lost reason
+  estimatedVolume   String? // display label like "~half truck"
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model UserGoal {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  target    Float
+  current   Float    @default(0)
+  unit      String   @default("count")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+}
+
+model DemoRequest {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  fleetSize String?
+  message   String?  @db.Text
+  createdAt DateTime @default(now())
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model WebsiteEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     String // page_view | book_now_click | quote_upload | booking_finalized
+  page      String? // e.g. "/", "/pricing", "/solutions/ai-phone"
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, event])
+  @@index([userId, createdAt])
+}
+
+model PhoneCall {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  twilioCallSid   String?   @unique
+  fromNumber      String?
+  toNumber        String?
+  callerName      String?
+  duration        Int // seconds
+  outcome         String // booked | voicemail | missed | info_only | callback_requested
+  appointmentDate DateTime?
+  summary         String?   @db.Text // AI-generated call summary
+  recordingUrl    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model QuoteSession {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id])
+  customerName     String?
+  customerEmail    String?
+  customerPhone    String?
+  junkSummary      String    @db.Text // AI description of items detected
+  volumeCubicYards Float // calculated volume
+  priceQuoted      Float // dollar amount (low end of range)
+  priceMax         Float? // dollar amount (high end of range, optional)
+  status           String    @default("quoted") // quoted | accepted | declined | expired
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([customerId])
+}
+
+model PasswordResetToken {
+  id      String   @id @default(cuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+// ─── Existing Business Models (Modified) ─────────────────────────────────────
+
+model Customer {
+  id               String          @id @default(cuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  email            String?
+  phone            String?
+  address          String?
+  type             String          @default("residential") // residential | commercial | realtor
+  isVip            Boolean         @default(false)
+  notes            String?         @db.Text
+  // ── Master Plan additions ──
+  tags             String[] // VIP, LATE_PAYER, COMMERCIAL etc.
+  stripeCustomerId String? // Stripe customer ID for invoicing
+  // ── 19-Feature: Card-on-file metadata ──
+  hasCardOnFile    Boolean         @default(false)
+  cardLast4        String?
+  cardBrand        String?
+  cardExpiry       String?  // "MM/YY" display format
+  // ── Phase 7: Payment policy ──
+  creditApproved   Boolean         @default(false) // credit-approved for NET_TERMS
+  creditLimit      Float? // max outstanding AR
+  // ── Phase 9: QuickBooks sync ──
+  qbCustomerId     String? // QuickBooks Customer ID
+  // ── Phase 1 additions ──
+  source           String? // acquisition origin: referral | google | yelp | repeat | other
+  referredBy       String? // who referred this customer
+  riskScore        String          @default("low") // low | medium | high
+  doNotService     Boolean         @default(false) // flagged customers
+  companyName      String? // commercial company name
+  billingContact   String? // commercial billing contact
+  poNumber         String? // purchase order number
+  netTerms         Int? // 15 | 30 | 60 days
+  lastContactAt    DateTime? // last interaction timestamp
+  leads            Lead[]
+  jobs             Job[]
+  invoices         Invoice[]
+  locations        Location[]
+  portalTokens     PortalToken[]
+  estimates        Estimate[]
+  customerNotes    CustomerNote[]
+  parentId         String?
+  parent           Customer?       @relation("CustomerParent", fields: [parentId], references: [id])
+  children         Customer[]      @relation("CustomerParent")
+  archivedAt       DateTime?
+  reviews          Review[]
+  quoteSessions    QuoteSession[]
+  communications      Communication[]
+  followUpTasks       FollowUpTask[]
+  recurringJobSeries  RecurringJobSeries[]
+  createdAt           DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([userId, name])
+  @@index([userId, phone])
+}
+
+model Truck {
+  id                  String              @id @default(cuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String // "Truck 01"
+  capacityCuYd        Float               @default(12) // cubic yards (legacy — not used for dispatch logic)
+  crewMembers         String? // comma-separated crew names (legacy)
+  status              String              @default("available") // available | en_route | working | dumping | maintenance
+  lastDumpStart       DateTime? // for dump wait-time analytics
+  currentLoadStatus   String              @default("EMPTY") // EMPTY | QUARTER | HALF | THREE_QUARTERS | FULL
+  lastLoadReportAt    DateTime?
+  // ── Master Plan additions ──
+  type                String              @default("dump") // dump | box | trailer | pickup
+  bodyType            String? // 16yd | 20yd | open-top
+  homeBaseZip         String? // for Haversine origin
+  noHeavy             Boolean             @default(false) // can't handle heavy items
+  lowClearance        Boolean             @default(false) // height restricted
+  nextServiceDate     DateTime? // maintenance scheduling
+  notes               String?             @db.Text
+  currentLat          Float? // real-time GPS lat (updated by position API)
+  currentLng          Float? // real-time GPS lng (updated by position API)
+  yardLat             Float? // home yard/depot latitude for dispatch clustering
+  yardLng             Float? // home yard/depot longitude for dispatch clustering
+  // ── Phase 1 additions ──
+  licensePlate        String? // vehicle plate number
+  mileage             Int? // current odometer reading
+  lastMaintenanceDate DateTime? // last service date
+  nextMaintenanceDate DateTime? // next scheduled service date
+  jobs                Job[]
+  crewAssignments     CrewAssignment[]
+  shiftSegments       ShiftSegment[]
+  positions           TruckPosition[]
+  dumpTickets         DumpTicket[]
+  expenses            Expense[]
+  incidents           Incident[]
+  preTripInspections  PreTripInspection[]
+  defaultCrew         Staff[]             @relation("DefaultCrew")
+  maintenanceRecords  MaintenanceRecord[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId, status])
+}
+
+model Job {
+  id                   String              @id @default(cuid())
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId           String?
+  customer             Customer?           @relation(fields: [customerId], references: [id])
+  leadId               String?
+  lead                 Lead?               @relation(fields: [leadId], references: [id])
+  truckId              String?
+  truck                Truck?              @relation(fields: [truckId], references: [id])
+  locationId           String?
+  location             Location?           @relation(fields: [locationId], references: [id])
+  title                String // "Garage Cleanout"
+  address              String? // freeform address (coexists with locationId)
+  accessNotes          String?             @db.Text // gate codes, dog warnings
+  scheduledStart       DateTime?
+  scheduledEnd         DateTime?
+  // ── Phase 7A: Schedule normalization ──
+  scheduledDate        DateTime? // date-only for planning
+  windowStart          DateTime? // arrival window start (from external CRM)
+  windowEnd            DateTime? // arrival window end (from external CRM)
+  slot                 String? // MORNING | MIDDAY | EVENING | UNPLANNED (derived)
+  planStatus           String              @default("tentative") // tentative | planned | locked
+  volumeCuYd           Float? // estimated cubic yards
+  actualVolumeTier     String? // QUARTER | HALF | THREE_QUARTER | FULL | OVERSIZE (driver-reported)
+  status               String              @default("scheduled") // scheduled | en_route | working | completed | paid
+  type                 String              @default("pickup") // pickup | onsite_estimate
+  amountQuoted         Float?
+  amountPaid           Float               @default(0)
+  // ── Master Plan additions ──
+  disposalCost         Float? // actual dump fee
+  laborCost            Float? // actual labor cost
+  fuelCost             Float? // actual fuel cost
+  hasHeavyItems        Boolean             @default(false)
+  hasPhotos            Boolean             @default(false)
+  invoicedAt           DateTime? // when batch-invoiced
+  // ── Phase 9 additions ──
+  signatureUrl         String? // signed damage waiver image URL
+  signedAt             DateTime? // when waiver was signed
+  damageWaiverAccepted Boolean             @default(false)
+  routeOrder           Int                 @default(0) // position in optimized route sequence
+  // ── Phase 1 additions ──
+  cancelledAt          DateTime? // when job was cancelled
+  cancelReason         String? // reason for cancellation
+  recurringSeriesId    String? // FK to RecurringJobSeries
+  recurringJobSeries   RecurringJobSeries? @relation(fields: [recurringSeriesId], references: [id])
+  tags                 String[] // job type tags (garage_cleanout, estate, etc.)
+  items                JobItem[]
+  invoices             Invoice[]
+  evidence             JobEvidence[]
+  activities           JobActivity[]
+  dumpTickets          DumpTicket[]
+  incidents            Incident[]
+  followUpTasks        FollowUpTask[]
+  jobCrewAssignments   JobCrewAssignment[]
+  taxRates             TaxRate[]
+  estimate             Estimate?
+  checklistItems       ChecklistItem[]
+  timerStartedAt       DateTime? // crew mode work timer
+  completedAt          DateTime?
+  paymentStatus        String              @default("unpaid") // unpaid | pending | paid | collected | net_terms
+  reviewRequestedAt    DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([userId, scheduledStart])
+  @@index([userId, status])
+  @@index([truckId, scheduledStart])
+}
+
+model JobItem {
+  id          String  @id @default(cuid())
+  jobId       String
+  job         Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  description String
+  category    String? // appliance | recyclable | wood | furniture | mattress | general
+  quantity    Int     @default(1)
+  notes       String?
+  photoUrl    String?
+}
+
+model Invoice {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId            String?
+  customer              Customer?         @relation(fields: [customerId], references: [id])
+  jobId                 String?
+  job                   Job?              @relation(fields: [jobId], references: [id])
+  invoiceNumber         Int
+  status                String            @default("draft") // draft | sent | viewed | paid | overdue | refunded
+  subtotal              Float             @default(0)
+  taxRate               Float             @default(8.25)
+  taxAmount             Float             @default(0)
+  total                 Float             @default(0)
+  attachPhotos          Boolean           @default(false)
+  stripePaymentLink     String?
+  notes                 String?           @db.Text
+  // ── Master Plan additions ──
+  isBatch               Boolean           @default(false) // batch billing invoice
+  issuedAt              DateTime          @default(now())
+  dueAt                 DateTime?
+  paidAt                DateTime?
+  // ── Phase 9: Stripe payments ──
+  stripePaymentIntentId String? // Stripe PaymentIntent ID
+  stripeReceiptUrl      String? // Stripe receipt URL
+  refundedAt            DateTime?
+  refundAmount          Float?
+  // ── Phase 9: QuickBooks sync ──
+  qbInvoiceId           String? // QuickBooks Invoice ID
+  qbSyncStatus          String? // synced | failed | pending
+  qbSyncError           String? // error message if failed
+  qbSyncedAt            DateTime?
+  // ── Phase 1 additions ──
+  lastReminderSentAt    DateTime? // prevents duplicate cron reminders
+  // ── Phase 4 additions ──
+  depositAmount         Float             @default(0) // upfront deposit collected
+  tipAmount             Float             @default(0) // tip added by customer
+  amountPaid            Float             @default(0) // total actually paid (for partial payments)
+  paymentMethod         String? // card_on_file | payment_link | cash | check
+  lineItems             InvoiceLineItem[]
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([userId, status])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  notes       String?
+  quantity    Int     @default(1)
+  unitPrice   Float
+  amount      Float
+}
+
+// ─── Master Plan New Models ──────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // job_alert | invoice_overdue | lead_new | capacity_warning | dispatch_change | price_overcharge | idle_truck | job_assigned
+  title     String
+  body      String   @db.Text
+  link      String? // deep link into dashboard (e.g. "/dashboard/jobs/abc123")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model Staff {
+  id                   String              @id @default(cuid())
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedUserId         String?             @unique // links to User.id for driver login
+  name                 String
+  phone                String?
+  email                String?
+  role                 String              @default("laborer") // laborer | driver | foreman
+  status               String              @default("active") // active | inactive
+  hourlyRate           Float? // PRIVATE — admin-only, used for profit calc
+  certifications       String[] // CDL, hazmat, etc.
+  pin                  String?             // 4-6 digit PIN for driver page auth (unique per company)
+  pinDeviceId          String? // optional device trust binding
+  notes                String?             @db.Text
+  // ── Phase 1 additions ──
+  hireDate             DateTime?
+  driversLicenseExpiry DateTime?
+  insuranceExpiry      DateTime?
+  isOnBreak            Boolean             @default(false) // break toggle for dispatch visibility
+  dailyBudget            Float? // expense budget per day
+  weeklyBudget           Float? // expense budget per week
+  // ── 19-Feature: Employee profile enhancements ──
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+  driversLicenseNumber   String?
+  photoUrl               String?
+  address                String?
+  crewAssignments        CrewAssignment[]
+  defaultTruckId         String?
+  defaultTruck           Truck?              @relation("DefaultCrew", fields: [defaultTruckId], references: [id])
+  shiftSegments          ShiftSegment[]
+  dumpTickets            DumpTicket[]
+  expenses               Expense[]
+  incidents              Incident[]
+  estimates              Estimate[]
+  preTripInspections     PreTripInspection[]
+  schedules              StaffSchedule[]
+  timeOffs               StaffTimeOff[]
+  jobCrewAssignments     JobCrewAssignment[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([userId, pin])
+  @@index([userId, status])
+}
+
+model Location {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String // "Main Office", "Warehouse B"
+  address    String
+  lat        Float?
+  lng        Float?
+  accessCode String? // gate codes, buzzer numbers
+  notes      String?  @db.Text
+  jobs       Job[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model CrewAssignment {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truckId  String
+  truck    Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  staffId  String
+  staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date // the day of assignment
+  isDriver Boolean  @default(false)
+
+  @@unique([date, staffId]) // one person per truck per day
+  @@index([truckId, date])
+}
+
+model ShiftSegment {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId     String
+  staff       Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  truckId     String?
+  truck       Truck?    @relation(fields: [truckId], references: [id])
+  clockIn     DateTime
+  clockOut    DateTime?
+  clockInLat  Float?
+  clockInLng  Float?
+  clockOutLat Float?
+  clockOutLng Float?
+  breakMins   Int       @default(0)
+  notes       String?
+  approved    Boolean   @default(false)
+  approvedAt  DateTime?
+  approvedBy  String?   // userId who approved
+  createdAt   DateTime  @default(now())
+
+  @@index([staffId, clockIn])
+}
+
+model JobEvidence {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type      String // before | after | waiver | receipt
+  photoUrl  String
+  caption   String?
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+}
+
+model JobActivity {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  action    String // status_change | note_added | photo_uploaded | payment_received | assigned | unassigned
+  details   String?  @db.Text
+  actor     String? // user name or "system"
+  createdAt DateTime @default(now())
+
+  @@index([jobId, createdAt])
+}
+
+model DumpTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truckId   String?
+  truck     Truck?   @relation(fields: [truckId], references: [id])
+  driverId  String?
+  driver    Staff?   @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id])
+  photoUrl  String? // receipt photo
+  amount    Float // manual amount entry (no OCR)
+  dumpSite  String? // facility name
+  verified  Boolean  @default(false) // linked to job + cost written
+  dumpedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([userId, dumpedAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sender    String // ai | human | customer
+  body      String   @db.Text
+  channel   String   @default("sms") // sms | email | web
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+model PriceBook {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version    Int         @default(1)
+  active     Boolean     @default(true)
+  minLoadFee Float       @default(0)
+  tiers      PriceTier[]
+  surcharges Surcharge[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([userId, version])
+  @@index([userId, active])
+}
+
+model PriceTier {
+  id          String    @id @default(cuid())
+  priceBookId String
+  priceBook   PriceBook @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+  label       String // "1/8 Load", "1/4 Load", etc.
+  minCuYd     Float
+  maxCuYd     Float
+  price       Float
+  sortOrder   Int       @default(0)
+  validFrom   DateTime? // seasonal pricing start
+  validUntil  DateTime? // seasonal pricing end
+}
+
+model Surcharge {
+  id           String    @id @default(cuid())
+  priceBookId  String
+  priceBook    PriceBook @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+  name         String // "Mattress", "Appliance", "Steep Driveway"
+  type         String    @default("item") // item | density | access
+  amount       Float // flat dollar amount
+  active       Boolean   @default(true)
+  isPercentage Boolean   @default(false) // true = amount is % of subtotal
+  category     String? // labour | disposal | access | material
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String // display label
+  channel   String   @default("sms") // sms | email
+  subject   String? // email only
+  body      String   @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Review {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  platform     String    @default("google") // google | yelp | internal
+  reviewerName String
+  rating       Int // 1–5
+  body         String?   @db.Text
+  replyBody    String?   @db.Text // our reply
+  repliedAt    DateTime?
+  templateId   String? // which template was used (no LLM)
+  externalId   String? // Google review ID
+  reviewedAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, platform])
+  @@index([customerId])
+}
+
+model ReviewTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String // "Positive 5-star", "Negative 1-star"
+  body      String   @db.Text // template text with {{name}} placeholders
+  category  String   @default("positive") // positive | negative | neutral
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String    @default("sms") // sms | email
+  status      String    @default("draft") // draft | scheduled | sent | cancelled
+  subject     String? // email subject
+  body        String    @db.Text // message body
+  segment     Json? // filter criteria { tags:[], type:[], ... }
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  sentCount   Int       @default(0)
+  openCount   Int       @default(0)
+  clickCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
+model WebsiteContent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section   String // hero | services | announcement | pricing | about
+  content   Json // section-specific structured content
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, section])
+}
+
+model WidgetConfig {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode           String   @default("overlay") // overlay | embed | hosted
+  brandColor     String   @default("#FF6B00")
+  serviceZips    String[] // allowed ZIP codes
+  enablePhotos   Boolean  @default(true)
+  enableCalendar Boolean  @default(true)
+  customCss      String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AutomationConfig {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  autoAssignTruck      Boolean  @default(false) // auto-fill closest available truck
+  autoFollowUp         Boolean  @default(false) // send follow-up after quote
+  followUpDelayHours   Int      @default(24)
+  autoReviewRequest    Boolean  @default(false) // send review request after job
+  reviewRequestDelay   Int      @default(48) // hours after completion
+  aiPipelineEnabled    Boolean  @default(false) // AI lead engagement
+  paymentMode          String   @default("card") // card | flexible (enables offline-collected + net-terms)
+  googleReviewUrl      String? // Google Business review URL
+  yelpReviewUrl        String? // Yelp review URL
+  // ── Phase 1 additions ──
+  autoPaymentReminders Boolean  @default(false) // enable payment reminder cron
+  paymentReminderDays  Int[]    @default([3, 7, 14, 30]) // days after due to remind
+  autoReEngagement     Boolean  @default(false) // enable re-engagement cron
+  reEngagementMonths   Int      @default(3) // months of inactivity before re-engage
+  businessHours            Json? // {mon:{open,close,closed},...sun:{...}}
+  // ── 19-Feature: Status notification toggles ──
+  notifyBookingConfirm     Boolean  @default(true)  // SMS on booking
+  notifyDayBefore          Boolean  @default(true)  // SMS day before scheduled date
+  notifyEnRoute            Boolean  @default(true)  // SMS on en_route (guards existing behavior)
+  notifyJobComplete        Boolean  @default(true)  // SMS receipt on completion
+  // ── 19-Feature: Recovery discount config ──
+  recoveryDiscountPercent  Int? // null = no discount, 10 = 10% off
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+model AgentConfig {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentName     String   @default("Sarah")     // voice agent's name
+  voiceId       String?                        // Cartesia voice ID
+  timezone      String   @default("America/Chicago")
+  businessStart Int      @default(7)           // 24h hour, e.g. 7 = 7am
+  businessEnd   Int      @default(19)          // 24h hour, e.g. 19 = 7pm
+  businessDays  Int[]    @default([0,1,2,3,4,5]) // 0=Sun … 6=Sat
+  smsEnabled    Boolean  @default(true)        // send post-booking SMS
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Integration {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String // stripe | quickbooks | google_maps | google_business | twilio | ga4 | resend
+  status       String    @default("disconnected") // connected | disconnected | error
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  config       Json? // provider-specific settings
+  connectedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, provider])
+}
+
+model TruckPosition {
+  id        String   @id @default(cuid())
+  truckId   String
+  truck     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  speed     Float?
+  heading   Float?
+  createdAt DateTime @default(now())
+
+  @@index([truckId, createdAt])
+}
+
+// ── Phase 9C: Client Portal ──
+model PortalToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId     String // business owner — for scoping (Gap Fix #3)
+  user       User      @relation("PortalTokens", fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([token])
+  @@index([customerId])
+}
+
+// ── Phase 5A: Expenses ──
+model Expense {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId    String?
+  staff      Staff?   @relation(fields: [staffId], references: [id])
+  truckId    String?
+  truck      Truck?   @relation(fields: [truckId], references: [id])
+  category   String // fuel | tolls | supplies | other
+  amount     Float
+  receiptUrl String? // optional receipt photo (via Cloudinary)
+  notes      String?
+  status     String   @default("pending") // pending | approved | rejected
+  approvedBy String?
+  date       DateTime @db.Date
+  mileage    Float? // IRS mileage tracking
+  createdAt  DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([staffId])
+}
+
+// ── Phase 6A: Incidents ──
+model Incident {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId               String
+  staff                 Staff     @relation(fields: [staffId], references: [id])
+  truckId               String?
+  truck                 Truck?    @relation(fields: [truckId], references: [id])
+  jobId                 String?
+  job                   Job?      @relation(fields: [jobId], references: [id])
+  type                  String // vehicle_accident | property_damage | injury | near_miss
+  description           String    @db.Text
+  photos                String[] // array of Cloudinary URLs (min 3)
+  gpsLat                Float?
+  gpsLng                Float?
+  severity              String    @default("low") // low | medium | high | critical
+  resolved              Boolean   @default(false)
+  resolvedAt            DateTime?
+  resolvedBy            String?
+  // ── Phase 1 additions: insurance tracking ──
+  resolutionNotes       String?   @db.Text
+  insuranceClaimNumber  String?
+  insuranceAdjuster     String?
+  insuranceClaimStatus  String? // filed | review | approved | denied | paid
+  insurancePayoutAmount Float?
+  createdAt             DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ── Phase 6B: Estimates ──
+model Estimate {
+  id               String         @id @default(cuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId       String?
+  customer         Customer?      @relation(fields: [customerId], references: [id])
+  staffId          String
+  staff            Staff          @relation(fields: [staffId], references: [id])
+  jobId            String?        @unique
+  job              Job?           @relation(fields: [jobId], references: [id])
+  status           String         @default("draft") // draft | sent | accepted | expired
+  subtotal         Float          @default(0)
+  taxRate          Float          @default(8.25)
+  taxAmount        Float          @default(0)
+  total            Float          @default(0)
+  signatureUrl     String?
+  pdfUrl           String?
+  validUntil       DateTime?
+  convertedJobId   String?
+  notes            String?        @db.Text
+  // ── Phase 1 additions ──
+  version          Int            @default(1) // estimate version number
+  parentEstimateId String? // FK for version chain (v1 → v2 → v3)
+  parentEstimate   Estimate?      @relation("EstimateVersions", fields: [parentEstimateId], references: [id])
+  childEstimates   Estimate[]     @relation("EstimateVersions")
+  photos           String[] // on-site photo URLs
+  rooms            EstimateRoom[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([userId, status])
+}
+
+model EstimateRoom {
+  id         String         @id @default(cuid())
+  estimateId String
+  estimate   Estimate       @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  name       String
+  items      EstimateItem[]
+}
+
+model EstimateItem {
+  id          String       @id @default(cuid())
+  roomId      String
+  room        EstimateRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int          @default(1)
+  unitPrice   Float
+  amount      Float
+  isCustom    Boolean      @default(false)
+}
+
+// ── Phase 7: Schedule Config ─────────────────────────────────────────────────
+
+model ScheduleConfig {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  morningStart String   @default("08:00") // HH:MM local
+  morningEnd   String   @default("12:00")
+  middayEnd    String   @default("15:00")
+  eveningEnd   String   @default("18:00")
+  timezone     String   @default("America/Chicago")
+  payPeriodType String  @default("weekly") // weekly | biweekly
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── Phase 7: Team Invites ────────────────────────────────────────────────────
+
+model TeamInvite {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  role      String    @default("viewer") // role to assign on accept
+  token     String    @unique @default(cuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, email])
+  @@index([token])
+}
+
+// ── Phase 7: Audit Log ───────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String
+  actorName String
+  action    String // dispatch.assign | job.status_change | payment.cash_override etc.
+  entity    String // Job | Invoice | Expense
+  entityId  String
+  details   Json? // new state snapshot (skip "before" for MVP)
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 1: New Models
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model RecurringJobSeries {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pattern         String // weekly | biweekly | monthly | custom
+  intervalDays    Int? // for custom pattern
+  nextRunDate     DateTime?
+  active          Boolean   @default(true)
+  // ── 19-Feature: Job template fields ──
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  title           String?   // template job title
+  address         String?
+  jobType         String?   @default("pickup")
+  estimatedAmount Float?
+  notes           String?   @db.Text
+  endDate         DateTime? // stop generating after this date
+  lastGeneratedAt DateTime?
+  jobs            Job[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId, active])
+}
+
+model JobTag {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String // garage_cleanout | estate | construction | demolition | appliance | etc.
+  color  String @default("#6366f1") // hex color for UI badge
+
+  @@unique([userId, name])
+}
+
+model CustomerNote {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  authorId   String
+  authorName String
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
+}
+
+model CompanyProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName     String?
+  logoUrl         String?
+  address         String?
+  phone           String?
+  email           String?
+  timezone        String   @default("America/Chicago")
+  businessHours   Json? // { mon: { start: "08:00", end: "18:00" }, ... }
+  serviceAreaZips String[]
+  invoiceFooter   String?  @db.Text // custom invoice terms/footer
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PreTripInspection {
+  id        String   @id @default(cuid())
+  truckId   String
+  truck     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  date      DateTime @db.Date
+  items     Json // { tires: true, brakes: true, lights: true, liftgate: true, fluids: true, safetyEquipment: true }
+  passed    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([truckId, date])
+  @@index([staffId, date])
+}
+
+model DispatchMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderId   String // staff or dispatcher user ID
+  senderName String
+  truckId    String? // optional truck association
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([userId, truckId, createdAt])
+}
+
+model Referral {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrerId         String // customer who referred
+  referredCustomerId String? // customer who was referred
+  code               String    @unique
+  status             String    @default("pending") // pending | converted | rewarded
+  convertedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([userId, status])
+}
+
+model CustomField {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String // lead | job | customer | invoice
+  name      String
+  fieldType String // text | number | dropdown | date | checkbox
+  options   String[] // for dropdown type
+  required  Boolean  @default(false)
+  sortOrder Int      @default(0)
+
+  @@unique([userId, entity, name])
+}
+
+// ── Sprint 3: Post-Job Checklist ──────────────────────────────────────────────
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  label       String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+
+  @@index([jobId])
+}
+
+// ── Sprint 3: Customer Communications ─────────────────────────────────────────
+
+model Communication {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  channel    String   @default("email") // email | sms | phone | note
+  direction  String   @default("outbound") // inbound | outbound
+  subject    String?
+  body       String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@index([userId, customerId])
+}
+
+// ── Sprint 7: Follow-Up Tasks ─────────────────────────────────────────────────
+
+model FollowUpTask {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId      String?
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+  jobId       String?
+  job         Job?      @relation(fields: [jobId], references: [id])
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  title       String
+  dueAt       DateTime
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, dueAt])
+}
+
+// 8I — Tax Configuration
+model TaxRate {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String // "TX Sales Tax", "CA State Tax"
+  rate      Float // 0.0825 = 8.25%
+  region    String? // "TX", "CA", etc.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  job       Job?     @relation(fields: [jobId], references: [id])
+  jobId     String?
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 19-Feature Plan: New Models
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── F11: Staff weekly availability ──
+model StaffSchedule {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dayOfWeek Int    // 0=Sun, 1=Mon ... 6=Sat
+  startTime String // "08:00"
+  endTime   String // "17:00"
+
+  @@unique([staffId, dayOfWeek])
+  @@index([userId])
+}
+
+// ── F11: Staff time-off requests ──
+model StaffTimeOff {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  reason    String?
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([staffId, startDate])
+  @@index([userId])
+}
+
+// ── F14: Per-job crew assignments ──
+model JobCrewAssignment {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  role      String   @default("laborer") // driver | laborer | foreman
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, staffId])
+  @@index([staffId])
+}
+
+// ── F16: Maintenance log per truck ──
+model MaintenanceRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truckId        String
+  truck          Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  type           String   // oil_change | tire_rotation | brake_service | inspection | repair | other
+  description    String?  @db.Text
+  cost           Float?   // dollars
+  mileageAt      Int?     // odometer at time of service
+  performedAt    DateTime @default(now())
+  nextDueDate    DateTime?
+  nextDueMileage Int?
+  vendor         String?
+  receiptUrl     String?
+  createdAt      DateTime @default(now())
+
+  @@index([truckId, performedAt])
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Onboarding Wizard Models
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model WebsiteConfig {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subdomain       String    @unique             // e.g. "bobs-junk-removal"
+  brandColor      String    @default("#FF6B00")
+  logoUrl         String?
+  heroImageUrl    String?
+  tagline         String?
+  services        String[]                      // selected service slugs
+  testimonials    Json?                         // [{name, body, rating}]
+  gaTrackingId    String?
+  vercelProjectId String?
+  deployStatus    String    @default("pending") // pending | building | live | error
+  websiteUrl      String?                       // final public URL once live
+  deployedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([subdomain])
+}
+
+model StripeConnectAccount {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeAccountId    String   @unique           // acct_...
+  onboardingComplete Boolean  @default(false)
+  chargesEnabled     Boolean  @default(false)
+  payoutsEnabled     Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model PhoneConfig {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber String                            // E.164, e.g. +12145550100
+  twilioSid   String                            // Twilio phone number SID
+  areaCode    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
