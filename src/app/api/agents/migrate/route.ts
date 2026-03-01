@@ -130,7 +130,32 @@ export async function POST() {
         await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "BlogPost_status_idx" ON "BlogPost"("status")`);
         await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "BlogPost_agentRunId_idx" ON "BlogPost"("agentRunId")`);
 
-        return NextResponse.json({ ok: true, message: "All 4 agent tables created successfully" });
+        // Add target column to BlogPost if missing
+        await prisma.$executeRawUnsafe(`ALTER TABLE "BlogPost" ADD COLUMN IF NOT EXISTS "target" TEXT DEFAULT 'syj'`);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "BlogPost_target_idx" ON "BlogPost"("target")`);
+
+        // Create OutreachLog table
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "OutreachLog" (
+                "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+                "leadId" TEXT,
+                "channel" TEXT NOT NULL,
+                "direction" TEXT NOT NULL DEFAULT 'outbound',
+                "sender" TEXT NOT NULL DEFAULT 'agent',
+                "subject" TEXT,
+                "content" TEXT NOT NULL,
+                "status" TEXT NOT NULL DEFAULT 'sent',
+                "readAt" TIMESTAMP(3),
+                "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT "OutreachLog_pkey" PRIMARY KEY ("id"),
+                CONSTRAINT "OutreachLog_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "ScrapedLead"("id") ON DELETE CASCADE ON UPDATE CASCADE
+            )
+        `);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachLog_leadId_idx" ON "OutreachLog"("leadId")`);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachLog_direction_idx" ON "OutreachLog"("direction")`);
+
+        return NextResponse.json({ ok: true, message: "All 5 agent tables created successfully" });
     } catch (err) {
         console.error("Migration error:", err);
         return NextResponse.json({ error: String(err) }, { status: 500 });
