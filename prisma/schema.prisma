@@ -1527,8 +1527,8 @@ model BlogPost {
 
 model OutreachLog {
   id        String    @id @default(cuid())
-  leadId    String
-  lead      ScrapedLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      ScrapedLead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
   channel   String                           // "email" or "sms"
   direction String    @default("outbound")   // "outbound" (we sent) | "inbound" (they replied)
   sender    String    @default("agent")      // "agent" | "user" (Jamal) | "lead" (their reply)
