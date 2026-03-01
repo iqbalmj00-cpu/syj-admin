@@ -450,8 +450,8 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
                     <ConfigField label="SMS Follow-up After (days)">
                         <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
                     </ConfigField>
-                    <ConfigField label="Daily SMS Limit (max 50)">
-                        <ConfigInput value={String(config.daily_sms_limit || 50)} onChange={v => onChange("daily_sms_limit", Math.min(parseInt(v) || 50, 50))} />
+                    <ConfigField label="SMS Per Session (max per run)">
+                        <ConfigInput value={String(config.sms_session_limit || 50)} onChange={v => onChange("sms_session_limit", parseInt(v) || 50)} />
                     </ConfigField>
                     <ConfigField label="SMS Delay Between Messages (seconds)">
                         <ConfigInput value={String(config.sms_delay_seconds || 60)} onChange={v => onChange("sms_delay_seconds", parseInt(v) || 60)} />
