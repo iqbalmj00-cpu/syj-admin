@@ -413,55 +413,87 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
         const grades = (config.target_grades as string[]) || ["A", "B"];
         return (
             <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>📨 Email Settings</div>
                 <ConfigField label="Target Grades (comma-separated)">
                     <ConfigInput value={grades.join(", ")} onChange={v => onChange("target_grades", v.split(",").map(s => s.trim()).filter(Boolean))} placeholder="A, B" />
                 </ConfigField>
                 <ConfigField label="Daily Email Limit">
                     <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
                 </ConfigField>
-                <ConfigField label="Daily SMS Limit">
-                    <ConfigInput value={String(config.daily_sms_limit || 30)} onChange={v => onChange("daily_sms_limit", parseInt(v) || 30)} />
+                <ConfigField label="Email Subject Template">
+                    <ConfigInput value={String(config.email_subject || "{{company}} — quick question")} onChange={v => onChange("email_subject", v)} placeholder="{{company}} — quick question" />
                 </ConfigField>
-                <ConfigField label="SMS Follow-up After (days)">
-                    <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
+                <ConfigField label="Email Body Prompt (instructions for Claude)">
+                    <textarea value={String(config.email_prompt || "Write a short, personalized cold email. Reference their website pain points. Sound human, not salesy. Under 100 words. Sign off as Jamal — ScaleYourJunk.")}
+                        onChange={e => onChange("email_prompt", e.target.value)}
+                        style={{ ...inputStyle, height: 80, resize: "vertical" }} />
                 </ConfigField>
                 <ConfigField label="Instantly Campaign ID">
                     <ConfigInput value={String(config.instantly_campaign_id || "")} onChange={v => onChange("instantly_campaign_id", v)} placeholder="camp_xxx" />
+                </ConfigField>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>💬 SMS Settings</div>
+                <ConfigField label="SMS Follow-up After (days)">
+                    <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
+                </ConfigField>
+                <ConfigField label="Daily SMS Limit">
+                    <ConfigInput value={String(config.daily_sms_limit || 30)} onChange={v => onChange("daily_sms_limit", parseInt(v) || 30)} />
                 </ConfigField>
                 <ConfigField label="SMS Template">
                     <textarea value={String(config.sms_template || "Hey {{owner_name}}, sent you an email about {{company}}'s website — worth a quick look?")}
                         onChange={e => onChange("sms_template", e.target.value)}
                         style={{ ...inputStyle, height: 60, resize: "vertical" }} />
                 </ConfigField>
+                <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 4 }}>Variables: {"{{company}}, {{owner_name}}, {{market}}"}</div>
             </>
         );
     }
 
     if (slug === "content_generator") {
         const topics = (config.topics as string[]) || ["product_feature", "industry_stats", "tips_and_tricks"];
+        const brand = (config.brand as Record<string, string>) || {};
         return (
             <>
-                <ConfigField label="Topics (comma-separated)">
+                <ConfigField label="Content Topics (comma-separated)">
                     <ConfigInput value={topics.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="product_feature, industry_stats, tips_and_tricks" />
+                        placeholder="product_feature, industry_stats, tips_and_tricks, customer_success, before_after" />
                 </ConfigField>
                 <ConfigField label="Video Duration (seconds)">
                     <ConfigInput value={String(config.duration_seconds || 30)} onChange={v => onChange("duration_seconds", parseInt(v) || 30)} />
+                </ConfigField>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>🎨 Brand Settings</div>
+                <ConfigField label="Primary Color">
+                    <ConfigInput value={brand.primaryColor || "#FF6B00"} onChange={v => onChange("brand", { ...brand, primaryColor: v })} />
+                </ConfigField>
+                <ConfigField label="Font Family">
+                    <ConfigInput value={brand.fontFamily || "Space Grotesk"} onChange={v => onChange("brand", { ...brand, fontFamily: v })} />
+                </ConfigField>
+                <ConfigField label="Tagline">
+                    <ConfigInput value={brand.tagline || "Scale Your Junk Removal Business"} onChange={v => onChange("brand", { ...brand, tagline: v })} />
                 </ConfigField>
             </>
         );
     }
 
     if (slug === "blog_writer") {
+        const topicFocus = (config.topics as string[]) || [];
+        const categories = (config.categories as string[]) || ["Industry Insights"];
         return (
             <>
+                <ConfigField label="Topic Focus Areas (comma-separated)">
+                    <ConfigInput value={topicFocus.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="growth strategies, SEO, customer retention" />
+                </ConfigField>
+                <ConfigField label="Blog Categories (comma-separated)">
+                    <ConfigInput value={categories.join(", ")} onChange={v => onChange("categories", v.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="Industry Insights, Business Tips, Technology" />
+                </ConfigField>
                 <ConfigField label="Target Word Count">
                     <ConfigInput value={String(config.target_word_count || 2000)} onChange={v => onChange("target_word_count", parseInt(v) || 2000)} />
                 </ConfigField>
-                <ConfigField label="Brand Voice Notes">
-                    <textarea value={String(config.brand_voice || "Professional but approachable.")}
+                <ConfigField label="Brand Voice / Tone Notes">
+                    <textarea value={String(config.brand_voice || "Professional but approachable. Data-driven, practical. Speak directly to junk removal business owners.")}
                         onChange={e => onChange("brand_voice", e.target.value)}
-                        style={{ ...inputStyle, height: 50, resize: "vertical" }} />
+                        style={{ ...inputStyle, height: 70, resize: "vertical" }} />
                 </ConfigField>
                 <ConfigField label="SEO Focus Keywords (comma-separated)">
                     <ConfigInput value={(config.seo_focus as string[])?.join(", ") || ""} onChange={v => onChange("seo_focus", v.split(",").map(s => s.trim()).filter(Boolean))}
