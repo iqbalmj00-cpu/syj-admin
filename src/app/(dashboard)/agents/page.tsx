@@ -261,11 +261,37 @@ export default function AgentsPage() {
 /* ─── Agents Tab ────────────────────────────────────────────────────── */
 
 function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: string) => void; onToggle: (a: Agent) => void }) {
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
+    const [saving, setSaving] = useState(false);
+
+    const openConfig = (a: Agent) => {
+        if (expandedId === a.id) { setExpandedId(null); return; }
+        setExpandedId(a.id);
+        setEditConfig(a.config ? { ...a.config } : {});
+    };
+
+    const saveConfig = async (agentId: string) => {
+        setSaving(true);
+        try {
+            const res = await fetch(`/api/agents/${agentId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ config: editConfig }),
+            });
+            if (res.ok) { setExpandedId(null); window.location.reload(); }
+        } catch { /* ignore */ }
+        setSaving(false);
+    };
+
+    const updateField = (key: string, value: unknown) => setEditConfig(prev => ({ ...prev, [key]: value }));
+
     return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
             {agents.map(a => {
                 const st = STATUS_MAP[a.status] || STATUS_MAP.idle;
                 const icon = AGENT_ICONS[a.slug] || "🤖";
+                const isExpanded = expandedId === a.id;
                 return (
                     <div key={a.id} className="card" style={{ display: "flex", flexDirection: "column" }}>
                         <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border-light)" }}>
@@ -300,11 +326,28 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                             )}
                         </div>
 
+                        {/* Config Panel */}
+                        {isExpanded && (
+                            <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>⚙️ Configuration</div>
+                                <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} />
+                                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                                    <button className="btn btn-xs btn-primary" onClick={() => saveConfig(a.id)} disabled={saving}
+                                        style={{ flex: 1 }}>{saving ? "Saving..." : "Save Config"}</button>
+                                    <button className="btn btn-xs btn-ghost" onClick={() => setExpandedId(null)}>Cancel</button>
+                                </div>
+                            </div>
+                        )}
+
                         <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 8 }}>
                             <button className="btn btn-xs btn-primary" onClick={() => onRun(a.id)}
                                 disabled={a.status === "running" || !a.enabled}
                                 style={{ flex: 1, opacity: a.status === "running" || !a.enabled ? 0.5 : 1 }}>
                                 {a.status === "running" ? "Running..." : "Run Now"}
+                            </button>
+                            <button className="btn btn-xs btn-ghost" onClick={() => openConfig(a)}
+                                style={{ color: isExpanded ? "var(--orange)" : "var(--text-light)" }}>
+                                ⚙️ Configure
                             </button>
                             <button className="btn btn-xs btn-ghost" onClick={() => onToggle(a)}
                                 style={{ color: a.enabled ? "var(--text-light)" : "var(--warn)" }}>
@@ -315,6 +358,127 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                 );
             })}
         </div>
+    );
+}
+
+/* ─── Per-Agent Config Fields ───────────────────────────────────────── */
+
+function ConfigField({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", display: "block", marginBottom: 4 }}>{label}</label>
+            {children}
+        </div>
+    );
+}
+
+function ConfigInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+    return (
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+            style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }} />
+    );
+}
+
+function ConfigToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+    return (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-light)", cursor: "pointer", marginBottom: 6 }}>
+            <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+            {label}
+        </label>
+    );
+}
+
+function AgentConfigFields({ slug, config, onChange }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void }) {
+    const inputStyle = { width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
+
+    if (slug === "lead_scraper") {
+        const markets = (config.markets as string[]) || ["Philadelphia", "Phoenix", "Jacksonville"];
+        return (
+            <>
+                <ConfigField label="Markets (comma-separated)">
+                    <ConfigInput value={markets.join(", ")} onChange={v => onChange("markets", v.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="Philadelphia, Phoenix, Denver" />
+                </ConfigField>
+                <ConfigField label="Max Results Per Market">
+                    <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
+                </ConfigField>
+                <ConfigToggle label="Skip Yelp" checked={!!config.skip_yelp} onChange={v => onChange("skip_yelp", v)} />
+                <ConfigToggle label="Skip Enrichment" checked={!!config.skip_enrichment} onChange={v => onChange("skip_enrichment", v)} />
+                <ConfigToggle label="Use Grid Search" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
+            </>
+        );
+    }
+
+    if (slug === "cold_outreach") {
+        const grades = (config.target_grades as string[]) || ["A", "B"];
+        return (
+            <>
+                <ConfigField label="Target Grades (comma-separated)">
+                    <ConfigInput value={grades.join(", ")} onChange={v => onChange("target_grades", v.split(",").map(s => s.trim()).filter(Boolean))} placeholder="A, B" />
+                </ConfigField>
+                <ConfigField label="Daily Email Limit">
+                    <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
+                </ConfigField>
+                <ConfigField label="Daily SMS Limit">
+                    <ConfigInput value={String(config.daily_sms_limit || 30)} onChange={v => onChange("daily_sms_limit", parseInt(v) || 30)} />
+                </ConfigField>
+                <ConfigField label="SMS Follow-up After (days)">
+                    <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
+                </ConfigField>
+                <ConfigField label="Instantly Campaign ID">
+                    <ConfigInput value={String(config.instantly_campaign_id || "")} onChange={v => onChange("instantly_campaign_id", v)} placeholder="camp_xxx" />
+                </ConfigField>
+                <ConfigField label="SMS Template">
+                    <textarea value={String(config.sms_template || "Hey {{owner_name}}, sent you an email about {{company}}'s website — worth a quick look?")}
+                        onChange={e => onChange("sms_template", e.target.value)}
+                        style={{ ...inputStyle, height: 60, resize: "vertical" }} />
+                </ConfigField>
+            </>
+        );
+    }
+
+    if (slug === "content_generator") {
+        const topics = (config.topics as string[]) || ["product_feature", "industry_stats", "tips_and_tricks"];
+        return (
+            <>
+                <ConfigField label="Topics (comma-separated)">
+                    <ConfigInput value={topics.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="product_feature, industry_stats, tips_and_tricks" />
+                </ConfigField>
+                <ConfigField label="Video Duration (seconds)">
+                    <ConfigInput value={String(config.duration_seconds || 30)} onChange={v => onChange("duration_seconds", parseInt(v) || 30)} />
+                </ConfigField>
+            </>
+        );
+    }
+
+    if (slug === "blog_writer") {
+        return (
+            <>
+                <ConfigField label="Target Word Count">
+                    <ConfigInput value={String(config.target_word_count || 2000)} onChange={v => onChange("target_word_count", parseInt(v) || 2000)} />
+                </ConfigField>
+                <ConfigField label="Brand Voice Notes">
+                    <textarea value={String(config.brand_voice || "Professional but approachable.")}
+                        onChange={e => onChange("brand_voice", e.target.value)}
+                        style={{ ...inputStyle, height: 50, resize: "vertical" }} />
+                </ConfigField>
+                <ConfigField label="SEO Focus Keywords (comma-separated)">
+                    <ConfigInput value={(config.seo_focus as string[])?.join(", ") || ""} onChange={v => onChange("seo_focus", v.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="junk removal, hauling, cleanout" />
+                </ConfigField>
+                <ConfigToggle label="Auto-publish to GitHub" checked={!!config.auto_publish} onChange={v => onChange("auto_publish", v)} />
+            </>
+        );
+    }
+
+    // Fallback: raw JSON editor
+    return (
+        <ConfigField label="Config (JSON)">
+            <textarea value={JSON.stringify(config, null, 2)} onChange={e => {
+                try { onChange("__raw__", JSON.parse(e.target.value)); } catch { /* ignore invalid json */ }
+            }} style={{ ...inputStyle, height: 120, fontFamily: "monospace", resize: "vertical" }} />
+        </ConfigField>
     );
 }
 
