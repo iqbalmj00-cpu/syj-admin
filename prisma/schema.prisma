@@ -1401,3 +1401,123 @@ model PhoneConfig {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ─── AI Agents ───────────────────────────────────────────────────────────────
+
+model SyjAgent {
+  id          String      @id @default(cuid())
+  slug        String      @unique       // "lead_scraper" | "cold_outreach" | "content_generator" | "blog_writer"
+  name        String                    // "Lead Scraper"
+  description String?     @db.Text
+  status      String      @default("idle") // idle | running | error | paused
+  schedule    String?                   // cron expression or null for manual-only
+  config      Json?                     // agent-specific config (markets, templates, etc.)
+  lastRunAt   DateTime?
+  lastError   String?     @db.Text
+  enabled     Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  runs        SyjAgentRun[]
+}
+
+model SyjAgentRun {
+  id          String       @id @default(cuid())
+  agentId     String
+  agent       SyjAgent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  status      String       @default("running") // running | completed | failed | cancelled
+  trigger     String       @default("manual")  // manual | scheduled | chained
+  config      Json?                            // snapshot of config at run time
+  results     Json?                            // agent-specific results summary
+  error       String?      @db.Text
+  startedAt   DateTime     @default(now())
+  completedAt DateTime?
+  durationMs  Int?
+  leads       ScrapedLead[]
+  blogPosts   BlogPost[]
+
+  @@index([agentId, startedAt])
+}
+
+model ScrapedLead {
+  id              String       @id @default(cuid())
+  agentRunId      String?
+  agentRun        SyjAgentRun? @relation(fields: [agentRunId], references: [id])
+  // ── Company info ──
+  name            String
+  phone           String?
+  email           String?
+  website         String?
+  address         String?
+  city            String?
+  market          String
+  source          String       @default("google") // google | yelp | both
+  categories      String[]
+  // ── Ratings ──
+  rating          Float?
+  reviewCount     Int?
+  googlePlaceId   String?      @unique
+  googleMapsUrl   String?
+  yelpUrl         String?
+  // ── Enrichment ──
+  hasOnlineBooking Boolean     @default(false)
+  hasQuoteForm    Boolean      @default(false)
+  hasCta          Boolean      @default(false)
+  mobileFriendly  Boolean      @default(true)
+  sslValid        Boolean      @default(true)
+  loadTimeSeconds Float?
+  techDetected    String[]
+  socialLinks     Json?
+  contactPageUrl  String?
+  smsMentioned    Boolean      @default(false)
+  ownerName       String?
+  notesFlags      String[]
+  // ── Qualification ──
+  websiteScore    Int          @default(0)
+  leadScore       Int          @default(0)
+  grade           String       @default("C")
+  qualification   String       @default("NO")
+  reasons         String[]
+  // ── GPT-4o Analysis ──
+  painPoints      String[]
+  analysisSummary String?      @db.Text
+  analysisScore   Int?
+  // ── Outreach tracking ──
+  outreachStatus  String       @default("new") // new | emailed | sms_sent | replied | converted | skipped
+  emailedAt       DateTime?
+  smsSentAt       DateTime?
+  repliedAt       DateTime?
+  convertedAt     DateTime?
+  outreachNotes   String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([grade, outreachStatus])
+  @@index([market])
+  @@index([agentRunId])
+}
+
+model BlogPost {
+  id              String       @id @default(cuid())
+  agentRunId      String?
+  agentRun        SyjAgentRun? @relation(fields: [agentRunId], references: [id])
+  title           String
+  slug            String       @unique
+  metaDescription String?      @db.Text
+  keywords        String[]
+  content         Json                          // full blog JSON matching website schema
+  excerpt         String?      @db.Text
+  topic           String?
+  category        String?
+  tags            String[]
+  wordCount       Int          @default(0)
+  sources         Json?                         // [{url, title}] from Perplexity research
+  status          String       @default("draft") // draft | approved | published | rejected
+  publishedAt     DateTime?
+  rejectedReason  String?
+  githubSha       String?                       // SHA of commit when pushed to repo
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status])
+  @@index([agentRunId])
+}
