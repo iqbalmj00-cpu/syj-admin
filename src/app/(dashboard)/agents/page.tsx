@@ -23,7 +23,7 @@ interface BlogPostPreview {
     id: string; title: string; slug: string; excerpt: string | null; topic: string | null;
     category: string | null; tags: string[]; wordCount: number; status: string;
     publishedAt: string | null; createdAt: string; githubSha: string | null;
-    subdomain?: string | null;
+    target?: string;
 }
 
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
@@ -251,12 +251,12 @@ export default function AgentsPage() {
             )}
             {tab === "messages" && <MessagesTab />}
             {tab === "syj_blogs" && (
-                <BlogsTab blogs={blogs.filter(b => !b.subdomain)} counts={blogCounts}
+                <BlogsTab blogs={blogs.filter(b => !b.target || b.target === "syj")} counts={blogCounts}
                     statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
                     onRefresh={fetchBlogs} showToast={showToast} title="SYJ Blogs (Operators)" />
             )}
             {tab === "client_blogs" && (
-                <BlogsTab blogs={blogs.filter(b => !!b.subdomain)} counts={blogCounts}
+                <BlogsTab blogs={blogs.filter(b => b.target === "clients")} counts={blogCounts}
                     statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
                     onRefresh={fetchBlogs} showToast={showToast} title="Client Blogs (End Customers)" />
             )}
@@ -468,26 +468,57 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
     }
 
     if (slug === "content_generator") {
-        const topics = (config.topics as string[]) || ["product_feature", "industry_stats", "tips_and_tricks"];
-        const brand = (config.brand as Record<string, string>) || {};
+        const contentType = String(config.content_type || "saas_demo");
         return (
             <>
-                <ConfigField label="Content Topics (comma-separated)">
-                    <ConfigInput value={topics.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="product_feature, industry_stats, tips_and_tricks, customer_success, before_after" />
+                <ConfigField label="Content Type">
+                    <select value={contentType} onChange={e => onChange("content_type", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="saas_demo">SaaS Product Demo</option>
+                        <option value="marketing_video">SaaS Marketing Video (Social Media)</option>
+                        <option value="feature_highlight">Feature Highlight / Walkthrough</option>
+                        <option value="client_website_showcase">Client Website Showcase</option>
+                        <option value="testimonial">Customer Testimonial / Case Study</option>
+                        <option value="before_after">Before & After</option>
+                        <option value="educational">Educational / How-To</option>
+                    </select>
+                </ConfigField>
+                <ConfigField label="Product / Asset to Feature">
+                    <select value={String(config.asset || "dashboard")} onChange={e => onChange("asset", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="dashboard">SYJ Dashboard</option>
+                        <option value="client_website">Client Website Template</option>
+                        <option value="syj_website">ScaleYourJunk.com (Main Site)</option>
+                        <option value="phone_agent">AI Phone Agent</option>
+                        <option value="lead_scraper">Lead Scraper</option>
+                        <option value="cold_outreach">Cold Outreach System</option>
+                    </select>
+                </ConfigField>
+                <ConfigField label="Target Platform">
+                    <select value={String(config.platform || "instagram_reels")} onChange={e => onChange("platform", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="instagram_reels">Instagram Reels</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="youtube_shorts">YouTube Shorts</option>
+                        <option value="youtube_long">YouTube (Long Form)</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="twitter">Twitter/X</option>
+                    </select>
                 </ConfigField>
                 <ConfigField label="Video Duration (seconds)">
                     <ConfigInput value={String(config.duration_seconds || 30)} onChange={v => onChange("duration_seconds", parseInt(v) || 30)} />
                 </ConfigField>
+                <ConfigField label="Script / Talking Points">
+                    <textarea value={String(config.script_notes || "")} onChange={e => onChange("script_notes", e.target.value)}
+                        placeholder="Key points to cover, specific features to demo, CTA..."
+                        style={{ ...inputStyle, height: 80, resize: "vertical" }} />
+                </ConfigField>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>🎨 Brand Settings</div>
                 <ConfigField label="Primary Color">
-                    <ConfigInput value={brand.primaryColor || "#FF6B00"} onChange={v => onChange("brand", { ...brand, primaryColor: v })} />
-                </ConfigField>
-                <ConfigField label="Font Family">
-                    <ConfigInput value={brand.fontFamily || "Space Grotesk"} onChange={v => onChange("brand", { ...brand, fontFamily: v })} />
+                    <ConfigInput value={String((config.brand as Record<string, string>)?.primaryColor || "#FF6B00")} onChange={v => onChange("brand", { ...(config.brand as Record<string, string> || {}), primaryColor: v })} />
                 </ConfigField>
                 <ConfigField label="Tagline">
-                    <ConfigInput value={brand.tagline || "Scale Your Junk Removal Business"} onChange={v => onChange("brand", { ...brand, tagline: v })} />
+                    <ConfigInput value={String((config.brand as Record<string, string>)?.tagline || "Scale Your Junk Removal Business")} onChange={v => onChange("brand", { ...(config.brand as Record<string, string> || {}), tagline: v })} />
                 </ConfigField>
             </>
         );
@@ -498,25 +529,32 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
         const categories = (config.categories as string[]) || ["Industry Insights"];
         return (
             <>
+                <ConfigField label="Target Audience">
+                    <select value={String(config.target || "syj")} onChange={e => onChange("target", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="syj">SYJ Website (Junk Removal Operators)</option>
+                        <option value="clients">All Client Websites (End Customers)</option>
+                    </select>
+                </ConfigField>
                 <ConfigField label="Topic Focus Areas (comma-separated)">
                     <ConfigInput value={topicFocus.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="growth strategies, SEO, customer retention" />
+                        placeholder={config.target === "clients" ? "decluttering tips, moving prep, junk removal cost" : "growth strategies, SEO, customer retention"} />
                 </ConfigField>
                 <ConfigField label="Blog Categories (comma-separated)">
                     <ConfigInput value={categories.join(", ")} onChange={v => onChange("categories", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="Industry Insights, Business Tips, Technology" />
+                        placeholder={config.target === "clients" ? "Tips, Guides, How-To" : "Industry Insights, Business Tips, Technology"} />
                 </ConfigField>
                 <ConfigField label="Target Word Count">
                     <ConfigInput value={String(config.target_word_count || 2000)} onChange={v => onChange("target_word_count", parseInt(v) || 2000)} />
                 </ConfigField>
                 <ConfigField label="Brand Voice / Tone Notes">
-                    <textarea value={String(config.brand_voice || "Professional but approachable. Data-driven, practical. Speak directly to junk removal business owners.")}
+                    <textarea value={String(config.brand_voice || (config.target === "clients" ? "Friendly, helpful, customer-focused. Speak to homeowners and businesses who need junk removed." : "Professional but approachable. Data-driven, practical. Speak directly to junk removal business owners."))}
                         onChange={e => onChange("brand_voice", e.target.value)}
                         style={{ ...inputStyle, height: 70, resize: "vertical" }} />
                 </ConfigField>
                 <ConfigField label="SEO Focus Keywords (comma-separated)">
                     <ConfigInput value={(config.seo_focus as string[])?.join(", ") || ""} onChange={v => onChange("seo_focus", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="junk removal, hauling, cleanout" />
+                        placeholder={config.target === "clients" ? "junk removal near me, junk hauling, declutter" : "junk removal business, hauling, cleanout"} />
                 </ConfigField>
                 <ConfigToggle label="Auto-publish to GitHub" checked={!!config.auto_publish} onChange={v => onChange("auto_publish", v)} />
             </>

@@ -1513,6 +1513,7 @@ model BlogPost {
   wordCount       Int          @default(0)
   sources         Json?                         // [{url, title}] from Perplexity research
   status          String       @default("draft") // draft | approved | published | rejected
+  target          String       @default("syj")   // "syj" = scaleyourjunk.com, "clients" = all client sites
   publishedAt     DateTime?
   rejectedReason  String?
   githubSha       String?                       // SHA of commit when pushed to repo
@@ -1520,6 +1521,7 @@ model BlogPost {
   updatedAt       DateTime     @updatedAt
 
   @@index([status])
+  @@index([target])
   @@index([agentRunId])
 }
 

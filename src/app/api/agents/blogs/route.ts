@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
                 take: limit,
                 select: {
                     id: true, title: true, slug: true, excerpt: true, topic: true,
-                    category: true, tags: true, wordCount: true, status: true,
+                    category: true, tags: true, wordCount: true, status: true, target: true,
                     publishedAt: true, createdAt: true, githubSha: true,
                 },
             }),
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest) {
         if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
         const data: Record<string, unknown> = {};
-        const allowed = ["status", "title", "content", "metaDescription", "keywords", "tags", "category", "topic", "rejectedReason"];
+        const allowed = ["status", "title", "content", "metaDescription", "keywords", "tags", "category", "topic", "target", "rejectedReason"];
         for (const key of allowed) {
             if (key in updates) data[key] = updates[key];
         }
