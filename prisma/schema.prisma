@@ -1544,3 +1544,23 @@ model OutreachLog {
   @@index([sentAt])
   @@index([direction])
 }
+
+model GeneratedContent {
+  id           String   @id @default(cuid())
+  agentRunId   String?
+  agentRun     SyjAgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  contentType  String
+  feature      String
+  platform     String
+  title        String
+  script       Json
+  voiceoverUrl String?
+  videoUrl     String?
+  thumbnailUrl String?
+  duration     Int      @default(0)
+  status       String   @default("rendering")
+  createdAt    DateTime @default(now())
+
+  @@index([status])
+  @@index([contentType])
+}

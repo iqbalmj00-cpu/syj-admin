@@ -155,7 +155,29 @@ export async function POST() {
         await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachLog_leadId_idx" ON "OutreachLog"("leadId")`);
         await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachLog_direction_idx" ON "OutreachLog"("direction")`);
 
-        return NextResponse.json({ ok: true, message: "All 5 agent tables created successfully" });
+        // Create GeneratedContent table
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "GeneratedContent" (
+                "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+                "agentRunId" TEXT,
+                "contentType" TEXT NOT NULL,
+                "feature" TEXT NOT NULL,
+                "platform" TEXT NOT NULL,
+                "title" TEXT NOT NULL,
+                "script" JSONB NOT NULL,
+                "voiceoverUrl" TEXT,
+                "videoUrl" TEXT,
+                "thumbnailUrl" TEXT,
+                "duration" INTEGER NOT NULL DEFAULT 0,
+                "status" TEXT NOT NULL DEFAULT 'rendering',
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT "GeneratedContent_pkey" PRIMARY KEY ("id"),
+                CONSTRAINT "GeneratedContent_agentRunId_fkey" FOREIGN KEY ("agentRunId") REFERENCES "SyjAgentRun"("id") ON DELETE SET NULL ON UPDATE CASCADE
+            )
+        `);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GeneratedContent_status_idx" ON "GeneratedContent"("status")`);
+
+        return NextResponse.json({ ok: true, message: "All 6 agent tables created successfully" });
     } catch (err) {
         console.error("Migration error:", err);
         return NextResponse.json({ error: String(err) }, { status: 500 });
