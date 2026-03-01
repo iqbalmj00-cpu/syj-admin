@@ -177,7 +177,31 @@ export async function POST() {
         `);
         await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GeneratedContent_status_idx" ON "GeneratedContent"("status")`);
 
-        return NextResponse.json({ ok: true, message: "All 6 agent tables created successfully" });
+        // Create OutreachQueue table
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "OutreachQueue" (
+                "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+                "leadId" TEXT NOT NULL,
+                "channel" TEXT NOT NULL DEFAULT 'email',
+                "subject" TEXT,
+                "content" TEXT NOT NULL,
+                "templateUsed" TEXT,
+                "variables" JSONB DEFAULT '{}',
+                "status" TEXT NOT NULL DEFAULT 'pending',
+                "reviewedAt" TIMESTAMP(3),
+                "sentAt" TIMESTAMP(3),
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT "OutreachQueue_pkey" PRIMARY KEY ("id"),
+                CONSTRAINT "OutreachQueue_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "ScrapedLead"("id") ON DELETE CASCADE ON UPDATE CASCADE
+            )
+        `);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachQueue_status_idx" ON "OutreachQueue"("status")`);
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OutreachQueue_leadId_idx" ON "OutreachQueue"("leadId")`);
+
+        // Add smsOptOut column to ScrapedLead
+        await prisma.$executeRawUnsafe(`ALTER TABLE "ScrapedLead" ADD COLUMN IF NOT EXISTS "smsOptOut" BOOLEAN NOT NULL DEFAULT false`);
+
+        return NextResponse.json({ ok: true, message: "All 7 agent tables created successfully" });
     } catch (err) {
         console.error("Migration error:", err);
         return NextResponse.json({ error: String(err) }, { status: 500 });

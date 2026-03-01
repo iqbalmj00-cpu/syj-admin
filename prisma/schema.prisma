@@ -1482,7 +1482,8 @@ model ScrapedLead {
   analysisSummary String?      @db.Text
   analysisScore   Int?
   // ── Outreach tracking ──
-  outreachStatus  String       @default("new") // new | emailed | sms_sent | replied | converted | skipped
+  smsOptOut       Boolean      @default(false)
+  outreachStatus  String       @default("new") // new | emailed | sms_sent | replied | converted | skipped | opted_out
   emailedAt       DateTime?
   smsSentAt       DateTime?
   repliedAt       DateTime?
