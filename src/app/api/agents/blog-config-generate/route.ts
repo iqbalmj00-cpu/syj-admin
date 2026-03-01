@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 
 /**
  * POST /api/agents/blog-config-generate
@@ -9,6 +8,8 @@ import Anthropic from "@anthropic-ai/sdk";
 export async function POST(req: Request) {
     try {
         const { target } = await req.json();
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
         const isOperators = target !== "clients";
         const audience = isOperators
@@ -19,13 +20,23 @@ export async function POST(req: Request) {
             ? "ScaleYourJunk is a SaaS platform for junk removal companies. It provides websites, AI phone agents, CRM, marketing, dispatch, and booking tools. Blogs should help operators grow, get more jobs, and run efficiently."
             : "These blogs go on junk removal company client websites. They should attract end customers searching for junk removal, decluttering, moving, cleanouts, etc. They should be SEO-optimized for local search.";
 
-        const client = new Anthropic();
-        const message = await client.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 800,
-            messages: [{
-                role: "user",
-                content: `Generate blog configuration for a junk removal content strategy.
+        const topicGuidance = isOperators
+            ? "Topics should cover: growth strategies, marketing, operations, technology, customer service, industry trends for junk removal operators."
+            : "Topics should cover: decluttering, moving prep, home renovation cleanup, hoarding, estate cleanouts, seasonal cleaning, cost guides for junk removal customers.";
+
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 800,
+                messages: [{
+                    role: "user",
+                    content: `Generate blog configuration for a junk removal content strategy.
 
 Target audience: ${audience}
 Context: ${context}
@@ -38,16 +49,21 @@ Return ONLY valid JSON with these fields:
   "seo_focus": [5-8 SEO keywords as strings]
 }
 
-${isOperators
-                        ? "Topics should cover: growth strategies, marketing, operations, technology, customer service, industry trends for junk removal operators."
-                        : "Topics should cover: decluttering, moving prep, home renovation cleanup, hoarding, estate cleanouts, seasonal cleaning, cost guides for junk removal customers."}
+${topicGuidance}
 
 Return ONLY the JSON object, no markdown formatting.`,
-            }],
+                }],
+            }),
         });
 
-        const text = (message.content[0] as { type: string; text: string }).text.trim();
-        // Extract JSON from response
+        if (!resp.ok) {
+            const errText = await resp.text();
+            return NextResponse.json({ error: `Anthropic API error: ${resp.status} ${errText.slice(0, 200)}` }, { status: 500 });
+        }
+
+        const data = await resp.json();
+        const text = data.content?.[0]?.text?.trim() || "";
+
         let json;
         try {
             const jsonStr = text.includes("{") ? text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1) : text;
