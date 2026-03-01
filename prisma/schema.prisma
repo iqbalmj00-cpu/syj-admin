@@ -1524,17 +1524,21 @@ model BlogPost {
 }
 
 model OutreachLog {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   leadId    String
   lead      ScrapedLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   channel   String                           // "email" or "sms"
+  direction String    @default("outbound")   // "outbound" (we sent) | "inbound" (they replied)
+  sender    String    @default("agent")      // "agent" | "user" (Jamal) | "lead" (their reply)
   subject   String?                          // email subject line
-  content   String   @db.Text               // message body
-  status    String   @default("sent")        // sent | failed | pending
-  sentAt    DateTime @default(now())
-  createdAt DateTime @default(now())
+  content   String    @db.Text               // message body
+  status    String    @default("sent")       // sent | failed | pending | received
+  readAt    DateTime?                        // null = unread (for inbound messages)
+  sentAt    DateTime  @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([leadId])
   @@index([channel])
   @@index([sentAt])
+  @@index([direction])
 }

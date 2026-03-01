@@ -23,6 +23,7 @@ interface BlogPostPreview {
     id: string; title: string; slug: string; excerpt: string | null; topic: string | null;
     category: string | null; tags: string[]; wordCount: number; status: string;
     publishedAt: string | null; createdAt: string; githubSha: string | null;
+    subdomain?: string | null;
 }
 
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
@@ -112,13 +113,14 @@ function Kpi({ label, value, sub }: { label: string; value: string | number; sub
 
 /* ─── Tabs ──────────────────────────────────────────────────────────── */
 
-type TabId = "agents" | "leads" | "messages" | "blogs" | "history";
+type TabId = "agents" | "leads" | "messages" | "syj_blogs" | "client_blogs" | "history";
 
 const TABS: { id: TabId; label: string }[] = [
     { id: "agents", label: "Agents" },
     { id: "leads", label: "Leads" },
     { id: "messages", label: "Messages" },
-    { id: "blogs", label: "Blog Posts" },
+    { id: "syj_blogs", label: "SYJ Blogs" },
+    { id: "client_blogs", label: "Client Blogs" },
     { id: "history", label: "Run History" },
 ];
 
@@ -248,10 +250,15 @@ export default function AgentsPage() {
                     searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
             )}
             {tab === "messages" && <MessagesTab />}
-            {tab === "blogs" && (
-                <BlogsTab blogs={blogs} counts={blogCounts}
+            {tab === "syj_blogs" && (
+                <BlogsTab blogs={blogs.filter(b => !b.subdomain)} counts={blogCounts}
                     statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
-                    onRefresh={fetchBlogs} showToast={showToast} />
+                    onRefresh={fetchBlogs} showToast={showToast} title="SYJ Blogs (Operators)" />
+            )}
+            {tab === "client_blogs" && (
+                <BlogsTab blogs={blogs.filter(b => !!b.subdomain)} counts={blogCounts}
+                    statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
+                    onRefresh={fetchBlogs} showToast={showToast} title="Client Blogs (End Customers)" />
             )}
             {tab === "history" && <HistoryTab agents={agents} />}
 
@@ -415,36 +422,46 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
         const grades = (config.target_grades as string[]) || ["A", "B"];
         return (
             <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>📨 Email Settings</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>🎯 Campaign Mode</div>
+                <ConfigToggle label="📧 Email Campaign Enabled" checked={config.email_enabled !== false} onChange={v => onChange("email_enabled", v)} />
+                <ConfigToggle label="💬 SMS Campaign Enabled" checked={config.sms_enabled !== false} onChange={v => onChange("sms_enabled", v)} />
                 <ConfigField label="Target Grades (comma-separated)">
                     <ConfigInput value={grades.join(", ")} onChange={v => onChange("target_grades", v.split(",").map(s => s.trim()).filter(Boolean))} placeholder="A, B" />
                 </ConfigField>
-                <ConfigField label="Daily Email Limit">
-                    <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
-                </ConfigField>
-                <ConfigField label="Email Subject Template">
-                    <ConfigInput value={String(config.email_subject || "{{company}} — quick question")} onChange={v => onChange("email_subject", v)} placeholder="{{company}} — quick question" />
-                </ConfigField>
-                <ConfigField label="Email Body Prompt (instructions for Claude)">
-                    <textarea value={String(config.email_prompt || "Write a short, personalized cold email. Reference their website pain points. Sound human, not salesy. Under 100 words. Sign off as Jamal — ScaleYourJunk.")}
-                        onChange={e => onChange("email_prompt", e.target.value)}
-                        style={{ ...inputStyle, height: 80, resize: "vertical" }} />
-                </ConfigField>
-                <ConfigField label="Instantly Campaign ID">
-                    <ConfigInput value={String(config.instantly_campaign_id || "")} onChange={v => onChange("instantly_campaign_id", v)} placeholder="camp_xxx" />
-                </ConfigField>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>💬 SMS Settings</div>
-                <ConfigField label="SMS Follow-up After (days)">
-                    <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
-                </ConfigField>
-                <ConfigField label="Daily SMS Limit">
-                    <ConfigInput value={String(config.daily_sms_limit || 30)} onChange={v => onChange("daily_sms_limit", parseInt(v) || 30)} />
-                </ConfigField>
-                <ConfigField label="SMS Template">
-                    <textarea value={String(config.sms_template || "Hey {{owner_name}}, sent you an email about {{company}}'s website — worth a quick look?")}
-                        onChange={e => onChange("sms_template", e.target.value)}
-                        style={{ ...inputStyle, height: 60, resize: "vertical" }} />
-                </ConfigField>
+                {config.email_enabled !== false && (<>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>📨 Email Settings</div>
+                    <ConfigField label="Daily Email Limit">
+                        <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
+                    </ConfigField>
+                    <ConfigField label="Email Subject Template">
+                        <ConfigInput value={String(config.email_subject || "{{company}} — quick question")} onChange={v => onChange("email_subject", v)} placeholder="{{company}} — quick question" />
+                    </ConfigField>
+                    <ConfigField label="Email Body Prompt (instructions for Claude)">
+                        <textarea value={String(config.email_prompt || "Write a short, personalized cold email. Reference their website pain points. Sound human, not salesy. Under 100 words. Sign off as Jamal — ScaleYourJunk.")}
+                            onChange={e => onChange("email_prompt", e.target.value)}
+                            style={{ ...inputStyle, height: 80, resize: "vertical" }} />
+                    </ConfigField>
+                    <ConfigField label="Instantly Campaign ID">
+                        <ConfigInput value={String(config.instantly_campaign_id || "")} onChange={v => onChange("instantly_campaign_id", v)} placeholder="camp_xxx" />
+                    </ConfigField>
+                </>)}
+                {config.sms_enabled !== false && (<>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>💬 SMS Settings</div>
+                    <ConfigField label="SMS Follow-up After (days)">
+                        <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
+                    </ConfigField>
+                    <ConfigField label="Daily SMS Limit (max 50)">
+                        <ConfigInput value={String(config.daily_sms_limit || 50)} onChange={v => onChange("daily_sms_limit", Math.min(parseInt(v) || 50, 50))} />
+                    </ConfigField>
+                    <ConfigField label="SMS Delay Between Messages (seconds)">
+                        <ConfigInput value={String(config.sms_delay_seconds || 60)} onChange={v => onChange("sms_delay_seconds", parseInt(v) || 60)} />
+                    </ConfigField>
+                    <ConfigField label="SMS Template">
+                        <textarea value={String(config.sms_template || "Hey {{owner_name}}, sent you an email about {{company}}'s website — worth a quick look?")}
+                            onChange={e => onChange("sms_template", e.target.value)}
+                            style={{ ...inputStyle, height: 60, resize: "vertical" }} />
+                    </ConfigField>
+                </>)}
                 <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 4 }}>Variables: {"{{company}}, {{owner_name}}, {{market}}"}</div>
             </>
         );
@@ -619,10 +636,11 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
 
 /* ─── Blogs Tab ─────────────────────────────────────────────────────── */
 
-function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, showToast }: {
+function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, showToast, title }: {
     blogs: BlogPostPreview[]; counts: Record<string, number>;
     statusFilter: string; setStatusFilter: (v: string) => void;
     onRefresh: () => void; showToast: (msg: string, type?: string) => void;
+    title?: string;
 }) {
     const updateBlogStatus = async (id: string, status: string) => {
         try {
@@ -761,116 +779,159 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
     );
 }
 
-/* ─── Messages Tab ──────────────────────────────────────────────────── */
+/* ─── Messages Tab (Conversation Inbox) ─────────────────────────────── */
 
-interface OutreachMessage {
-    id: string; leadId: string; channel: string; subject: string | null;
-    content: string; status: string; sentAt: string;
-    lead: { name: string; email: string | null; phone: string | null; market: string };
+interface ConvoSummary {
+    leadId: string; leadName: string; phone: string | null; email: string | null;
+    market: string; outreachStatus: string; unreadCount: number;
+    lastMessage: { content: string; channel: string; direction: string; sentAt: string; sender: string } | null;
+}
+
+interface ThreadMessage {
+    id: string; channel: string; direction: string; sender: string;
+    subject: string | null; content: string; status: string; sentAt: string;
 }
 
 function MessagesTab() {
-    const [messages, setMessages] = useState<OutreachMessage[]>([]);
-    const [counts, setCounts] = useState<{ total: number; emails: number; sms: number; sent: number; failed: number }>({ total: 0, emails: 0, sms: 0, sent: 0, failed: 0 });
-    const [channelFilter, setChannelFilter] = useState<string>("all");
+    const [convos, setConvos] = useState<ConvoSummary[]>([]);
+    const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+    const [thread, setThread] = useState<ThreadMessage[]>([]);
+    const [compose, setCompose] = useState("");
+    const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchMessages = async () => {
-            try {
-                const params = new URLSearchParams();
-                if (channelFilter !== "all") params.set("channel", channelFilter);
-                params.set("limit", "200");
-                const res = await fetch(`/api/agents/outreach-log?${params}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setMessages(data.logs);
-                    setCounts(data.counts);
-                }
-            } catch { /* ignore */ }
-            setLoading(false);
-        };
-        fetchMessages();
-    }, [channelFilter]);
+    const fetchConvos = useCallback(async () => {
+        try {
+            const res = await fetch("/api/agents/outreach-log?conversations=true");
+            if (res.ok) { const data = await res.json(); setConvos(data.conversations); }
+        } catch { /* ignore */ }
+        setLoading(false);
+    }, []);
 
-    if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading messages...</div>;
+    const fetchThread = useCallback(async (leadId: string) => {
+        try {
+            const res = await fetch(`/api/agents/outreach-log?leadId=${leadId}&limit=200`);
+            if (res.ok) { const data = await res.json(); setThread(data.logs); }
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => { fetchConvos(); }, [fetchConvos]);
+    useEffect(() => { if (selectedLeadId) fetchThread(selectedLeadId); }, [selectedLeadId, fetchThread]);
+    useEffect(() => {
+        const interval = setInterval(() => { fetchConvos(); if (selectedLeadId) fetchThread(selectedLeadId); }, 30_000);
+        return () => clearInterval(interval);
+    }, [fetchConvos, fetchThread, selectedLeadId]);
+
+    const sendMessage = async () => {
+        if (!compose.trim() || !selectedLeadId || sending) return;
+        setSending(true);
+        try {
+            const res = await fetch("/api/agents/send-message", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadId: selectedLeadId, channel: "sms", content: compose }),
+            });
+            if (res.ok) { setCompose(""); fetchThread(selectedLeadId); fetchConvos(); }
+        } catch { /* ignore */ }
+        setSending(false);
+    };
+
+    const selectedConvo = convos.find(c => c.leadId === selectedLeadId);
+    const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
+
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading conversations...</div>;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* KPIs */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-                {[
-                    { label: "Total", value: counts.total, color: "var(--text)" },
-                    { label: "Emails", value: counts.emails, color: "#2563EB" },
-                    { label: "SMS", value: counts.sms, color: "#8B5CF6" },
-                    { label: "Sent", value: counts.sent, color: "#00A83A" },
-                    { label: "Failed", value: counts.failed, color: "#EF4444" },
-                ].map(f => (
-                    <div key={f.label} style={{
-                        background: "var(--white)", borderRadius: 10, padding: "12px 16px",
-                        border: "1px solid var(--border)", textAlign: "center",
-                    }}>
-                        <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500 }}>{f.label}</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--font-heading)", color: f.color, marginTop: 4 }}>{f.value}</div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Filters */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Channel:</span>
-                {["all", "email", "sms"].map(s => (
-                    <FilterChip key={s} label={s === "all" ? "All" : s === "sms" ? "SMS" : "Email"} active={channelFilter === s} onClick={() => setChannelFilter(s)} />
-                ))}
-            </div>
-
-            {/* Messages Table */}
-            <div className="card">
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead>
-                            <tr>
-                                {["Lead", "Channel", "Subject / Message", "Status", "Sent"].map(h => (
-                                    <th key={h} className="table-head">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {messages.map(m => {
-                                const channelStyle = m.channel === "email"
-                                    ? { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "📧 Email" }
-                                    : { bg: "rgba(139,92,246,0.12)", color: "#8B5CF6", label: "💬 SMS" };
-                                const statusStyle = m.status === "sent"
-                                    ? { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Sent" }
-                                    : { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Failed" };
-                                return (
-                                    <tr key={m.id} className="table-row">
-                                        <td style={{ padding: "10px 14px" }}>
-                                            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>{m.lead.name}</div>
-                                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                                                {m.channel === "email" ? m.lead.email : m.lead.phone} • {m.lead.market}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: "10px 14px" }}><Badge {...channelStyle} /></td>
-                                        <td style={{ padding: "10px 14px", maxWidth: 350 }}>
-                                            {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>{m.subject}</div>}
-                                            <div style={{ fontSize: 11, color: "var(--text-light)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
-                                                {m.content.slice(0, 200)}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: "10px 14px" }}><Badge {...statusStyle} /></td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
-                                            {new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                                            {" "}
-                                            {new Date(m.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    {messages.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No outreach messages yet. Run the Cold Outreach agent to send emails and SMS.</div>}
+        <div style={{ display: "flex", gap: 0, height: "calc(100vh - 280px)", minHeight: 500, border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--white)" }}>
+            {/* Left: Conversation List */}
+            <div style={{ width: 320, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Conversations</span>
+                    {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
                 </div>
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {convos.map(c => {
+                        const isActive = selectedLeadId === c.leadId;
+                        const om = OUTREACH_MAP[c.outreachStatus] || OUTREACH_MAP.new;
+                        return (
+                            <div key={c.leadId} onClick={() => setSelectedLeadId(c.leadId)} style={{
+                                padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light, var(--border))",
+                                background: isActive ? "rgba(255,107,0,0.06)" : "transparent",
+                                borderLeft: isActive ? "3px solid var(--orange)" : "3px solid transparent", transition: "all 0.1s",
+                            }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>{c.leadName}</span>
+                                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                        {c.unreadCount > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8 }}>{c.unreadCount}</span>}
+                                        <Badge bg={om.bg} color={om.color} label={om.label} />
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{c.market} • {c.phone || c.email || "—"}</div>
+                                {c.lastMessage && <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {c.lastMessage.direction === "inbound" ? "↩️ " : "→ "}{c.lastMessage.content.slice(0, 60)}
+                                </div>}
+                            </div>
+                        );
+                    })}
+                    {convos.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "var(--text-faint)", fontSize: 12 }}>No conversations yet</div>}
+                </div>
+            </div>
+            {/* Right: Thread View */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                {selectedConvo ? (<>
+                    <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text)" }}>{selectedConvo.leadName}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{selectedConvo.phone || "No phone"} • {selectedConvo.email || "No email"} • {selectedConvo.market}</div>
+                        </div>
+                        <Badge {...(OUTREACH_MAP[selectedConvo.outreachStatus] || OUTREACH_MAP.new)} />
+                    </div>
+                    <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+                        {thread.map(m => {
+                            const isOut = m.direction === "outbound";
+                            return (
+                                <div key={m.id} style={{ display: "flex", justifyContent: isOut ? "flex-end" : "flex-start" }}>
+                                    <div style={{
+                                        maxWidth: "70%", padding: "10px 14px", borderRadius: 14,
+                                        background: isOut ? "rgba(37,99,235,0.1)" : "rgba(100,116,139,0.08)",
+                                        borderBottomRightRadius: isOut ? 4 : 14, borderBottomLeftRadius: isOut ? 14 : 4
+                                    }}>
+                                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 4, display: "flex", gap: 6 }}>
+                                            <span>{m.sender === "agent" ? "🤖 Agent" : m.sender === "user" ? "👤 You" : "↩️ Reply"}</span>
+                                            <span>• {m.channel === "sms" ? "💬 SMS" : "📧 Email"}</span>
+                                            {m.status === "failed" && <span style={{ color: "var(--danger)" }}>• ❌ Failed</span>}
+                                        </div>
+                                        {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Re: {m.subject}</div>}
+                                        <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6, textAlign: isOut ? "right" : "left" }}>
+                                            {new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                                            {new Date(m.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 12, padding: 20 }}>No messages yet</div>}
+                    </div>
+                    <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+                        <textarea value={compose} onChange={e => setCompose(e.target.value)} placeholder="Type a message..."
+                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                            style={{
+                                flex: 1, padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)",
+                                borderRadius: 10, background: "var(--white)", color: "var(--text)",
+                                outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "inherit"
+                            }} />
+                        <button className="btn btn-xs btn-primary" onClick={sendMessage} disabled={sending || !compose.trim()}
+                            style={{ padding: "10px 18px", borderRadius: 10, height: 42, whiteSpace: "nowrap" }}>
+                            {sending ? "Sending..." : "Send SMS 💬"}
+                        </button>
+                    </div>
+                </>) : (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-faint)" }}>
+                        <span style={{ fontSize: 40 }}>💬</span>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>Select a conversation</span>
+                        <span style={{ fontSize: 12 }}>Click a lead on the left to view their messages</span>
+                    </div>
+                )}
             </div>
         </div>
     );
