@@ -112,11 +112,12 @@ function Kpi({ label, value, sub }: { label: string; value: string | number; sub
 
 /* ─── Tabs ──────────────────────────────────────────────────────────── */
 
-type TabId = "agents" | "leads" | "blogs" | "history";
+type TabId = "agents" | "leads" | "messages" | "blogs" | "history";
 
 const TABS: { id: TabId; label: string }[] = [
     { id: "agents", label: "Agents" },
     { id: "leads", label: "Leads" },
+    { id: "messages", label: "Messages" },
     { id: "blogs", label: "Blog Posts" },
     { id: "history", label: "Run History" },
 ];
@@ -246,6 +247,7 @@ export default function AgentsPage() {
                     outreachFilter={outreachFilter} setOutreachFilter={setOutreachFilter}
                     searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
             )}
+            {tab === "messages" && <MessagesTab />}
             {tab === "blogs" && (
                 <BlogsTab blogs={blogs} counts={blogCounts}
                     statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
@@ -754,6 +756,121 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
                     </tbody>
                 </table>
                 {runs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No runs yet. Trigger a run from the Agents tab.</div>}
+            </div>
+        </div>
+    );
+}
+
+/* ─── Messages Tab ──────────────────────────────────────────────────── */
+
+interface OutreachMessage {
+    id: string; leadId: string; channel: string; subject: string | null;
+    content: string; status: string; sentAt: string;
+    lead: { name: string; email: string | null; phone: string | null; market: string };
+}
+
+function MessagesTab() {
+    const [messages, setMessages] = useState<OutreachMessage[]>([]);
+    const [counts, setCounts] = useState<{ total: number; emails: number; sms: number; sent: number; failed: number }>({ total: 0, emails: 0, sms: 0, sent: 0, failed: 0 });
+    const [channelFilter, setChannelFilter] = useState<string>("all");
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchMessages = async () => {
+            try {
+                const params = new URLSearchParams();
+                if (channelFilter !== "all") params.set("channel", channelFilter);
+                params.set("limit", "200");
+                const res = await fetch(`/api/agents/outreach-log?${params}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMessages(data.logs);
+                    setCounts(data.counts);
+                }
+            } catch { /* ignore */ }
+            setLoading(false);
+        };
+        fetchMessages();
+    }, [channelFilter]);
+
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading messages...</div>;
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* KPIs */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+                {[
+                    { label: "Total", value: counts.total, color: "var(--text)" },
+                    { label: "Emails", value: counts.emails, color: "#2563EB" },
+                    { label: "SMS", value: counts.sms, color: "#8B5CF6" },
+                    { label: "Sent", value: counts.sent, color: "#00A83A" },
+                    { label: "Failed", value: counts.failed, color: "#EF4444" },
+                ].map(f => (
+                    <div key={f.label} style={{
+                        background: "var(--white)", borderRadius: 10, padding: "12px 16px",
+                        border: "1px solid var(--border)", textAlign: "center",
+                    }}>
+                        <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500 }}>{f.label}</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--font-heading)", color: f.color, marginTop: 4 }}>{f.value}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Filters */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Channel:</span>
+                {["all", "email", "sms"].map(s => (
+                    <FilterChip key={s} label={s === "all" ? "All" : s === "sms" ? "SMS" : "Email"} active={channelFilter === s} onClick={() => setChannelFilter(s)} />
+                ))}
+            </div>
+
+            {/* Messages Table */}
+            <div className="card">
+                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
+                    <table>
+                        <thead>
+                            <tr>
+                                {["Lead", "Channel", "Subject / Message", "Status", "Sent"].map(h => (
+                                    <th key={h} className="table-head">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {messages.map(m => {
+                                const channelStyle = m.channel === "email"
+                                    ? { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "📧 Email" }
+                                    : { bg: "rgba(139,92,246,0.12)", color: "#8B5CF6", label: "💬 SMS" };
+                                const statusStyle = m.status === "sent"
+                                    ? { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Sent" }
+                                    : { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Failed" };
+                                return (
+                                    <tr key={m.id} className="table-row">
+                                        <td style={{ padding: "10px 14px" }}>
+                                            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>{m.lead.name}</div>
+                                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                                {m.channel === "email" ? m.lead.email : m.lead.phone} • {m.lead.market}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: "10px 14px" }}><Badge {...channelStyle} /></td>
+                                        <td style={{ padding: "10px 14px", maxWidth: 350 }}>
+                                            {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>{m.subject}</div>}
+                                            <div style={{ fontSize: 11, color: "var(--text-light)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
+                                                {m.content.slice(0, 200)}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: "10px 14px" }}><Badge {...statusStyle} /></td>
+                                        <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                                            {new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                            {" "}
+                                            {new Date(m.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    {messages.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No outreach messages yet. Run the Cold Outreach agent to send emails and SMS.</div>}
+                </div>
             </div>
         </div>
     );

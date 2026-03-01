@@ -1488,6 +1488,7 @@ model ScrapedLead {
   repliedAt       DateTime?
   convertedAt     DateTime?
   outreachNotes   String?      @db.Text
+  outreachLogs    OutreachLog[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -1520,4 +1521,20 @@ model BlogPost {
 
   @@index([status])
   @@index([agentRunId])
+}
+
+model OutreachLog {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      ScrapedLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel   String                           // "email" or "sms"
+  subject   String?                          // email subject line
+  content   String   @db.Text               // message body
+  status    String   @default("sent")        // sent | failed | pending
+  sentAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([channel])
+  @@index([sentAt])
 }
