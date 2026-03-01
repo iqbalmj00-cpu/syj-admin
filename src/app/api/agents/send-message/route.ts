@@ -46,11 +46,13 @@ export async function POST(req: Request) {
             if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
 
             try {
+                const tempGuid = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
                 const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         chatGuid: `iMessage;-;${phone}`,
+                        tempGuid,
                         message: content,
                         method: "apple-script",
                     }),
