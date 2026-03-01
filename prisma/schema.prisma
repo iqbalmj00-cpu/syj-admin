@@ -1434,6 +1434,7 @@ model SyjAgentRun {
   durationMs  Int?
   leads       ScrapedLead[]
   blogPosts   BlogPost[]
+  generatedContent GeneratedContent[]
 
   @@index([agentId, startedAt])
 }

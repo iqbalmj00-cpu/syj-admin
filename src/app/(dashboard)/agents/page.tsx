@@ -202,12 +202,13 @@ export default function AgentsPage() {
 
     const toggleAgent = async (agent: Agent) => {
         try {
+            const newEnabled = !agent.enabled;
             const res = await fetch(`/api/agents/${agent.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: !agent.enabled }),
+                body: JSON.stringify({ enabled: newEnabled, status: newEnabled ? "idle" : "paused" }),
             });
-            if (res.ok) { showToast(agent.enabled ? "Agent paused" : "Agent resumed"); fetchAgents(); }
+            if (res.ok) { showToast(newEnabled ? "Agent resumed" : "Agent paused"); fetchAgents(); }
         } catch { showToast("Failed to toggle agent", "error"); }
     };
 
@@ -273,6 +274,7 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
     const [saving, setSaving] = useState(false);
+    const [refreshingBlog, setRefreshingBlog] = useState(false);
 
     const openConfig = (a: Agent) => {
         if (expandedId === a.id) { setExpandedId(null); return; }
@@ -291,6 +293,28 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
             if (res.ok) { setExpandedId(null); window.location.reload(); }
         } catch { /* ignore */ }
         setSaving(false);
+    };
+
+    const refreshBlogConfig = async () => {
+        setRefreshingBlog(true);
+        try {
+            const res = await fetch("/api/agents/blog-config-generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ target: editConfig.target || "syj" }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setEditConfig(prev => ({
+                    ...prev,
+                    topics: data.topics,
+                    categories: data.categories,
+                    brand_voice: data.brand_voice,
+                    seo_focus: data.seo_focus,
+                }));
+            }
+        } catch { /* ignore */ }
+        setRefreshingBlog(false);
     };
 
     const updateField = (key: string, value: unknown) => setEditConfig(prev => ({ ...prev, [key]: value }));
@@ -339,7 +363,7 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                         {isExpanded && (
                             <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>⚙️ Configuration</div>
-                                <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} />
+                                <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} onRefreshBlog={a.slug === "blog_writer" ? refreshBlogConfig : undefined} refreshingBlog={refreshingBlog} />
                                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                                     <button className="btn btn-xs btn-primary" onClick={() => saveConfig(a.id)} disabled={saving}
                                         style={{ flex: 1 }}>{saving ? "Saving..." : "Save Config"}</button>
@@ -397,7 +421,7 @@ function ConfigToggle({ label, checked, onChange }: { label: string; checked: bo
     );
 }
 
-function AgentConfigFields({ slug, config, onChange }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void }) {
+function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBlog }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void; onRefreshBlog?: () => void; refreshingBlog?: boolean }) {
     const inputStyle = { width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
 
     if (slug === "lead_scraper") {
@@ -578,6 +602,15 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
         const categories = (config.categories as string[]) || ["Industry Insights"];
         return (
             <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>📝 Blog Configuration</div>
+                    {onRefreshBlog && (
+                        <button className="btn btn-xs btn-ghost" onClick={onRefreshBlog} disabled={refreshingBlog}
+                            style={{ fontSize: 11, padding: "4px 10px", color: "var(--orange)", border: "1px solid var(--orange)", borderRadius: 6 }}>
+                            {refreshingBlog ? "🔄 Generating..." : "🔄 Refresh with AI"}
+                        </button>
+                    )}
+                </div>
                 <ConfigField label="Target Audience">
                     <select value={String(config.target || "syj")} onChange={e => onChange("target", e.target.value)}
                         style={{ ...inputStyle, cursor: "pointer" }}>
@@ -585,6 +618,9 @@ function AgentConfigFields({ slug, config, onChange }: { slug: string; config: R
                         <option value="clients">All Client Websites (End Customers)</option>
                     </select>
                 </ConfigField>
+                <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 8, padding: "4px 8px", background: "rgba(255,107,0,0.06)", borderRadius: 4 }}>
+                    {config.target === "clients" ? "📌 Blogs will be published to SYJ client websites only" : "📌 Blogs will be published to SYJ website blog page only"}
+                </div>
                 <ConfigField label="Topic Focus Areas (comma-separated)">
                     <ConfigInput value={topicFocus.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
                         placeholder={config.target === "clients" ? "decluttering tips, moving prep, junk removal cost" : "growth strategies, SEO, customer retention"} />
