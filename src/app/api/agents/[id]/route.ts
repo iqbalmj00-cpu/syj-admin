@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 // GET /api/agents/:id — Agent detail + recent runs
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 // GET /api/agents/:id/runs — Paginated run history for an agent
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

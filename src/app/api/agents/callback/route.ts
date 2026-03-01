@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 // POST /api/agents/callback — Agent reports run results back
 export async function POST(req: NextRequest) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 // GET /api/agents/blogs — List all blog posts with filtering
 export async function GET(req: NextRequest) {
