@@ -799,6 +799,8 @@ function MessagesTab() {
     const [compose, setCompose] = useState("");
     const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [newConvo, setNewConvo] = useState(false);
+    const [newPhone, setNewPhone] = useState("");
 
     const fetchConvos = useCallback(async () => {
         try {
@@ -823,7 +825,22 @@ function MessagesTab() {
     }, [fetchConvos, fetchThread, selectedLeadId]);
 
     const sendMessage = async () => {
-        if (!compose.trim() || !selectedLeadId || sending) return;
+        if (!compose.trim() || sending) return;
+        // Direct phone message (new convo)
+        if (newConvo && newPhone.trim()) {
+            setSending(true);
+            try {
+                const res = await fetch("/api/agents/send-message", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone: newPhone.trim(), channel: "sms", content: compose }),
+                });
+                if (res.ok) { setCompose(""); setNewPhone(""); setNewConvo(false); fetchConvos(); }
+            } catch { /* ignore */ }
+            setSending(false);
+            return;
+        }
+        // Lead-based message
+        if (!selectedLeadId) return;
         setSending(true);
         try {
             const res = await fetch("/api/agents/send-message", {
@@ -846,7 +863,11 @@ function MessagesTab() {
             <div style={{ width: 320, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
                 <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span>Conversations</span>
-                    {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
+                        <button onClick={() => { setNewConvo(true); setSelectedLeadId(null); }} title="New Conversation"
+                            style={{ background: "var(--orange)", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
+                    </div>
                 </div>
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {convos.map(c => {
@@ -925,11 +946,29 @@ function MessagesTab() {
                             {sending ? "Sending..." : "Send SMS 💬"}
                         </button>
                     </div>
-                </>) : (
+                </>) : newConvo ? (
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)" }}>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text)", marginBottom: 8 }}>New Conversation</div>
+                            <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Enter phone number (e.g. 5551234567)"
+                                style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", color: "var(--text)", outline: "none", fontFamily: "inherit" }} />
+                        </div>
+                        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12 }}>Enter a phone number and type your message below</div>
+                        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+                            <textarea value={compose} onChange={e => setCompose(e.target.value)} placeholder="Type a message..."
+                                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                                style={{ flex: 1, padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 10, background: "var(--white)", color: "var(--text)", outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "inherit" }} />
+                            <button className="btn btn-xs btn-primary" onClick={sendMessage} disabled={sending || !compose.trim() || !newPhone.trim()}
+                                style={{ padding: "10px 18px", borderRadius: 10, height: 42, whiteSpace: "nowrap" }}>
+                                {sending ? "Sending..." : "Send SMS 💬"}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
                     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-faint)" }}>
                         <span style={{ fontSize: 40 }}>💬</span>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>Select a conversation</span>
-                        <span style={{ fontSize: 12 }}>Click a lead on the left to view their messages</span>
+                        <span style={{ fontSize: 12 }}>Click a lead on the left or start a new conversation</span>
                     </div>
                 )}
             </div>
