@@ -1491,6 +1491,7 @@ model ScrapedLead {
   convertedAt     DateTime?
   outreachNotes   String?      @db.Text
   outreachLogs    OutreachLog[]
+  outreachQueue   OutreachQueue[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -1565,4 +1566,22 @@ model GeneratedContent {
 
   @@index([status])
   @@index([contentType])
+}
+
+model OutreachQueue {
+  id           String    @id @default(cuid())
+  leadId       String
+  lead         ScrapedLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel      String    @default("email")  // email | sms
+  subject      String?                      // email subject line
+  content      String    @db.Text           // message body
+  templateUsed String?                      // which template was used
+  variables    Json?                        // interpolated variables snapshot
+  status       String    @default("pending") // pending | approved | rejected | sent
+  reviewedAt   DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status])
+  @@index([leadId])
 }
