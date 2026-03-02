@@ -32,3 +32,17 @@ export async function listRecentInvoices(limit = 20) {
     const invoices = await stripe.invoices.list({ limit, expand: ["data.subscription"] });
     return invoices.data;
 }
+
+/** Get detailed subscription info */
+export async function getSubscriptionDetails(subscriptionId: string) {
+    if (!stripe) return null;
+    return stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ["default_payment_method", "latest_invoice"],
+    });
+}
+
+/** Construct Stripe webhook event from raw body + signature */
+export function constructWebhookEvent(rawBody: string, signature: string, secret: string) {
+    if (!stripe) throw new Error("Stripe not configured");
+    return stripe.webhooks.constructEvent(rawBody, signature, secret);
+}

@@ -131,6 +131,10 @@ model User {
   updatedAt            DateTime              @updatedAt
   agentConfig          AgentConfig?
   taxRates             TaxRate[]
+  // ── Admin Dashboard expansion relations ──
+  agentErrorLogs       AgentErrorLog[]
+  cancellationRecords  CancellationRecord[]
+  websiteHealthChecks  WebsiteHealthCheck[]
 }
 
 model OnboardingSubmission {
@@ -1584,4 +1588,61 @@ model OutreachQueue {
 
   @@index([status])
   @@index([leadId])
+}
+
+// ── Admin Dashboard Expansion Models ─────────────────────────────────────────
+
+model AgentErrorLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  callSid   String?
+  error     String   @db.Text
+  stack     String?  @db.Text
+  severity  String   @default("error") // warn | error | fatal
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model CancellationRecord {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason        String?
+  feedback      String?   @db.Text
+  planAtCancel  String?
+  mrrLost       Float?
+  cancelledAt   DateTime  @default(now())
+  dataDeletedAt DateTime?
+
+  @@index([userId])
+  @@index([cancelledAt])
+}
+
+model CronJobRun {
+  id        String   @id @default(cuid())
+  jobName   String
+  status    String   // success | error
+  duration  Int      // milliseconds
+  result    Json?
+  error     String?  @db.Text
+  ranAt     DateTime @default(now())
+
+  @@index([jobName, ranAt])
+}
+
+model WebsiteHealthCheck {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url          String
+  statusCode   Int
+  responseTime Int      // milliseconds
+  healthy      Boolean
+  error        String?
+  checkedAt    DateTime @default(now())
+
+  @@index([userId, checkedAt])
 }

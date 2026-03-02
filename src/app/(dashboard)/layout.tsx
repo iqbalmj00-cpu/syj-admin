@@ -7,24 +7,30 @@ import { useState, ReactNode } from "react";
 const NAV = [
     { id: "/", label: "Overview", icon: "dashboard" },
     { id: "/clients", label: "Clients", icon: "users" },
+    { id: "/billing", label: "Billing", icon: "dollar" },
     { id: "/revenue", label: "Revenue", icon: "dollar" },
     { id: "/websites", label: "Websites", icon: "globe" },
     { id: "/phones", label: "Phone Agents", icon: "phone" },
-    { id: "/alerts", label: "Alerts", icon: "bell" },
+    { id: "/onboarding", label: "Onboarding", icon: "chart" },
+    { id: "/churn", label: "Churn", icon: "bell" },
     { id: "/growth", label: "Growth", icon: "chart" },
     { id: "/agents", label: "AI Agents", icon: "cpu" },
+    { id: "/monitoring", label: "Monitoring", icon: "bell" },
     { id: "/settings", label: "Settings", icon: "settings" },
 ];
 
 const TITLES: Record<string, string> = {
     "/": "Dashboard Overview",
     "/clients": "Client Accounts",
+    "/billing": "Billing & Payments",
     "/revenue": "Revenue & Billing",
     "/websites": "Website Management",
     "/phones": "Phone Agent Management",
-    "/alerts": "Alerts & Monitoring",
+    "/onboarding": "Onboarding Tracker",
+    "/churn": "Churn & Cancellations",
     "/growth": "Growth Metrics",
     "/agents": "AI Agents",
+    "/monitoring": "Platform Monitoring",
     "/settings": "Platform Settings",
 };
 
@@ -48,7 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
 
-    const title = TITLES[pathname] || "Dashboard";
+    const title = TITLES[pathname] || (pathname.startsWith("/clients/") ? "Client Detail" : "Dashboard");
 
     return (
         <div style={{ display: "flex", minHeight: "100vh" }}>

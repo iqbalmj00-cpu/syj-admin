@@ -48,3 +48,49 @@ export async function redeployVercelProject(projectId: string) {
     }
     return res.json();
 }
+
+/** List recent deployments for a project */
+export async function listDeployments(projectId: string, limit = 10) {
+    if (!VERCEL_TOKEN) throw new Error("Vercel not configured");
+    const url = `${BASE}/v6/deployments?projectId=${projectId}&limit=${limit}${VERCEL_TEAM_ID ? `&teamId=${VERCEL_TEAM_ID}` : ""}`;
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) throw new Error(`Failed to list deployments: ${res.status}`);
+    const data = await res.json();
+    return data.deployments || [];
+}
+
+/** Get build logs for a specific deployment */
+export async function getDeploymentLogs(deploymentId: string) {
+    if (!VERCEL_TOKEN) throw new Error("Vercel not configured");
+    const url = `${BASE}/v2/deployments/${deploymentId}/events${VERCEL_TEAM_ID ? `?teamId=${VERCEL_TEAM_ID}` : ""}`;
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) throw new Error(`Failed to get deployment logs: ${res.status}`);
+    return res.json();
+}
+
+/** Push environment variables to a Vercel project */
+export async function pushEnvVars(projectId: string, envVars: Record<string, string>) {
+    if (!VERCEL_TOKEN) throw new Error("Vercel not configured");
+    // Get existing env vars
+    const listUrl = `${BASE}/v9/projects/${projectId}/env${VERCEL_TEAM_ID ? `?teamId=${VERCEL_TEAM_ID}` : ""}`;
+    const listRes = await fetch(listUrl, { headers: headers() });
+    const existingVars = listRes.ok ? ((await listRes.json()).envs || []) : [];
+    const existingMap = new Map(existingVars.map((e: { key: string; id: string }) => [e.key, e.id]));
+
+    const results: { key: string; action: string }[] = [];
+    for (const [key, value] of Object.entries(envVars)) {
+        if (existingMap.has(key)) {
+            // Update existing
+            const envId = existingMap.get(key);
+            const patchUrl = `${BASE}/v9/projects/${projectId}/env/${envId}${VERCEL_TEAM_ID ? `?teamId=${VERCEL_TEAM_ID}` : ""}`;
+            await fetch(patchUrl, { method: "PATCH", headers: headers(), body: JSON.stringify({ value, target: ["production", "preview"] }) });
+            results.push({ key, action: "updated" });
+        } else {
+            // Create new
+            const createUrl = `${BASE}/v9/projects/${projectId}/env${VERCEL_TEAM_ID ? `?teamId=${VERCEL_TEAM_ID}` : ""}`;
+            await fetch(createUrl, { method: "POST", headers: headers(), body: JSON.stringify({ key, value, target: ["production", "preview"], type: "plain" }) });
+            results.push({ key, action: "created" });
+        }
+    }
+    return results;
+}
