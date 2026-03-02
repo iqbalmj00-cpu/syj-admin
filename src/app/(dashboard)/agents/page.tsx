@@ -243,7 +243,23 @@ export default function AgentsPage() {
             </div>
 
             {/* Tab Content */}
-            {tab === "agents" && <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />}
+            {tab === "agents" && (
+                <>
+                    <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 16px", background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.15)",
+                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: -8,
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14 }}>💻</span>
+                            <span><strong>Start all agents:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>bash ~/Documents/start_agents.sh</code></span>
+                        </div>
+                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText("bash ~/Documents/start_agents.sh"); showToast("Copied!"); }}
+                            style={{ fontSize: 11, padding: "3px 8px", color: "var(--orange)" }}>📋 Copy</button>
+                    </div>
+                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />
+                </>
+            )}
             {tab === "leads" && (
                 <LeadsTab leads={leads} funnel={funnel}
                     gradeFilter={gradeFilter} setGradeFilter={setGradeFilter}
