@@ -115,12 +115,19 @@ function Kpi({ label, value, sub }: { label: string; value: string | number; sub
 
 /* ─── Tabs ──────────────────────────────────────────────────────────── */
 
-type TabId = "agents" | "leads" | "messages" | "syj_blogs" | "client_blogs" | "history";
+type TabId = "agents" | "leads" | "messages" | "syj_blogs" | "client_blogs" | "content" | "history";
+
+interface GeneratedVideo {
+    id: string; title: string; videoUrl: string | null; thumbnailUrl: string | null;
+    contentType: string; feature: string; platform: string; duration: number;
+    status: string; script: Record<string, unknown>; createdAt: string;
+}
 
 const TABS: { id: TabId; label: string }[] = [
     { id: "agents", label: "Agents" },
     { id: "leads", label: "Leads" },
     { id: "messages", label: "Messages" },
+    { id: "content", label: "Content" },
     { id: "syj_blogs", label: "SYJ Blogs" },
     { id: "client_blogs", label: "Client Blogs" },
     { id: "history", label: "Run History" },
@@ -135,6 +142,7 @@ export default function AgentsPage() {
     const [funnel, setFunnel] = useState<FunnelData>({ total: 0, new: 0, emailed: 0, sms_sent: 0, replied: 0, converted: 0, skipped: 0 });
     const [blogs, setBlogs] = useState<BlogPostPreview[]>([]);
     const [blogCounts, setBlogCounts] = useState<Record<string, number>>({ draft: 0, approved: 0, published: 0, rejected: 0 });
+    const [contentVideos, setContentVideos] = useState<GeneratedVideo[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
 
@@ -182,9 +190,16 @@ export default function AgentsPage() {
         } catch { /* ignore */ }
     }, [blogStatusFilter]);
 
+    const fetchContent = useCallback(async () => {
+        try {
+            const res = await fetch("/api/agents/content");
+            if (res.ok) setContentVideos(await res.json());
+        } catch { /* ignore */ }
+    }, []);
+
     useEffect(() => {
-        Promise.all([fetchAgents(), fetchLeads(), fetchBlogs()]).finally(() => setLoading(false));
-    }, [fetchAgents, fetchLeads, fetchBlogs]);
+        Promise.all([fetchAgents(), fetchLeads(), fetchBlogs(), fetchContent()]).finally(() => setLoading(false));
+    }, [fetchAgents, fetchLeads, fetchBlogs, fetchContent]);
 
     // Auto-poll every 5s when any agent is running
     useEffect(() => {
@@ -287,6 +302,7 @@ export default function AgentsPage() {
                     statusFilter={blogStatusFilter} setStatusFilter={setBlogStatusFilter}
                     onRefresh={fetchBlogs} showToast={showToast} title="Client Blogs (End Customers)" />
             )}
+            {tab === "content" && <ContentTab videos={contentVideos} onRefresh={fetchContent} showToast={showToast} />}
             {tab === "history" && <HistoryTab agents={agents} />}
 
             {toast && <div className="toast" style={{ background: toast.type === "error" ? "var(--danger)" : "var(--success)" }}>{toast.msg}</div>}
@@ -936,6 +952,137 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
                 })}
                 {blogs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No blog posts yet. Run the Blog Writer agent to generate content.</div>}
             </div>
+        </div>
+    );
+}
+
+/* ─── Content Tab (Generated Videos) ────────────────────────────────── */
+
+const PLATFORM_LABELS: Record<string, string> = {
+    instagram_reels: "📱 Instagram Reels",
+    tiktok: "🎵 TikTok",
+    youtube_shorts: "📺 YouTube Shorts",
+    youtube_long: "📺 YouTube",
+    linkedin: "💼 LinkedIn",
+    twitter: "🐦 X/Twitter",
+};
+
+const CONTENT_TYPE_LABELS: Record<string, string> = {
+    saas_demo: "Product Demo",
+    marketing_video: "Marketing",
+    feature_highlight: "Feature Walkthrough",
+    client_website_showcase: "Website Showcase",
+    testimonial: "Testimonial",
+    before_after: "Before & After",
+    educational: "Educational",
+};
+
+function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]; onRefresh: () => void; showToast: (msg: string, type?: string) => void }) {
+    const [playingId, setPlayingId] = useState<string | null>(null);
+
+    const deleteVideo = async (id: string) => {
+        try {
+            const res = await fetch(`/api/agents/content?id=${id}`, { method: "DELETE" });
+            if (res.ok) { showToast("Video deleted"); onRefresh(); }
+            else showToast("Failed to delete", "error");
+        } catch { showToast("Failed to delete", "error"); }
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* KPIs */}
+            <div className="grid-4">
+                <Kpi label="Total Videos" value={videos.length} />
+                <Kpi label="Ready" value={videos.filter(v => v.status === "ready" && v.videoUrl).length} sub="With video URL" />
+                <Kpi label="Rendering" value={videos.filter(v => v.status === "rendering").length} />
+                <Kpi label="Platforms" value={new Set(videos.map(v => v.platform)).size} />
+            </div>
+
+            {/* Video Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+                {videos.map(v => {
+                    const isPlaying = playingId === v.id;
+                    const script = v.script as Record<string, unknown>;
+                    const hashtags = (script?.hashtags || []) as string[];
+                    const caption = String(script?.caption || "");
+
+                    return (
+                        <div key={v.id} className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                            {/* Video / Thumbnail */}
+                            <div style={{ position: "relative", background: "#0A192F", aspectRatio: v.platform.includes("vertical") || ["instagram_reels", "tiktok", "youtube_shorts"].includes(v.platform) ? "9/16" : "16/9", maxHeight: 280, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {isPlaying && v.videoUrl ? (
+                                    <video
+                                        src={v.videoUrl}
+                                        controls
+                                        autoPlay
+                                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                                    />
+                                ) : v.thumbnailUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={v.thumbnailUrl} alt={v.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                    <div style={{ textAlign: "center", color: "rgba(255,255,255,0.3)" }}>
+                                        <div style={{ fontSize: 40 }}>🎬</div>
+                                        <div style={{ fontSize: 11, marginTop: 6 }}>{v.videoUrl ? "Click to play" : "No video yet"}</div>
+                                    </div>
+                                )}
+                                {!isPlaying && v.videoUrl && (
+                                    <button
+                                        onClick={() => setPlayingId(v.id)}
+                                        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                    >
+                                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,107,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "#fff" }}>▶</div>
+                                    </button>
+                                )}
+                                {/* Duration badge */}
+                                <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                                    {Math.floor(v.duration / 60)}:{String(v.duration % 60).padStart(2, "0")}
+                                </div>
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, fontFamily: "var(--font-heading)", color: "var(--text)", lineHeight: 1.3 }}>{v.title}</div>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(37,99,235,0.08)", color: "var(--primary)", fontWeight: 600 }}>
+                                        {PLATFORM_LABELS[v.platform] || v.platform}
+                                    </span>
+                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(255,107,0,0.08)", color: "var(--orange)", fontWeight: 600 }}>
+                                        {CONTENT_TYPE_LABELS[v.contentType] || v.contentType}
+                                    </span>
+                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: v.status === "ready" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.08)", color: v.status === "ready" ? "var(--success)" : "var(--warning)", fontWeight: 600 }}>
+                                        {v.status === "ready" ? "✓ Ready" : "⏳ " + v.status}
+                                    </span>
+                                </div>
+                                {caption && <p style={{ fontSize: 11, color: "var(--text-light)", lineHeight: 1.5, margin: 0 }}>{caption}</p>}
+                                {hashtags.length > 0 && (
+                                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                        {hashtags.slice(0, 5).map((h, i) => (
+                                            <span key={i} style={{ fontSize: 10, color: "var(--primary)" }}>{h}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 8, borderTop: "1px solid var(--border-light)" }}>
+                                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                        {new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                    </span>
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                        {v.videoUrl && (
+                                            <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ fontSize: 10, color: "var(--primary)" }}>↗ Download</a>
+                                        )}
+                                        <button className="btn btn-xs btn-ghost" onClick={() => deleteVideo(v.id)} style={{ fontSize: 10, color: "var(--danger)" }}>🗑 Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            {videos.length === 0 && (
+                <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
+                    No videos yet. Run the Content Generator agent to create videos.
+                </div>
+            )}
         </div>
     );
 }
