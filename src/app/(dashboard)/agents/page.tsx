@@ -452,11 +452,14 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
 
     if (slug === "lead_scraper") {
         const markets = (config.markets as string[]) || ["Philadelphia", "Phoenix", "Jacksonville"];
+        const [marketsText, setMarketsText] = useState(markets.join(", "));
         return (
             <>
                 <ConfigField label="Markets (comma-separated)">
-                    <ConfigInput value={markets.join(", ")} onChange={v => onChange("markets", v.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="Philadelphia, Phoenix, Denver" />
+                    <input value={marketsText} onChange={e => setMarketsText(e.target.value)}
+                        onBlur={() => onChange("markets", marketsText.split(",").map(s => s.trim()).filter(Boolean))}
+                        placeholder="Philadelphia, San Antonio, Las Vegas"
+                        style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }} />
                 </ConfigField>
                 <ConfigField label="Max Results Per Market">
                     <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
