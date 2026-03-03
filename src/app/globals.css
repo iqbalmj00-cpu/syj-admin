@@ -336,3 +336,11 @@ select.input { background: #fff; cursor: pointer; }
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* Blog reader body styles */
+.blog-body p { margin-bottom: 12px; }
+.blog-body ul, .blog-body ol { padding-left: 20px; margin-bottom: 12px; }
+.blog-body li { margin-bottom: 6px; line-height: 1.6; }
+.blog-body h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; }
+.blog-body a { color: var(--primary); text-decoration: underline; }
+.blog-body strong { font-weight: 600; }

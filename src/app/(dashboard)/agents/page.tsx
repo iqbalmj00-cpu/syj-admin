@@ -835,25 +835,20 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
                 {content.description && <p style={{ fontSize: 13, color: "var(--text-light)", lineHeight: 1.6, marginBottom: 16, fontStyle: "italic" }}>{String(content.description)}</p>}
                 {typeof intro === "string" && intro && <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 20 }}>{intro}</p>}
                 {Array.isArray(sections) && sections.map((section, i) => (
-                    <div key={i} style={{ marginBottom: 20 }}>
-                        {section.heading && <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8, fontFamily: "var(--font-heading)" }}>{String(section.heading)}</h3>}
-                        {typeof section.content === "string" && <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 8 }}>{section.content}</p>}
-                        {Array.isArray(section.paragraphs) && section.paragraphs.map((p: string, j: number) => (
-                            <p key={j} style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 8 }}>{p}</p>
-                        ))}
-                        {Array.isArray(section.bullets) && (
-                            <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
-                                {section.bullets.map((b: string, j: number) => (
-                                    <li key={j} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 4 }}>{b}</li>
-                                ))}
-                            </ul>
+                    <div key={i} style={{ marginBottom: 24 }}>
+                        {section.heading && <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 10, fontFamily: "var(--font-heading)" }}>{String(section.heading)}</h3>}
+                        {typeof section.body === "string" && (
+                            <div
+                                style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7 }}
+                                className="blog-body"
+                                dangerouslySetInnerHTML={{ __html: section.body }}
+                            />
                         )}
-                        {Array.isArray(section.points) && (
-                            <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
-                                {section.points.map((p: unknown, j: number) => (
-                                    <li key={j} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 4 }}>{typeof p === "string" ? p : typeof p === "object" && p !== null ? (p as Record<string, string>).text || JSON.stringify(p) : String(p)}</li>
-                                ))}
-                            </ul>
+                        {typeof section.content === "string" && !section.body && (
+                            <div
+                                style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7 }}
+                                dangerouslySetInnerHTML={{ __html: section.content }}
+                            />
                         )}
                     </div>
                 ))}
