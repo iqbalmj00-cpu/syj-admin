@@ -791,6 +791,10 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
     onRefresh: () => void; showToast: (msg: string, type?: string) => void;
     title?: string;
 }) {
+    const [expandedBlog, setExpandedBlog] = useState<string | null>(null);
+    const [blogContent, setBlogContent] = useState<Record<string, unknown> | null>(null);
+    const [loadingContent, setLoadingContent] = useState(false);
+
     const updateBlogStatus = async (id: string, status: string) => {
         try {
             const res = await fetch("/api/agents/blogs", {
@@ -801,6 +805,75 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
             if (res.ok) { showToast(`Blog ${status}`); onRefresh(); }
             else showToast("Failed to update blog", "error");
         } catch { showToast("Failed to update blog", "error"); }
+    };
+
+    const toggleBlog = async (id: string) => {
+        if (expandedBlog === id) { setExpandedBlog(null); setBlogContent(null); return; }
+        setExpandedBlog(id);
+        setLoadingContent(true);
+        try {
+            const res = await fetch(`/api/agents/blogs/${id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setBlogContent(data.content || data);
+            }
+        } catch { /* ignore */ }
+        setLoadingContent(false);
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const renderContent = (content: Record<string, any>) => {
+        // Blog content JSON has sections array with heading + paragraphs
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sections = (content.sections || content.body || []) as Array<Record<string, any>>;
+        const intro = String(content.introduction || content.intro || content.description || "");
+
+        return (
+            <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
+                {/* Meta */}
+                {content.title && <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)", marginBottom: 12 }}>{String(content.title)}</h2>}
+                {content.description && <p style={{ fontSize: 13, color: "var(--text-light)", lineHeight: 1.6, marginBottom: 16, fontStyle: "italic" }}>{String(content.description)}</p>}
+                {typeof intro === "string" && intro && <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 20 }}>{intro}</p>}
+                {Array.isArray(sections) && sections.map((section, i) => (
+                    <div key={i} style={{ marginBottom: 20 }}>
+                        {section.heading && <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8, fontFamily: "var(--font-heading)" }}>{String(section.heading)}</h3>}
+                        {typeof section.content === "string" && <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 8 }}>{section.content}</p>}
+                        {Array.isArray(section.paragraphs) && section.paragraphs.map((p: string, j: number) => (
+                            <p key={j} style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 8 }}>{p}</p>
+                        ))}
+                        {Array.isArray(section.bullets) && (
+                            <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+                                {section.bullets.map((b: string, j: number) => (
+                                    <li key={j} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 4 }}>{b}</li>
+                                ))}
+                            </ul>
+                        )}
+                        {Array.isArray(section.points) && (
+                            <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+                                {section.points.map((p: unknown, j: number) => (
+                                    <li key={j} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 4 }}>{typeof p === "string" ? p : typeof p === "object" && p !== null ? (p as Record<string, string>).text || JSON.stringify(p) : String(p)}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                ))}
+                {content.conclusion && (
+                    <div style={{ marginTop: 16, padding: "14px 16px", background: "rgba(37,99,235,0.06)", borderRadius: 8, borderLeft: "3px solid var(--primary)" }}>
+                        <strong style={{ fontSize: 14, color: "var(--text)" }}>Conclusion</strong>
+                        <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginTop: 6 }}>{String(content.conclusion)}</p>
+                    </div>
+                )}
+                {content.tags && Array.isArray(content.tags) && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+                        {content.tags.map((t: string, i: number) => (
+                            <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 12, background: "rgba(37,99,235,0.08)", color: "var(--primary)" }}>#{t}</span>
+                        ))}
+                    </div>
+                )}
+                <button className="btn btn-xs btn-ghost" onClick={() => { setExpandedBlog(null); setBlogContent(null); }}
+                    style={{ marginTop: 14, color: "var(--text-faint)" }}>▲ Close</button>
+            </div>
+        );
     };
 
     return (
@@ -825,32 +898,41 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {blogs.map(b => {
                     const bs = BLOG_STATUS_MAP[b.status] || BLOG_STATUS_MAP.draft;
+                    const isExpanded = expandedBlog === b.id;
                     return (
-                        <div key={b.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px" }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                                    <span style={{ fontWeight: 700, fontSize: 14, fontFamily: "var(--font-heading)", color: "var(--text)" }}>{b.title}</span>
-                                    <Badge {...bs} />
+                        <div key={b.id} className="card" style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px" }}>
+                                <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => toggleBlog(b.id)}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                                        <span style={{ fontWeight: 700, fontSize: 14, fontFamily: "var(--font-heading)", color: "var(--primary)" }}>{b.title}</span>
+                                        <Badge {...bs} />
+                                    </div>
+                                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-faint)" }}>
+                                        <span>{b.wordCount} words</span>
+                                        {b.category && <span>• {b.category}</span>}
+                                        <span>• {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                                        {b.githubSha && <span style={{ color: "var(--success)" }}>• ✓ Published to GitHub</span>}
+                                        <span style={{ color: "var(--primary)", fontWeight: 500 }}>{isExpanded ? "▲ Close" : "▼ Read"}</span>
+                                    </div>
+                                    {!isExpanded && b.excerpt && <p style={{ fontSize: 12, color: "var(--text-light)", marginTop: 6, lineHeight: 1.5 }}>{b.excerpt}</p>}
                                 </div>
-                                <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-faint)" }}>
-                                    <span>{b.wordCount} words</span>
-                                    {b.category && <span>• {b.category}</span>}
-                                    <span>• {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                                    {b.githubSha && <span style={{ color: "var(--success)" }}>• ✓ Published to GitHub</span>}
+                                <div style={{ display: "flex", gap: 6, marginLeft: 16, flexShrink: 0 }}>
+                                    {b.status === "draft" && (
+                                        <>
+                                            <button className="btn btn-xs btn-primary" onClick={() => updateBlogStatus(b.id, "approved")}>Approve</button>
+                                            <button className="btn btn-xs btn-ghost" onClick={() => updateBlogStatus(b.id, "rejected")} style={{ color: "var(--danger)" }}>Reject</button>
+                                        </>
+                                    )}
+                                    {b.status === "approved" && (
+                                        <button className="btn btn-xs btn-primary" onClick={() => updateBlogStatus(b.id, "published")}>Publish</button>
+                                    )}
                                 </div>
-                                {b.excerpt && <p style={{ fontSize: 12, color: "var(--text-light)", marginTop: 6, lineHeight: 1.5 }}>{b.excerpt}</p>}
                             </div>
-                            <div style={{ display: "flex", gap: 6, marginLeft: 16, flexShrink: 0 }}>
-                                {b.status === "draft" && (
-                                    <>
-                                        <button className="btn btn-xs btn-primary" onClick={() => updateBlogStatus(b.id, "approved")}>Approve</button>
-                                        <button className="btn btn-xs btn-ghost" onClick={() => updateBlogStatus(b.id, "rejected")} style={{ color: "var(--danger)" }}>Reject</button>
-                                    </>
-                                )}
-                                {b.status === "approved" && (
-                                    <button className="btn btn-xs btn-primary" onClick={() => updateBlogStatus(b.id, "published")}>Publish</button>
-                                )}
-                            </div>
+                            {isExpanded && (loadingContent ? (
+                                <div style={{ padding: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>Loading blog content...</div>
+                            ) : blogContent ? renderContent(blogContent) : (
+                                <div style={{ padding: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No content available</div>
+                            ))}
                         </div>
                     );
                 })}
