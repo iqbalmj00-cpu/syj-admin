@@ -30,10 +30,11 @@ export async function POST(req: NextRequest) {
         });
 
         // Update agent status
+        const agentStatus = status === "failed" ? "error" : "completed";
         await prisma.syjAgent.update({
             where: { id: run.agentId },
             data: {
-                status: status === "failed" ? "error" : "idle",
+                status: agentStatus,
                 lastRunAt: new Date(),
                 lastError: error || null,
             },

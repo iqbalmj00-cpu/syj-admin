@@ -33,7 +33,9 @@ interface FunnelData { total: number; new: number; emailed: number; sms_sent: nu
 const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
     idle: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Idle" },
     running: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Running" },
+    completed: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Completed" },
     error: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Error" },
+    failed: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Failed" },
     paused: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Paused" },
 };
 
@@ -183,6 +185,14 @@ export default function AgentsPage() {
     useEffect(() => {
         Promise.all([fetchAgents(), fetchLeads(), fetchBlogs()]).finally(() => setLoading(false));
     }, [fetchAgents, fetchLeads, fetchBlogs]);
+
+    // Auto-poll every 5s when any agent is running
+    useEffect(() => {
+        const anyRunning = agents.some(a => a.status === "running");
+        if (!anyRunning) return;
+        const interval = setInterval(() => { fetchAgents(); }, 5000);
+        return () => clearInterval(interval);
+    }, [agents, fetchAgents]);
 
     useEffect(() => { if (!loading) fetchLeads(); }, [gradeFilter, outreachFilter, searchQuery, fetchLeads, loading]);
     useEffect(() => { if (!loading) fetchBlogs(); }, [blogStatusFilter, fetchBlogs, loading]);
