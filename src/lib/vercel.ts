@@ -24,7 +24,7 @@ export async function deleteVercelProject(projectId: string) {
 /** Trigger a redeploy for a Vercel project */
 export async function redeployVercelProject(projectId: string) {
     if (!VERCEL_TOKEN) throw new Error("Vercel not configured");
-    // Get latest deployment to redeploy
+    // Get latest deployment to redeploy from
     const listUrl = `${BASE}/v6/deployments?projectId=${projectId}&limit=1${VERCEL_TEAM_ID ? `&teamId=${VERCEL_TEAM_ID}` : ""}`;
     const listRes = await fetch(listUrl, { headers: headers() });
     if (!listRes.ok) throw new Error(`Failed to list deployments: ${listRes.status}`);
@@ -32,19 +32,29 @@ export async function redeployVercelProject(projectId: string) {
     const latest = listData.deployments?.[0];
     if (!latest) throw new Error("No deployments found for project");
 
+    // Use the "redeploy from existing deployment" approach
     const url = `${BASE}/v13/deployments${VERCEL_TEAM_ID ? `?teamId=${VERCEL_TEAM_ID}` : ""}`;
+
+    const body: Record<string, unknown> = {
+        name: latest.name,
+        deploymentId: latest.uid,
+        target: "production",
+        meta: { action: "redeploy" },
+    };
+
+    // Only include gitSource if available
+    if (latest.gitSource) {
+        body.gitSource = latest.gitSource;
+    }
+
     const res = await fetch(url, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({
-            name: latest.name,
-            target: "production",
-            gitSource: latest.gitSource,
-        }),
+        body: JSON.stringify(body),
     });
     if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Vercel redeploy failed: ${res.status} ${body}`);
+        const errBody = await res.text();
+        throw new Error(`Vercel redeploy failed: ${res.status} ${errBody}`);
     }
     return res.json();
 }
