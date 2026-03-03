@@ -61,7 +61,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             data: { status: "running", lastRunAt: new Date() },
         });
 
-        // Forward to agent server
+        // Forward to agent server — prefer gateway (single tunnel), fall back to per-agent URLs
+        const gateway = process.env.AGENT_GATEWAY_URL;
         const urlMap: Record<string, string | undefined> = {
             lead_scraper: process.env.LEAD_SCRAPER_URL,
             cold_outreach: process.env.COLD_OUTREACH_URL,
@@ -69,7 +70,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blog_writer: process.env.BLOG_AGENT_URL,
         };
 
-        const agentUrl = urlMap[agent.slug];
+        const agentUrl = gateway
+            ? `${gateway}/${agent.slug}`
+            : urlMap[agent.slug];
+
         if (agentUrl) {
             try {
                 await fetch(`${agentUrl}/run`, {
