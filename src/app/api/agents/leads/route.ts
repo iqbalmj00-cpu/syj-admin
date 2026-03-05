@@ -93,8 +93,17 @@ export async function POST(req: NextRequest) {
 
         for (const lead of leads) {
             try {
-                // Strip agentRunId from lead data and add validated one
-                const leadData = { ...lead, agentRunId: validRunId };
+                // Build update data — only include non-null fields to preserve existing data
+                const updateData: Record<string, unknown> = {};
+                const createData = { ...lead, agentRunId: validRunId };
+
+                // Only overwrite fields that have real values (don't null out existing data)
+                for (const [key, value] of Object.entries(lead)) {
+                    if (value !== null && value !== undefined && value !== "") {
+                        updateData[key] = value;
+                    }
+                }
+                if (validRunId) updateData.agentRunId = validRunId;
 
                 if (lead.googlePlaceId) {
                     // Upsert by googlePlaceId
@@ -102,12 +111,24 @@ export async function POST(req: NextRequest) {
                     if (existing) {
                         await prisma.scrapedLead.update({
                             where: { googlePlaceId: lead.googlePlaceId },
-                            data: { ...leadData, agentRunId: validRunId || existing.agentRunId },
+                            data: updateData,
                         });
                         updated++;
                     } else {
-                        await prisma.scrapedLead.create({ data: leadData });
-                        created++;
+                        // Also check by name+market in case googlePlaceId changed format
+                        const byName = await prisma.scrapedLead.findFirst({
+                            where: { name: lead.name, market: lead.market },
+                        });
+                        if (byName) {
+                            await prisma.scrapedLead.update({
+                                where: { id: byName.id },
+                                data: updateData,
+                            });
+                            updated++;
+                        } else {
+                            await prisma.scrapedLead.create({ data: createData });
+                            created++;
+                        }
                     }
                 } else {
                     // No googlePlaceId — check by name + market to avoid duplicates
@@ -117,11 +138,11 @@ export async function POST(req: NextRequest) {
                     if (existing) {
                         await prisma.scrapedLead.update({
                             where: { id: existing.id },
-                            data: { ...leadData, agentRunId: validRunId || existing.agentRunId },
+                            data: updateData,
                         });
                         updated++;
                     } else {
-                        await prisma.scrapedLead.create({ data: leadData });
+                        await prisma.scrapedLead.create({ data: createData });
                         created++;
                     }
                 }
