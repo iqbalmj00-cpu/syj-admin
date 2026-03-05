@@ -151,6 +151,13 @@ export default function AgentsPage() {
     const [outreachFilter, setOutreachFilter] = useState<string>("all");
     const [blogStatusFilter, setBlogStatusFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
+    const [leadsPage, setLeadsPage] = useState(1);
+    const [leadsTotal, setLeadsTotal] = useState(0);
+    const [leadsSortBy, setLeadsSortBy] = useState("createdAt");
+    const [leadsSortOrder, setLeadsSortOrder] = useState<"asc" | "desc">("desc");
+    const [marketFilter, setMarketFilter] = useState("all");
+    const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+    const LEADS_PER_PAGE = 50;
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -166,16 +173,22 @@ export default function AgentsPage() {
             const params = new URLSearchParams();
             if (gradeFilter !== "all") params.set("grade", gradeFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
+            if (marketFilter !== "all") params.set("market", marketFilter);
             if (searchQuery) params.set("search", searchQuery);
-            params.set("limit", "100");
+            params.set("page", String(leadsPage));
+            params.set("limit", String(LEADS_PER_PAGE));
+            params.set("sortBy", leadsSortBy);
+            params.set("sortOrder", leadsSortOrder);
             const res = await fetch(`/api/agents/leads?${params}`);
             if (res.ok) {
                 const data = await res.json();
                 setLeads(data.leads);
+                setLeadsTotal(data.total);
                 setFunnel(data.funnel);
+                if (data.markets) setAvailableMarkets(data.markets);
             }
         } catch { /* ignore */ }
-    }, [gradeFilter, outreachFilter, searchQuery]);
+    }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder]);
 
     const fetchBlogs = useCallback(async () => {
         try {
@@ -209,7 +222,8 @@ export default function AgentsPage() {
         return () => clearInterval(interval);
     }, [agents, fetchAgents]);
 
-    useEffect(() => { if (!loading) fetchLeads(); }, [gradeFilter, outreachFilter, searchQuery, fetchLeads, loading]);
+    useEffect(() => { if (!loading) { setLeadsPage(1); } }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsSortBy, leadsSortOrder, loading]);
+    useEffect(() => { if (!loading) fetchLeads(); }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder, fetchLeads, loading]);
     useEffect(() => { if (!loading) fetchBlogs(); }, [blogStatusFilter, fetchBlogs, loading]);
 
     const triggerRun = async (agentId: string) => {
@@ -289,7 +303,10 @@ export default function AgentsPage() {
                 <LeadsTab leads={leads} funnel={funnel}
                     gradeFilter={gradeFilter} setGradeFilter={setGradeFilter}
                     outreachFilter={outreachFilter} setOutreachFilter={setOutreachFilter}
-                    searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+                    marketFilter={marketFilter} setMarketFilter={setMarketFilter}
+                    searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+                    page={leadsPage} setPage={setLeadsPage} total={leadsTotal} perPage={LEADS_PER_PAGE}
+                    sortBy={leadsSortBy} setSortBy={setLeadsSortBy} sortOrder={leadsSortOrder} setSortOrder={setLeadsSortOrder} />
             )}
             {tab === "messages" && <MessagesTab />}
             {tab === "syj_blogs" && (
@@ -714,12 +731,36 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     );
 }
 
-function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, searchQuery, setSearchQuery }: {
+function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder }: {
     leads: Lead[]; funnel: FunnelData;
     gradeFilter: string; setGradeFilter: (v: string) => void;
     outreachFilter: string; setOutreachFilter: (v: string) => void;
+    marketFilter: string; setMarketFilter: (v: string) => void;
     searchQuery: string; setSearchQuery: (v: string) => void;
+    page: number; setPage: (v: number) => void; total: number; perPage: number;
+    sortBy: string; setSortBy: (v: string) => void; sortOrder: "asc" | "desc"; setSortOrder: (v: "asc" | "desc") => void;
 }) {
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+    const handleSort = (field: string) => {
+        if (sortBy === field) {
+            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+        } else {
+            setSortBy(field);
+            setSortOrder(field === "name" || field === "market" ? "asc" : "desc");
+        }
+    };
+
+    const SortHeader = ({ label, field }: { label: string; field: string }) => (
+        <th className="table-head" onClick={() => handleSort(field)}
+            style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+            {label} {sortBy === field ? (sortOrder === "asc" ? "▲" : "▼") : <span style={{ opacity: 0.25 }}>⇅</span>}
+        </th>
+    );
+
+    // Collect unique markets from leads for the market dropdown
+    const uniqueMarkets = Array.from(new Set(leads.map(l => l.market))).sort();
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Funnel KPIs */}
@@ -753,6 +794,16 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                 {["all", "new", "emailed", "sms_sent", "replied", "converted"].map(s => (
                     <FilterChip key={s} label={s === "all" ? "All" : s.replace("_", " ")} active={outreachFilter === s} onClick={() => setOutreachFilter(s)} />
                 ))}
+                <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
+                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Market:</span>
+                <select value={marketFilter} onChange={e => setMarketFilter(e.target.value)}
+                    style={{
+                        padding: "5px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 8,
+                        background: "var(--white)", color: "var(--text)", cursor: "pointer", outline: "none",
+                    }}>
+                    <option value="all">All Markets</option>
+                    {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
                 <div style={{ flex: 1 }} />
                 <input placeholder="Search leads..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                     style={{
@@ -767,9 +818,14 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                     <table>
                         <thead>
                             <tr>
-                                {["Company", "Market", "Grade", "Score", "Website", "Phone", "Outreach", "Pain Points"].map(h => (
-                                    <th key={h} className="table-head">{h}</th>
-                                ))}
+                                <SortHeader label="Company" field="name" />
+                                <SortHeader label="Market" field="market" />
+                                <SortHeader label="Grade" field="grade" />
+                                <SortHeader label="Score" field="leadScore" />
+                                <th className="table-head">Website</th>
+                                <th className="table-head">Phone</th>
+                                <SortHeader label="Outreach" field="outreachStatus" />
+                                <th className="table-head">Pain Points</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -797,6 +853,27 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                     </table>
                     {leads.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No leads found. Run the Lead Scraper agent to discover leads.</div>}
                 </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
+                        <span style={{ fontSize: 13, color: "var(--text-light)" }}>
+                            Showing {((page - 1) * perPage) + 1}–{Math.min(page * perPage, total)} of {total} leads
+                        </span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
+                                style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 8, cursor: page <= 1 ? "not-allowed" : "pointer", background: "var(--white)", color: page <= 1 ? "var(--text-faint)" : "var(--text)", opacity: page <= 1 ? 0.5 : 1 }}>
+                                ← Previous
+                            </button>
+                            <span style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "var(--orange)", fontFamily: "var(--font-heading)" }}>
+                                Page {page} of {totalPages}
+                            </span>
+                            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}
+                                style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 8, cursor: page >= totalPages ? "not-allowed" : "pointer", background: "var(--white)", color: page >= totalPages ? "var(--text-faint)" : "var(--text)", opacity: page >= totalPages ? 0.5 : 1 }}>
+                                Next →
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
