@@ -184,3 +184,24 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: "Failed to update lead" }, { status: 500 });
     }
 }
+
+// DELETE /api/agents/leads — Bulk delete leads by IDs
+export async function DELETE(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { ids } = body;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: "ids array is required" }, { status: 400 });
+        }
+
+        const result = await prisma.scrapedLead.deleteMany({
+            where: { id: { in: ids } },
+        });
+
+        return NextResponse.json({ deleted: result.count });
+    } catch (err) {
+        console.error("DELETE /api/agents/leads error:", err);
+        return NextResponse.json({ error: "Failed to delete leads" }, { status: 500 });
+    }
+}

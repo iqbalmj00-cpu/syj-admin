@@ -306,7 +306,8 @@ export default function AgentsPage() {
                     marketFilter={marketFilter} setMarketFilter={setMarketFilter}
                     searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                     page={leadsPage} setPage={setLeadsPage} total={leadsTotal} perPage={LEADS_PER_PAGE}
-                    sortBy={leadsSortBy} setSortBy={setLeadsSortBy} sortOrder={leadsSortOrder} setSortOrder={setLeadsSortOrder} />
+                    sortBy={leadsSortBy} setSortBy={setLeadsSortBy} sortOrder={leadsSortOrder} setSortOrder={setLeadsSortOrder}
+                    availableMarkets={availableMarkets} onRefresh={fetchLeads} showToast={showToast} />
             )}
             {tab === "messages" && <MessagesTab />}
             {tab === "syj_blogs" && (
@@ -731,7 +732,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     );
 }
 
-function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder }: {
+function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder, availableMarkets, onRefresh, showToast }: {
     leads: Lead[]; funnel: FunnelData;
     gradeFilter: string; setGradeFilter: (v: string) => void;
     outreachFilter: string; setOutreachFilter: (v: string) => void;
@@ -739,8 +740,82 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
     searchQuery: string; setSearchQuery: (v: string) => void;
     page: number; setPage: (v: number) => void; total: number; perPage: number;
     sortBy: string; setSortBy: (v: string) => void; sortOrder: "asc" | "desc"; setSortOrder: (v: "asc" | "desc") => void;
+    availableMarkets: string[]; onRefresh: () => void; showToast: (msg: string, type?: string) => void;
 }) {
     const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [deleting, setDeleting] = useState(false);
+    const [sendingOutreach, setSendingOutreach] = useState(false);
+
+    const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (allOnPageSelected) {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                leads.forEach(l => next.delete(l.id));
+                return next;
+            });
+        } else {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                leads.forEach(l => next.add(l.id));
+                return next;
+            });
+        }
+    };
+
+    const deleteSelected = async () => {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`Delete ${selectedIds.size} lead(s)? This cannot be undone.`)) return;
+        setDeleting(true);
+        try {
+            const res = await fetch("/api/agents/leads", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: Array.from(selectedIds) }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                showToast(`Deleted ${data.deleted} lead(s)`);
+                setSelectedIds(new Set());
+                onRefresh();
+            } else {
+                showToast("Failed to delete leads", "error");
+            }
+        } catch { showToast("Failed to delete leads", "error"); }
+        setDeleting(false);
+    };
+
+    const sendToOutreach = async () => {
+        if (selectedIds.size === 0) return;
+        setSendingOutreach(true);
+        try {
+            const selectedLeads = leads.filter(l => selectedIds.has(l.id));
+            const res = await fetch("/api/agents/outreach", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadIds: Array.from(selectedIds), leads: selectedLeads }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                showToast(`Sent ${data.queued || selectedIds.size} lead(s) to outreach`);
+                setSelectedIds(new Set());
+                onRefresh();
+            } else {
+                showToast("Failed to send to outreach", "error");
+            }
+        } catch { showToast("Failed to send to outreach", "error"); }
+        setSendingOutreach(false);
+    };
 
     const handleSort = (field: string) => {
         if (sortBy === field) {
@@ -757,9 +832,6 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
             {label} {sortBy === field ? (sortOrder === "asc" ? "▲" : "▼") : <span style={{ opacity: 0.25 }}>⇅</span>}
         </th>
     );
-
-    // Collect unique markets from leads for the market dropdown
-    const uniqueMarkets = Array.from(new Set(leads.map(l => l.market))).sort();
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -783,6 +855,34 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                 ))}
             </div>
 
+            {/* Bulk Actions Bar */}
+            {selectedIds.size > 0 && (
+                <div style={{
+                    display: "flex", alignItems: "center", gap: 12, padding: "10px 16px",
+                    background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.2)",
+                    borderRadius: 10,
+                }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                        {selectedIds.size} lead{selectedIds.size > 1 ? "s" : ""} selected
+                    </span>
+                    <div style={{ flex: 1 }} />
+                    <button onClick={sendToOutreach} disabled={sendingOutreach}
+                        style={{
+                            padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
+                            background: "#2563EB", color: "#fff", cursor: "pointer", opacity: sendingOutreach ? 0.6 : 1,
+                        }}>
+                        {sendingOutreach ? "Sending..." : "📧 Send to Outreach"}
+                    </button>
+                    <button onClick={deleteSelected} disabled={deleting}
+                        style={{
+                            padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
+                            background: "#EF4444", color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1,
+                        }}>
+                        {deleting ? "Deleting..." : "🗑 Delete"}
+                    </button>
+                </div>
+            )}
+
             {/* Filters */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Grade:</span>
@@ -802,7 +902,7 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                         background: "var(--white)", color: "var(--text)", cursor: "pointer", outline: "none",
                     }}>
                     <option value="all">All Markets</option>
-                    {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
+                    {availableMarkets.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
                 <div style={{ flex: 1 }} />
                 <input placeholder="Search leads..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
@@ -818,6 +918,10 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                     <table>
                         <thead>
                             <tr>
+                                <th className="table-head" style={{ width: 36, textAlign: "center" }}>
+                                    <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll}
+                                        style={{ cursor: "pointer", accentColor: "var(--orange)" }} />
+                                </th>
                                 <SortHeader label="Company" field="name" />
                                 <SortHeader label="Market" field="market" />
                                 <SortHeader label="Grade" field="grade" />
@@ -832,8 +936,13 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                             {leads.map(l => {
                                 const gm = GRADE_MAP[l.grade] || GRADE_MAP.C;
                                 const om = OUTREACH_MAP[l.outreachStatus] || OUTREACH_MAP.new;
+                                const isSelected = selectedIds.has(l.id);
                                 return (
-                                    <tr key={l.id} className="table-row">
+                                    <tr key={l.id} className="table-row" style={{ background: isSelected ? "rgba(255,107,0,0.04)" : undefined }}>
+                                        <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(l.id)}
+                                                style={{ cursor: "pointer", accentColor: "var(--orange)" }} />
+                                        </td>
                                         <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>{l.name}</td>
                                         <td style={{ padding: "10px 14px", fontSize: 12 }}>{l.market}</td>
                                         <td style={{ padding: "10px 14px" }}><Badge bg={gm.bg} color={gm.color} label={l.grade} /></td>
