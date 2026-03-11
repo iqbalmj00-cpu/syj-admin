@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface Site {
     id: string;
@@ -42,9 +42,20 @@ export default function WebsitesPage() {
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
     const [redeployingId, setRedeployingId] = useState<string | null>(null);
 
-    useEffect(() => {
+    const fetchSites = useCallback(() => {
         fetch("/api/websites").then(r => r.json()).then(data => { setSites(data); setLoading(false); }).catch(() => setLoading(false));
     }, []);
+
+    // Initial fetch
+    useEffect(() => { fetchSites(); }, [fetchSites]);
+
+    // Auto-poll every 10s while any site is building
+    useEffect(() => {
+        const hasBuilding = sites.some(s => s.deployStatus === "building");
+        if (!hasBuilding) return;
+        const interval = setInterval(fetchSites, 10000);
+        return () => clearInterval(interval);
+    }, [sites, fetchSites]);
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
