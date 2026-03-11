@@ -40,18 +40,31 @@ export default function WebsitesPage() {
     const [sites, setSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+    const [redeployingId, setRedeployingId] = useState<string | null>(null);
 
     useEffect(() => {
         fetch("/api/websites").then(r => r.json()).then(data => { setSites(data); setLoading(false); }).catch(() => setLoading(false));
     }, []);
 
-    const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+    const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
     async function redeploy(siteId: string) {
+        setRedeployingId(siteId);
         try {
             const res = await fetch(`/api/websites/${siteId}/redeploy`, { method: "POST" });
-            if (res.ok) { showToast("Redeploy triggered"); } else { showToast("Redeploy failed", "error"); }
+            const data = await res.json();
+            if (res.ok) {
+                const msg = data.imagesRegenerated > 0
+                    ? `Regenerated ${data.imagesRegenerated} image${data.imagesRegenerated !== 1 ? "s" : ""} & redeployed ${data.client || ""}`
+                    : "Redeploy triggered";
+                showToast(msg);
+                // Refresh site list to show "building" status
+                fetch("/api/websites").then(r => r.json()).then(setSites).catch(() => {});
+            } else {
+                showToast(data.error || "Redeploy failed", "error");
+            }
         } catch { showToast("Redeploy failed", "error"); }
+        setRedeployingId(null);
     }
 
     if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>;
@@ -71,7 +84,6 @@ export default function WebsitesPage() {
             <div className="card">
                 <div className="card-header">
                     <h3>All Client Websites</h3>
-                    <button className="btn btn-xs btn-primary" onClick={() => showToast("Bulk redeploy triggered for all sites")}>Bulk Redeploy All</button>
                 </div>
                 <div className="card-body no-pad" style={{ overflowX: "auto" }}>
                     <table>
@@ -85,8 +97,9 @@ export default function WebsitesPage() {
                         <tbody>
                             {sites.map(s => {
                                 const st = SITE_MAP[s.deployStatus] || SITE_MAP.error;
+                                const isRedeploying = redeployingId === s.id;
                                 return (
-                                    <tr key={s.id} className="table-row">
+                                    <tr key={s.id} className="table-row" style={isRedeploying ? { opacity: 0.7 } : undefined}>
                                         <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>{s.company}</td>
                                         <td style={{ padding: "10px 14px" }}>
                                             <span style={{ fontFamily: "monospace", fontSize: 12, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>
@@ -100,7 +113,23 @@ export default function WebsitesPage() {
                                         <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{fmtDateTime(s.deployedAt)}</td>
                                         <td style={{ padding: "10px 14px" }}>
                                             <div style={{ display: "flex", gap: 4 }}>
-                                                <button className="btn btn-xs btn-ghost" onClick={() => redeploy(s.id)}>Redeploy</button>
+                                                <button
+                                                    className="btn btn-xs btn-ghost"
+                                                    onClick={() => redeploy(s.id)}
+                                                    disabled={isRedeploying}
+                                                    style={isRedeploying ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+                                                >
+                                                    {isRedeploying ? (
+                                                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                            <span className="spinner" style={{
+                                                                display: "inline-block", width: 12, height: 12,
+                                                                border: "2px solid var(--text-faint)", borderTopColor: "transparent",
+                                                                borderRadius: "50%", animation: "spin 0.8s linear infinite",
+                                                            }} />
+                                                            Generating...
+                                                        </span>
+                                                    ) : "Redeploy"}
+                                                </button>
                                                 {s.websiteUrl && (
                                                     <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>Visit</a>
                                                 )}
@@ -116,6 +145,9 @@ export default function WebsitesPage() {
             </div>
 
             {toast && <div className="toast" style={{ background: toast.type === "error" ? "var(--danger)" : "var(--success)" }}>{toast.msg}</div>}
+
+            {/* Spinner keyframes */}
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }

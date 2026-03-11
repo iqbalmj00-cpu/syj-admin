@@ -1369,9 +1369,14 @@ model WebsiteConfig {
   brandColor      String    @default("#FF6B00")
   logoUrl         String?
   heroImageUrl    String?
+  logoPrompt      String?   @db.Text            // AI image gen prompt for logo
+  heroPrompt      String?   @db.Text            // AI image gen prompt for hero image
+  theme           String    @default("classic") // classic | industrial | eco | editorial
+  pricingConfig   Json?                         // { truckSize, fullLoadPrice, tiers, surcharges }
   tagline         String?
   services        String[]                      // selected service slugs
   testimonials    Json?                         // [{name, body, rating}]
+  imageGenProgress Json?                        // { completed: string[], total: number, urls: {}, retries: {} }
   gaTrackingId    String?
   vercelProjectId String?
   deployStatus    String    @default("pending") // pending | building | live | error
