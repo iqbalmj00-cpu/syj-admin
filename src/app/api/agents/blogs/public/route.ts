@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         // ── Single blog by slug ───────────────────────────────────────
         if (slug) {
             const post = await prisma.blogPost.findFirst({
-                where: { slug, target: "clients" },
+                where: { slug, target: "clients", status: "published" },
             });
 
             if (!post) {
