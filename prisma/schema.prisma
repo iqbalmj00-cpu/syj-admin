@@ -1150,11 +1150,16 @@ model CompanyProfile {
   logoUrl         String?
   address         String?
   phone           String?
+  forwardingPhone String?              // operator's real direct phone for call handoff
   email           String?
+  city            String?              // primary city from onboarding Step 1
+  state           String?              // state abbreviation (e.g. "TX")
+  serviceArea     String?              // comma-separated cities served
   timezone        String   @default("America/Chicago")
   businessHours   Json? // { mon: { start: "08:00", end: "18:00" }, ... }
   serviceAreaZips String[]
   invoiceFooter   String?  @db.Text // custom invoice terms/footer
+  dumpsterRentalsEnabled Boolean @default(false) // toggles dumpster rental module visibility
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
