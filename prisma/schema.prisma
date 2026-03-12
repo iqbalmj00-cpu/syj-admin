@@ -176,7 +176,7 @@ model Lead {
   interestScore     Float? // 0–1 engagement score
   lastAiMessage     String?        @db.Text // last AI-generated message
   customerId        String?
-  customer          Customer?      @relation(fields: [customerId], references: [id])
+  customer          Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   jobs              Job[]
   chatMessages      ChatMessage[]
   followUpTasks     FollowUpTask[]
@@ -262,7 +262,7 @@ model QuoteSession {
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId       String?
-  customer         Customer? @relation(fields: [customerId], references: [id])
+  customer         Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerName     String?
   customerEmail    String?
   customerPhone    String?
@@ -330,7 +330,7 @@ model Customer {
   estimates        Estimate[]
   customerNotes    CustomerNote[]
   parentId         String?
-  parent           Customer?       @relation("CustomerParent", fields: [parentId], references: [id])
+  parent           Customer?       @relation("CustomerParent", fields: [parentId], references: [id], onDelete: SetNull)
   children         Customer[]      @relation("CustomerParent")
   archivedAt       DateTime?
   reviews          Review[]
@@ -394,13 +394,13 @@ model Job {
   userId               String
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId           String?
-  customer             Customer?           @relation(fields: [customerId], references: [id])
+  customer             Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   leadId               String?
-  lead                 Lead?               @relation(fields: [leadId], references: [id])
+  lead                 Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
   truckId              String?
-  truck                Truck?              @relation(fields: [truckId], references: [id])
+  truck                Truck?              @relation(fields: [truckId], references: [id], onDelete: SetNull)
   locationId           String?
-  location             Location?           @relation(fields: [locationId], references: [id])
+  location             Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
   title                String // "Garage Cleanout"
   address              String? // freeform address (coexists with locationId)
   accessNotes          String?             @db.Text // gate codes, dog warnings
@@ -434,7 +434,7 @@ model Job {
   cancelledAt          DateTime? // when job was cancelled
   cancelReason         String? // reason for cancellation
   recurringSeriesId    String? // FK to RecurringJobSeries
-  recurringJobSeries   RecurringJobSeries? @relation(fields: [recurringSeriesId], references: [id])
+  recurringJobSeries   RecurringJobSeries? @relation(fields: [recurringSeriesId], references: [id], onDelete: SetNull)
   tags                 String[] // job type tags (garage_cleanout, estate, etc.)
   items                JobItem[]
   invoices             Invoice[]
@@ -475,9 +475,9 @@ model Invoice {
   userId                String
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId            String?
-  customer              Customer?         @relation(fields: [customerId], references: [id])
+  customer              Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   jobId                 String?
-  job                   Job?              @relation(fields: [jobId], references: [id])
+  job                   Job?              @relation(fields: [jobId], references: [id], onDelete: SetNull)
   invoiceNumber         Int
   status                String            @default("draft") // draft | sent | viewed | paid | overdue | refunded
   subtotal              Float             @default(0)
@@ -574,7 +574,7 @@ model Staff {
   address                String?
   crewAssignments        CrewAssignment[]
   defaultTruckId         String?
-  defaultTruck           Truck?              @relation("DefaultCrew", fields: [defaultTruckId], references: [id])
+  defaultTruck           Truck?              @relation("DefaultCrew", fields: [defaultTruckId], references: [id], onDelete: SetNull)
   shiftSegments          ShiftSegment[]
   dumpTickets            DumpTicket[]
   expenses               Expense[]
@@ -632,7 +632,7 @@ model ShiftSegment {
   staffId     String
   staff       Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
   truckId     String?
-  truck       Truck?    @relation(fields: [truckId], references: [id])
+  truck       Truck?    @relation(fields: [truckId], references: [id], onDelete: SetNull)
   clockIn     DateTime
   clockOut    DateTime?
   clockInLat  Float?
@@ -678,11 +678,11 @@ model DumpTicket {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   truckId   String?
-  truck     Truck?   @relation(fields: [truckId], references: [id])
+  truck     Truck?   @relation(fields: [truckId], references: [id], onDelete: SetNull)
   driverId  String?
   driver    Staff?   @relation(fields: [driverId], references: [id], onDelete: SetNull)
   jobId     String?
-  job       Job?     @relation(fields: [jobId], references: [id])
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
   photoUrl  String? // receipt photo
   amount    Float // manual amount entry (no OCR)
   dumpSite  String? // facility name
@@ -766,7 +766,7 @@ model Review {
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId   String?
-  customer     Customer? @relation(fields: [customerId], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   platform     String    @default("google") // google | yelp | internal
   reviewerName String
   rating       Int // 1–5
@@ -938,9 +938,9 @@ model Expense {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   staffId    String?
-  staff      Staff?   @relation(fields: [staffId], references: [id])
+  staff      Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
   truckId    String?
-  truck      Truck?   @relation(fields: [truckId], references: [id])
+  truck      Truck?   @relation(fields: [truckId], references: [id], onDelete: SetNull)
   category   String // fuel | tolls | supplies | other
   amount     Float
   receiptUrl String? // optional receipt photo (via Cloudinary)
@@ -961,11 +961,11 @@ model Incident {
   userId                String
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   staffId               String
-  staff                 Staff     @relation(fields: [staffId], references: [id])
+  staff                 Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
   truckId               String?
-  truck                 Truck?    @relation(fields: [truckId], references: [id])
+  truck                 Truck?    @relation(fields: [truckId], references: [id], onDelete: SetNull)
   jobId                 String?
-  job                   Job?      @relation(fields: [jobId], references: [id])
+  job                   Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
   type                  String // vehicle_accident | property_damage | injury | near_miss
   description           String    @db.Text
   photos                String[] // array of Cloudinary URLs (min 3)
@@ -992,11 +992,11 @@ model Estimate {
   userId           String
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId       String?
-  customer         Customer?      @relation(fields: [customerId], references: [id])
+  customer         Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   staffId          String
-  staff            Staff          @relation(fields: [staffId], references: [id])
+  staff            Staff          @relation(fields: [staffId], references: [id], onDelete: Cascade)
   jobId            String?        @unique
-  job              Job?           @relation(fields: [jobId], references: [id])
+  job              Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
   status           String         @default("draft") // draft | sent | accepted | expired
   subtotal         Float          @default(0)
   taxRate          Float          @default(8.25)
@@ -1105,7 +1105,7 @@ model RecurringJobSeries {
   active          Boolean   @default(true)
   // ── 19-Feature: Job template fields ──
   customerId      String?
-  customer        Customer? @relation(fields: [customerId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   title           String?   // template job title
   address         String?
   jobType         String?   @default("pickup")
@@ -1169,7 +1169,7 @@ model PreTripInspection {
   truckId   String
   truck     Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
   staffId   String
-  staff     Staff    @relation(fields: [staffId], references: [id])
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
   date      DateTime @db.Date
   items     Json // { tires: true, brakes: true, lights: true, liftgate: true, fluids: true, safetyEquipment: true }
   passed    Boolean  @default(true)
@@ -1260,11 +1260,11 @@ model FollowUpTask {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   leadId      String?
-  lead        Lead?     @relation(fields: [leadId], references: [id])
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
   jobId       String?
-  job         Job?      @relation(fields: [jobId], references: [id])
+  job         Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
   customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   title       String
   dueAt       DateTime
   completed   Boolean   @default(false)
@@ -1284,7 +1284,7 @@ model TaxRate {
   region    String? // "TX", "CA", etc.
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
-  job       Job?     @relation(fields: [jobId], references: [id])
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
   jobId     String?
 
   @@index([userId])
@@ -1332,7 +1332,7 @@ model JobCrewAssignment {
   jobId     String
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   staffId   String
-  staff     Staff    @relation(fields: [staffId], references: [id])
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
   role      String   @default("laborer") // driver | laborer | foreman
   createdAt DateTime @default(now())
 
