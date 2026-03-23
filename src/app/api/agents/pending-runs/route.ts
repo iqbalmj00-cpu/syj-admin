@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const STUCK_THRESHOLD_MS = 45 * 60 * 1000; // 45 minutes
+const STUCK_THRESHOLD_MS = 150 * 60 * 1000; // 150 minutes (2.5 hours — allows for 2h scraper timeout + buffer)
 
 // GET /api/agents/pending-runs?slug=lead_scraper&secret=xxx
 // Returns the oldest unclaimed run for polling-based agents.

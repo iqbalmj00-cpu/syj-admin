@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
+    const companyType = searchParams.get("companyType"); // "junk_removal" or "junk_removal,dumpster_rental"
     const outreachStatus = searchParams.get("outreachStatus"); // "new" or "new,emailed"
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
@@ -14,13 +15,14 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount"];
+    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
 
     try {
         const where: Record<string, unknown> = {};
         if (grade) where.grade = { in: grade.split(",") };
         if (market) where.market = market;
+        if (companyType) where.companyType = { in: companyType.split(",") };
         if (outreachStatus) where.outreachStatus = { in: outreachStatus.split(",") };
         if (search) {
             where.OR = [
@@ -56,7 +58,14 @@ export async function GET(req: NextRequest) {
         });
         const markets = marketGroups.map(m => m.market).filter(Boolean).sort();
 
-        return NextResponse.json({ leads, total, page, limit, funnel, markets });
+        // Get company type stats for filter
+        const typeGroups = await prisma.scrapedLead.groupBy({
+            by: ["companyType"],
+            _count: true,
+        });
+        const companyTypes = typeGroups.map(t => ({ type: t.companyType, count: t._count }));
+
+        return NextResponse.json({ leads, total, page, limit, funnel, markets, companyTypes });
     } catch (err) {
         console.error("GET /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 });

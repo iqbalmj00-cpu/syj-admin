@@ -90,12 +90,17 @@ function buildClientBlog(post: {
             ],
             sections: content.sections || [],
             faq: content.faq || [],
-            cta: content.cta || {
-                heading: "Ready to Get Started?",
-                body: "Book your junk removal pickup today — fast, easy, and affordable.",
-                buttonLabel: "Book Now",
-                buttonHref: "/book",
-            },
+            cta: (() => {
+                const cta = content.cta as Record<string, unknown> | undefined;
+                if (!cta) return { heading: "Ready to Get Started?", body: "Book your junk removal pickup today — fast, easy, and affordable.", buttonLabel: "Book Now", buttonHref: "/book" };
+                // Handle both new format (headline/description/primaryButton) and old (heading/body/buttonLabel/buttonHref)
+                return {
+                    heading: (cta.heading || cta.headline || "Ready to Get Started?") as string,
+                    body: (cta.body || cta.description || "") as string,
+                    buttonLabel: ((cta.primaryButton as Record<string, string>)?.label || cta.buttonLabel || "Book Now") as string,
+                    buttonHref: ((cta.primaryButton as Record<string, string>)?.href || cta.buttonHref || "/book") as string,
+                };
+            })(),
             structuredData: content.structuredData || null,
             relatedPages: content.relatedPages || [],
             meta: content.meta || {

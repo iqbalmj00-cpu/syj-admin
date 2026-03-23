@@ -148,14 +148,14 @@ async function publishSyjBlogToGitHub(post: {
         ],
         sections: content.sections || [],
         faq: content.faq || [],
-        // Transform relatedPages: agent → { label, href }, SYJ → { type, title, description, href }
+        // Transform relatedPages: agent may send { type, title, description, href } (new) or { label, href } (old)
         relatedPages: relatedPages.map((p) => ({
-            type: p.type || "page",
+            type: p.type || "Feature",
             title: p.title || p.label || "Related",
             description: p.description || "",
             href: p.href || "/",
         })),
-        // Transform CTA: agent → { heading, body, buttonLabel, buttonHref }, SYJ → { headline, description, primaryButton }
+        // Transform CTA: agent may send new format { headline, description, primaryButton } or old { heading, body, buttonLabel, buttonHref }
         cta: cta
             ? {
                   headline: cta.headline || cta.heading || "Ready to Scale?",
@@ -164,8 +164,9 @@ async function publishSyjBlogToGitHub(post: {
                       label: (cta.primaryButton as Record<string, string>)?.label || (cta as Record<string, string>).buttonLabel || "Get Started",
                       href: (cta.primaryButton as Record<string, string>)?.href || (cta as Record<string, string>).buttonHref || "/signup",
                   },
+                  pricingSnippet: (cta as Record<string, string>).pricingSnippet || "$149/mo Starter | $299/mo Growth",
               }
-            : { headline: "Ready to Scale?", description: "Join hundreds of junk removal operators growing with ScaleYourJunk.", primaryButton: { label: "Sign Up Now", href: "/signup" } },
+            : { headline: "Ready to Scale?", description: "Join hundreds of junk removal operators growing with ScaleYourJunk.", primaryButton: { label: "Sign Up Now", href: "/signup" }, pricingSnippet: "$149/mo Starter | $299/mo Growth" },
         structuredData: content.structuredData || {
             "@context": "https://schema.org",
             "@type": "BlogPosting",

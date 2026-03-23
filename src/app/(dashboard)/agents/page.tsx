@@ -157,6 +157,7 @@ export default function AgentsPage() {
     const [leadsSortOrder, setLeadsSortOrder] = useState<"asc" | "desc">("desc");
     const [marketFilter, setMarketFilter] = useState("all");
     const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+    const [companyTypeFilter, setCompanyTypeFilter] = useState("all");
     const LEADS_PER_PAGE = 50;
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
@@ -174,6 +175,7 @@ export default function AgentsPage() {
             if (gradeFilter !== "all") params.set("grade", gradeFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
+            if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(leadsPage));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -188,7 +190,7 @@ export default function AgentsPage() {
                 if (data.markets) setAvailableMarkets(data.markets);
             }
         } catch { /* ignore */ }
-    }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder]);
 
     const fetchBlogs = useCallback(async () => {
         try {
@@ -287,7 +289,7 @@ export default function AgentsPage() {
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         padding: "10px 16px", background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.15)",
-                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: -8,
+                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontSize: 14 }}>💻</span>
@@ -295,6 +297,18 @@ export default function AgentsPage() {
                         </div>
                         <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText("bash ~/Documents/start_agents.sh"); showToast("Copied!"); }}
                             style={{ fontSize: 11, padding: "3px 8px", color: "var(--orange)" }}>📋 Copy</button>
+                    </div>
+                    <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 16px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)",
+                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: -8,
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14 }}>🔍</span>
+                            <span><strong>Lead Scraper only:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && uvicorn bridge:app --port 8001`}</code></span>
+                        </div>
+                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && uvicorn bridge:app --port 8001`); showToast("Copied!"); }}
+                            style={{ fontSize: 11, padding: "3px 8px", color: "rgb(59,130,246)" }}>📋 Copy</button>
                     </div>
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />
                 </>
@@ -304,6 +318,7 @@ export default function AgentsPage() {
                     gradeFilter={gradeFilter} setGradeFilter={setGradeFilter}
                     outreachFilter={outreachFilter} setOutreachFilter={setOutreachFilter}
                     marketFilter={marketFilter} setMarketFilter={setMarketFilter}
+                    companyTypeFilter={companyTypeFilter} setCompanyTypeFilter={setCompanyTypeFilter}
                     searchQuery={searchQuery} setSearchQuery={setSearchQuery}
                     page={leadsPage} setPage={setLeadsPage} total={leadsTotal} perPage={LEADS_PER_PAGE}
                     sortBy={leadsSortBy} setSortBy={setLeadsSortBy} sortOrder={leadsSortOrder} setSortOrder={setLeadsSortOrder}
@@ -732,11 +747,12 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     );
 }
 
-function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder, availableMarkets, onRefresh, showToast }: {
+function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, companyTypeFilter, setCompanyTypeFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder, availableMarkets, onRefresh, showToast }: {
     leads: Lead[]; funnel: FunnelData;
     gradeFilter: string; setGradeFilter: (v: string) => void;
     outreachFilter: string; setOutreachFilter: (v: string) => void;
     marketFilter: string; setMarketFilter: (v: string) => void;
+    companyTypeFilter: string; setCompanyTypeFilter: (v: string) => void;
     searchQuery: string; setSearchQuery: (v: string) => void;
     page: number; setPage: (v: number) => void; total: number; perPage: number;
     sortBy: string; setSortBy: (v: string) => void; sortOrder: "asc" | "desc"; setSortOrder: (v: "asc" | "desc") => void;
@@ -903,6 +919,18 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                     }}>
                     <option value="all">All Markets</option>
                     {availableMarkets.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Type:</span>
+                <select value={companyTypeFilter} onChange={e => setCompanyTypeFilter(e.target.value)}
+                    style={{
+                        padding: "5px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 8,
+                        background: "var(--white)", color: "var(--text)", cursor: "pointer", outline: "none",
+                    }}>
+                    <option value="all">All Types</option>
+                    <option value="junk_removal">Junk Removal</option>
+                    <option value="dumpster_rental">Dumpster Rental</option>
+                    <option value="demolition">Demolition</option>
+                    <option value="other">Other</option>
                 </select>
                 <div style={{ flex: 1 }} />
                 <input placeholder="Search leads..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
