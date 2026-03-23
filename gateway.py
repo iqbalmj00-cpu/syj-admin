@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 app = FastAPI(title="SYJ Agent Gateway")
 
 AGENT_PORTS = {
-    "lead_scraper": 8001,
+    # lead_scraper removed — it polls the dashboard directly, no gateway needed
     "cold_outreach": 8002,
     "content_generator": 8003,
     "blog_writer": 8004,
