@@ -305,9 +305,9 @@ export default function AgentsPage() {
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontSize: 14 }}>🔍</span>
-                            <span><strong>Lead Scraper only:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && uvicorn bridge:app --port 8001`}</code></span>
+                            <span><strong>Lead Scraper only:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`}</code></span>
                         </div>
-                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && uvicorn bridge:app --port 8001`); showToast("Copied!"); }}
+                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`); showToast("Copied!"); }}
                             style={{ fontSize: 11, padding: "3px 8px", color: "rgb(59,130,246)" }}>📋 Copy</button>
                     </div>
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />
