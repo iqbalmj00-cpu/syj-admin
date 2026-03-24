@@ -53,6 +53,8 @@ model User {
   gaRefreshToken       String?               @db.Text
   role                 String                @default("owner") // owner | admin | dispatcher | finance | csr | viewer
   orgId                String? // links team members to org owner's User.id
+  inviteToken          String?               @unique
+  inviteExpiresAt      DateTime?
   siteToken            String?               @unique @default(cuid())
   accounts             Account[]
   sessions             Session[]
@@ -81,6 +83,7 @@ model User {
   widgetConfig         WidgetConfig?
   automationConfig     AutomationConfig?
   integrations         Integration[]
+  webhookSubscriptions WebhookSubscription[]
   portalTokens         PortalToken[]         @relation("PortalTokens")
   expenses             Expense[]
   incidents            Incident[]
@@ -94,6 +97,8 @@ model User {
   companyProfile       CompanyProfile?
   dispatchMessages     DispatchMessage[]
   referrals            Referral[]
+  promoCodes           PromoCode[]
+  reviewGates          ReviewGate[]
   customFields         CustomField[]
   messageTemplates     MessageTemplate[]
   communications       Communication[]
@@ -106,6 +111,9 @@ model User {
   staffSchedules       StaffSchedule[]
   staffTimeOffs        StaffTimeOff[]
   maintenanceRecords   MaintenanceRecord[]
+  cancellationRecords  CancellationRecord[]
+  dumpFacilities       DumpFacility[]
+  durationConfig       DurationConfig?
   // ── Notification prefs ──
   onboardingComplete   Boolean               @default(false)
   notifyNewLead        Boolean               @default(true)
@@ -126,14 +134,24 @@ model User {
   cancelReason         String? // too_expensive | missing_features | switching | other
   cancelFeedback       String?               @db.Text
   retentionOfferShown  Boolean               @default(false)
+  dataDeletedAt        DateTime? // set by data-cleanup cron after 30-day purge
   lastLoginAt          DateTime? // last time owner viewed Command Center (for "new since" alerts)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   agentConfig          AgentConfig?
   taxRates             TaxRate[]
+  // ── Dumpster Rental relations ──
+  containers           Container[]
+  rentals              Rental[]
+  dumpsterPriceTiers   DumpsterPriceTier[]
+  dumpsterSurcharges   DumpsterSurcharge[]
+  // ── Document Storage & Broker relations ──
+  documents            Document[]
+  jobTemplates         CustomerJobTemplate[]
+  brokers              Broker[]
+  dispatchZones        DispatchZone[]
   // ── Admin Dashboard expansion relations ──
   agentErrorLogs       AgentErrorLog[]
-  cancellationRecords  CancellationRecord[]
   websiteHealthChecks  WebsiteHealthCheck[]
 }
 
@@ -150,6 +168,7 @@ model OnboardingSubmission {
   minLoadFee    Float?
   currentCRM    String?
   websiteURL    String?
+  websiteMode   String   @default("syj_hosted") // "syj_hosted" | "widget_embed"
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -181,11 +200,17 @@ model Lead {
   chatMessages      ChatMessage[]
   followUpTasks     FollowUpTask[]
   recoverySmsSentAt DateTime? // recovery SMS sent timestamp (max 1 per lead)
+  newLeadSmsSentAt  DateTime? // 10-min follow-up SMS timestamp (new + quoted leads)
   quotedAt          DateTime? // when lead was moved to "quoted" status
   // ── Phase 1 additions ──
   lostReason        String? // why lead was lost (e.g. price | timing | no_response)
   lostReasonNotes   String?        @db.Text // free-text detail for lost reason
   estimatedVolume   String? // display label like "~half truck"
+  // ── Dumpster Rental additions ──
+  serviceType       String         @default("junk_removal") // junk_removal | dumpster_rental
+  // ── Broker relation ──
+  brokerId          String?
+  broker            Broker?        @relation(fields: [brokerId], references: [id])
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 }
@@ -338,6 +363,19 @@ model Customer {
   communications      Communication[]
   followUpTasks       FollowUpTask[]
   recurringJobSeries  RecurringJobSeries[]
+  // ── Dumpster Rental relation ──
+  rentals             Rental[]
+  // ── Job Templates relation (commercial) ──
+  jobTemplates        CustomerJobTemplate[]
+  // ── Document Storage relation ──
+  documents           Document[]
+  // ── Portal notification preferences ──
+  notifyJobScheduled    Boolean         @default(true)
+  notifyDriverEnRoute   Boolean         @default(true)
+  notifyJobCompleted    Boolean         @default(true)
+  notifyInvoiceReady    Boolean         @default(true)
+  notifyChannel         String          @default("email") // email | sms | both
+  reviewGates         ReviewGate[]
   createdAt           DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -371,8 +409,19 @@ model Truck {
   // ── Phase 1 additions ──
   licensePlate        String? // vehicle plate number
   mileage             Int? // current odometer reading
+  fuelTankCost        Float    @default(100) // cost to fill tank in $ (legacy)
+  milesPerTank        Float    @default(500) // miles per full tank (legacy)
+  mpg                 Float?  // miles per gallon
+  fuelPricePerGallon  Float?  // per-truck fuel price
   lastMaintenanceDate DateTime? // last service date
   nextMaintenanceDate DateTime? // next scheduled service date
+  // ── Dumpster Rental additions ──
+  truckType           String              @default("junk_removal") // junk_removal | roll_off
+  maxContainerSizeCuYd Int? // max dumpster size this truck can haul (roll-off only)
+  currentContainerId  String? // container currently on the truck
+  // ── Fleet Telematics additions ──
+  telematicsVehicleId  String?
+  telematicsProvider   String?
   jobs                Job[]
   crewAssignments     CrewAssignment[]
   shiftSegments       ShiftSegment[]
@@ -416,15 +465,28 @@ model Job {
   actualVolumeTier     String? // QUARTER | HALF | THREE_QUARTER | FULL | OVERSIZE (driver-reported)
   status               String              @default("scheduled") // scheduled | en_route | working | completed | paid
   type                 String              @default("pickup") // pickup | onsite_estimate
+  jobCategory          String              @default("residential") // residential | commercial
   amountQuoted         Float?
+  amountQuotedMax      Float?
   amountPaid           Float               @default(0)
   // ── Master Plan additions ──
   disposalCost         Float? // actual dump fee
   laborCost            Float? // actual labor cost
   fuelCost             Float? // actual fuel cost
+  distanceMiles        Float?
   hasHeavyItems        Boolean             @default(false)
   hasPhotos            Boolean             @default(false)
   invoicedAt           DateTime? // when batch-invoiced
+  // ── Dispatch solver additions ──
+  predictedDuration    Int?     @default(30) // solver-estimated minutes
+  plannedDuration      Int?
+  actualDuration       Int?
+  accessComplexity     String   @default("standard")
+  floorLevel           Int      @default(1)
+  requiresDisassembly  Boolean  @default(false)
+  distanceFromTruck    String   @default("standard")
+  revenue              Float?
+  volumeConfidence     String   @default("estimated")
   // ── Phase 9 additions ──
   signatureUrl         String? // signed damage waiver image URL
   signedAt             DateTime? // when waiver was signed
@@ -436,6 +498,12 @@ model Job {
   recurringSeriesId    String? // FK to RecurringJobSeries
   recurringJobSeries   RecurringJobSeries? @relation(fields: [recurringSeriesId], references: [id], onDelete: SetNull)
   tags                 String[] // job type tags (garage_cleanout, estate, etc.)
+  poNumber             String?
+  // ── Dumpster Rental additions ──
+  rentalId             String? // FK to Rental (for rental-linked jobs)
+  rental               Rental?             @relation("RentalJobs", fields: [rentalId], references: [id])
+  liveLoadStartedAt    DateTime?
+  liveLoadEndedAt      DateTime?
   items                JobItem[]
   invoices             Invoice[]
   evidence             JobEvidence[]
@@ -449,8 +517,23 @@ model Job {
   checklistItems       ChecklistItem[]
   timerStartedAt       DateTime? // crew mode work timer
   completedAt          DateTime?
-  paymentStatus        String              @default("unpaid") // unpaid | pending | paid | collected | net_terms
+  enRouteAt            DateTime?
+  arrivedAt            DateTime?
+  startRouteLat        Float?
+  startRouteLng        Float?
+  arrivedLat           Float?
+  arrivedLng           Float?
+  paymentStatus        String              @default("unpaid")
   reviewRequestedAt    DateTime?
+  calendarEventId      String?
+  timeSlot             String?
+  // ── Broker & Document relations ──
+  brokerId             String?
+  broker               Broker?             @relation(fields: [brokerId], references: [id])
+  promoCodeId          String?
+  promoCode            PromoCode?          @relation(fields: [promoCodeId], references: [id])
+  documents            Document[]
+  reviewGates          ReviewGate[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -509,6 +592,10 @@ model Invoice {
   tipAmount             Float             @default(0) // tip added by customer
   amountPaid            Float             @default(0) // total actually paid (for partial payments)
   paymentMethod         String? // card_on_file | payment_link | cash | check
+  pdfUrl                String? // generated invoice PDF URL
+  // ── Dumpster Rental addition ──
+  rentalId              String? // FK to Rental (for rental invoices)
+  rental                Rental?           @relation("RentalInvoices", fields: [rentalId], references: [id])
   lineItems             InvoiceLineItem[]
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
@@ -552,9 +639,11 @@ model Staff {
   name                 String
   phone                String?
   email                String?
-  role                 String              @default("laborer") // laborer | driver | foreman
+  role                 String              @default("laborer") // laborer | driver | dispatcher | finance | customer_service | admin
   status               String              @default("active") // active | inactive
-  hourlyRate           Float? // PRIVATE — admin-only, used for profit calc
+  payType              String              @default("hourly") // "hourly" | "salary"
+  hourlyRate           Float? // PRIVATE — admin-only, used for profit calc (hourly employees)
+  annualSalary         Float? // PRIVATE — yearly salary (salaried employees)
   certifications       String[] // CDL, hazmat, etc.
   pin                  String?             // 4-6 digit PIN for driver page auth (unique per company)
   pinDeviceId          String? // optional device trust binding
@@ -602,8 +691,11 @@ model Location {
   lat        Float?
   lng        Float?
   accessCode String? // gate codes, buzzer numbers
+  unit       String? // building / unit / suite number (legacy single value)
+  buildings  Json?    @default("[]") // ["Building A", "Building B", ...]
   notes      String?  @db.Text
   jobs       Job[]
+  jobTemplates CustomerJobTemplate[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -687,6 +779,9 @@ model DumpTicket {
   amount    Float // manual amount entry (no OCR)
   dumpSite  String? // facility name
   verified  Boolean  @default(false) // linked to job + cost written
+  // ── Dumpster Rental additions ──
+  rentalId  String? // FK to Rental (for rental dump tickets)
+  weightTons Float? // weight in tons (for overage calculation)
   dumpedAt  DateTime @default(now())
   createdAt DateTime @default(now())
 
@@ -712,6 +807,7 @@ model PriceBook {
   version    Int         @default(1)
   active     Boolean     @default(true)
   minLoadFee Float       @default(0)
+  truckCapacityCuYd Float? // cubic yards capacity reference
   tiers      PriceTier[]
   surcharges Surcharge[]
   createdAt  DateTime    @default(now())
@@ -863,10 +959,18 @@ model AutomationConfig {
   // ── 19-Feature: Status notification toggles ──
   notifyBookingConfirm     Boolean  @default(true)  // SMS on booking
   notifyDayBefore          Boolean  @default(true)  // SMS day before scheduled date
-  notifyEnRoute            Boolean  @default(true)  // SMS on en_route (guards existing behavior)
-  notifyJobComplete        Boolean  @default(true)  // SMS receipt on completion
+  notifyEnRoute            Boolean  @default(true)  // SMS on en_route
+  notifyJobComplete        Boolean  @default(true)  // SMS on completion
+  // ── Email notification toggles ──
+  emailBookingConfirm      Boolean  @default(true)  // Email on booking
+  emailDayBefore           Boolean  @default(true)  // Email day before scheduled date
+  emailEnRoute             Boolean  @default(true)  // Email on en_route
+  emailJobComplete         Boolean  @default(true)  // Email on completion
   // ── 19-Feature: Recovery discount config ──
   recoveryDiscountPercent  Int? // null = no discount, 10 = 10% off
+  // ── Google Calendar sync (Starter tier) ──
+  googleCalendarToken   String? // encrypted OAuth refresh token
+  googleCalendarEmail   String? // connected Google account email
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }
@@ -1159,7 +1263,17 @@ model CompanyProfile {
   businessHours   Json? // { mon: { start: "08:00", end: "18:00" }, ... }
   serviceAreaZips String[]
   invoiceFooter   String?  @db.Text // custom invoice terms/footer
+  // ── Service radius ──
+  maxRadius              Int?      // max service radius in miles
+  centerLat              Float?    // geocoded center of primary city
+  centerLng              Float?    // geocoded center of primary city
+  // ── Dumpster Rental addition ──
   dumpsterRentalsEnabled Boolean @default(false) // toggles dumpster rental module visibility
+  yardAddress            String? // full street address of container storage yard/depot
+  yardLat                Float?  // geocoded yard latitude
+  yardLng                Float?  // geocoded yard longitude
+  // ── Fuel cost estimation ──
+  fuelPricePerGallon     Float?  // company-wide gas price per gallon
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -1342,11 +1456,14 @@ model JobCrewAssignment {
 
 // ── F16: Maintenance log per truck ──
 model MaintenanceRecord {
-  id             String   @id @default(cuid())
+  id             String     @id @default(cuid())
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  truckId        String
-  truck          Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truckId        String?
+  truck          Truck?     @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  // ── Dumpster Rental addition ──
+  containerId    String? // optional: maintenance for a container instead of truck
+  container      Container? @relation(fields: [containerId], references: [id], onDelete: Cascade)
   type           String   // oil_change | tire_rotation | brake_service | inspection | repair | other
   description    String?  @db.Text
   cost           Float?   // dollars
@@ -1658,4 +1775,302 @@ model WebsiteHealthCheck {
   checkedAt    DateTime @default(now())
 
   @@index([userId, checkedAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 19-Feature Plan Models
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model DumpFacility {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  address         String
+  lat             Float?
+  lng             Float?
+  phone           String?
+  notes           String?  @db.Text
+  acceptsType     String[] // e.g. ["general", "appliances", "mattresses", "electronics"]
+  costPerTon      Float?
+  isActive        Boolean  @default(true)
+  // ── Dispatch solver fields ──
+  timezone        String   @default("America/New_York")
+  openTime        String   @default("06:00") // daily open time
+  closeTime       String   @default("17:00") // daily close time
+  daysOpen        String[] // ["MON","TUE","WED","THU","FRI","SAT"]
+  hoursOverrides  Json?    // holiday overrides
+  avgQueueMinutes Int      @default(0)  // typical wait time
+  dumpDuration    Int      @default(20) // minutes to unload
+  dumpFee         Float?   // cost per visit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Dumpster Rental Module Models
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Container {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String              // "D-001", "D-003"
+  sizeCuYd        Int                 // 10 | 15 | 20 | 30 | 40
+  status          String              @default("available") // available | rented | in_transit | reserved | out_of_service
+  currentLocation String              @default("yard") // "yard" or customer address
+  homeAddress     String?             // optional per-container home/storage address
+  homeLat         Float?
+  homeLng         Float?
+  currentRentalId String?             // FK when rented
+  lat             Float?
+  lng             Float?
+  isFull          Boolean             @default(false)
+  lastServicedAt  DateTime?
+  yardReturnedAt  DateTime?
+  notes           String?             @db.Text
+  rentals         RentalContainerHistory[]
+  maintenanceRecords MaintenanceRecord[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, sizeCuYd, status])
+}
+
+model Rental {
+  id                  String              @id @default(cuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rentalNumber        Int                 // auto-increment per user (R-001, R-002)
+  customerId          String
+  customer            Customer            @relation(fields: [customerId], references: [id])
+  containerId         String?             // current container on-site
+  status              String              @default("booked") // booked | delivered | active | pickup_scheduled | picked_up | pending_weight | completed | cancelled
+  deliveryAddress     String
+  debrisType          String              @default("mixed")
+  rentalType          String              @default("fixed") // fixed | call_when_ready
+  baseRate            Float
+  includedDays        Int                 @default(7)
+  weightAllowanceTons Float?
+  overageRatePerTon   Float?
+  extendedDailyRate   Float?
+  swapOutFee          Float               @default(0)
+  totalOverage        Float               @default(0)
+  swapOutCount        Int                 @default(0)
+  collectOnDelivery   Boolean             @default(true)
+  pickupReminderSentAt DateTime?
+  deliveryDate        DateTime?
+  deliveredAt         DateTime?
+  pickupScheduledAt   DateTime?
+  pickedUpAt          DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  notes               String?             @db.Text
+  deliveryPhotoUrl    String?
+  signatureUrl        String?
+  containerHistory    RentalContainerHistory[]
+  jobs                Job[]               @relation("RentalJobs")
+  invoices            Invoice[]           @relation("RentalInvoices")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([customerId])
+}
+
+model RentalContainerHistory {
+  id                String    @id @default(cuid())
+  rentalId          String
+  rental            Rental    @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  containerId       String
+  container         Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  startedAt         DateTime  @default(now())
+  endedAt           DateTime?
+  dumpTicketId      String?
+  conditionOnReturn String?
+
+  @@index([rentalId])
+  @@index([containerId])
+}
+
+model DumpsterPriceTier {
+  id                  String @id @default(cuid())
+  userId              String
+  user                User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sizeCuYd            Int    // 10 | 15 | 20 | 30 | 40
+  baseRate            Float
+  baseRateMin         Float?
+  baseRateMax         Float?
+  includedDays        Int    @default(7)
+  weightAllowanceTons Float
+  overageRatePerTon   Float
+  extendedDailyRate   Float?
+
+  @@unique([userId, sizeCuYd])
+}
+
+model DumpsterSurcharge {
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String  // "Delivery beyond 15 miles", "Roofing debris"
+  type   String  @default("debris") // debris | distance | swap
+  amount Float
+  active Boolean @default(true)
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Job Templates, Documents, Brokers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model CustomerJobTemplate {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name          String
+  title         String?
+  serviceType   String?
+  locationId    String?
+  location      Location? @relation(fields: [locationId], references: [id])
+  address       String?
+  notes         String?   @db.Text
+  poNumber      String?
+  building      String?
+  slot          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([customerId])
+}
+
+model Document {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId      String?
+  job        Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  name       String
+  type       String    // waiver | contract | receipt | dump_ticket | other
+  url        String
+  mimeType   String
+  size       Int       // bytes
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([jobId])
+  @@index([customerId])
+}
+
+model Broker {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  contactEmail   String?
+  contactPhone   String?
+  commissionType String   // flat | percentage
+  commissionRate Float
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  leads          Lead[]
+  jobs           Job[]
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Dispatch Solver Configuration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model DurationConfig {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vol1to3        Int      @default(20)
+  vol4to6        Int      @default(30)
+  vol7to10       Int      @default(75)
+  vol11to15      Int      @default(135)
+  vol16plus      Int      @default(180)
+  onsiteEstimate Int      @default(15)
+  crewFactorMode String   @default("sqrt")
+  dumpDuration   Int      @default(20)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model DispatchZone {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#3B82F6")
+  polygon   Json
+  truckIds  String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ReviewGate {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId         String
+  job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  customerName  String?
+  rating        Int?
+  feedback      String?   @db.Text
+  redirectedAt  DateTime?
+  submittedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@index([jobId])
+}
+
+model WebhookSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     String   // "lead.created", "job.created", "job.completed", "customer.created", "invoice.paid"
+  targetUrl String   // Zapier's REST Hook URL
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId, event])
+}
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code          String                           // e.g. "SUMMER20"
+  discountType  String    @default("percentage") // percentage | flat
+  discountValue Float                            // 20 = 20% off, or 50 = $50 off
+  maxUses       Int?                             // null = unlimited
+  usedCount     Int       @default(0)
+  expiresAt     DateTime?                        // null = never expires
+  active        Boolean   @default(true)
+  showInPortal  Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  jobs          Job[]
+
+  @@unique([userId, code])
+  @@index([userId, active])
 }
