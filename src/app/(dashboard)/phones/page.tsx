@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Avatar } from "@/components/ui/Avatar";
+import { Kpi } from "@/components/ui/Kpi";
 
 interface Phone {
     id: string;
@@ -12,15 +14,6 @@ interface Phone {
     totalCalls: number;
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-    return (
-        <div className="kpi-card">
-            <div className="kpi-label">{label}</div>
-            <div className="kpi-value" style={{ marginTop: 6 }}>{value}</div>
-            {sub && <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>{sub}</div>}
-        </div>
-    );
-}
 
 export default function PhonesPage() {
     const [phones, setPhones] = useState<Phone[]>([]);
@@ -45,27 +38,43 @@ export default function PhonesPage() {
 
             <div className="card">
                 <div className="card-header"><h3>All Phone Agents</h3></div>
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead>
-                            <tr>
-                                {["Client", "Number", "Twilio SID", "Area Code", "Total Calls"].map(h => (
-                                    <th key={h} className="table-head">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {phones.map(p => (
-                                <tr key={p.id} className="table-row">
-                                    <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>{p.company}</td>
-                                    <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>{p.phoneNumber}</td>
-                                    <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 11, color: "var(--text-faint)" }}>{p.twilioSid}</td>
-                                    <td style={{ padding: "10px 14px" }}>{p.areaCode || "—"}</td>
-                                    <td style={{ padding: "10px 14px", fontWeight: 600, fontFamily: "var(--font-heading)" }}>{p.totalCalls.toLocaleString()}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
+                    {([["company", "Client", "25%"], ["phoneNumber", "Number", "25%"], ["twilioSid", "Twilio SID", "30%"], ["", "Total Calls", "20%"]] as [string, string, string][]).map(([f, label, width], i) => (
+                        <div key={i} style={{ flexBasis: width, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                            {label}
+                        </div>
+                    ))}
+                </div>
+
+                <div className="interactive-cards-list">
+                    {phones.map(p => (
+                        <div key={p.id} className="interactive-row-card">
+                            {/* Client & Avatar - 25% */}
+                            <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
+                                <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={p.company} /></div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.company}</span>
+                                </div>
+                            </div>
+
+                            {/* Number - 25% */}
+                            <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                                <span style={{ fontFamily: "monospace", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>{p.phoneNumber}</span>
+                                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Area Code: {p.areaCode || "—"}</span>
+                            </div>
+
+                            {/* Twilio SID - 30% */}
+                            <div style={{ flexBasis: "30%", flexShrink: 0 }}>
+                                <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", background: "var(--surface)", padding: "4px 8px", borderRadius: 6 }}>{p.twilioSid}</span>
+                            </div>
+
+                            {/* Calls - 20% */}
+                            <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                                <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{p.totalCalls.toLocaleString()}</span>
+                                <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 6 }}>calls</span>
+                            </div>
+                        </div>
+                    ))}
                     {phones.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No phone agents configured</div>}
                 </div>
             </div>

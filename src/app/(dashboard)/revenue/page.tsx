@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Kpi } from "@/components/ui/Kpi";
 
 interface RevenueData {
     mrr: number;
@@ -14,15 +15,6 @@ interface RevenueData {
 
 const PLAN_COLORS: Record<string, string> = { starter: "#2563EB", growth: "#FF6B00", enterprise: "#8B5CF6" };
 
-function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-    return (
-        <div className="kpi-card">
-            <div className="kpi-label">{label}</div>
-            <div className="kpi-value" style={{ marginTop: 6 }}>{value}</div>
-            {sub && <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>{sub}</div>}
-        </div>
-    );
-}
 
 export default function RevenuePage() {
     const [data, setData] = useState<RevenueData | null>(null);

@@ -344,3 +344,37 @@ select.input { background: #fff; cursor: pointer; }
 .blog-body h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; }
 .blog-body a { color: var(--primary); text-decoration: underline; }
 .blog-body strong { font-weight: 600; }
+
+/* ── Interactive Card List (Table Upgrade) ── */
+.interactive-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.interactive-cards-header {
+  display: flex;
+  padding: 0 24px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.interactive-row-card {
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.interactive-row-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06), 0 4px 8px rgba(0, 0, 0, 0.04);
+  border-color: var(--border);
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Badge, STATUS_COLORS } from "@/app/components/Badge";
-import { Kpi } from "@/app/components/Kpi";
+import { Kpi } from "@/components/ui/Kpi";
 import { TabBar } from "@/app/components/TabBar";
 import { useToast, Toast } from "@/app/components/Toast";
 

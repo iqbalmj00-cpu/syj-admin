@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
+import { Kpi } from "@/components/ui/Kpi";
 
 interface Client {
     id: string;
@@ -19,34 +22,7 @@ interface Client {
     counts: { jobs: number; leads: number; staff: number; customers: number; trucks: number };
 }
 
-const PLAN_COLORS: Record<string, string> = { starter: "var(--info)", growth: "var(--orange)", enterprise: "var(--purple)" };
-const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-    active: { bg: "rgba(0,216,74,0.12)", color: "var(--success-dark)", label: "Active" },
-    trialing: { bg: "rgba(37,99,235,0.12)", color: "var(--info)", label: "Trial" },
-    past_due: { bg: "rgba(245,158,11,0.12)", color: "var(--warn-dark)", label: "Past Due" },
-    canceled: { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Cancelled" },
-};
-const SITE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-    live: { bg: "rgba(0,216,74,0.12)", color: "var(--success-dark)", label: "Live" },
-    building: { bg: "rgba(37,99,235,0.12)", color: "var(--info)", label: "Building" },
-    error: { bg: "rgba(239,68,68,0.12)", color: "var(--danger)", label: "Error" },
-    pending: { bg: "rgba(245,158,11,0.12)", color: "var(--warn-dark)", label: "Pending" },
-};
-
-function Badge({ status, map }: { status: string; map: Record<string, { bg: string; color: string; label: string }> }) {
-    const s = map[status] || { bg: "#eee", color: "#666", label: status };
-    return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>;
-}
-
-function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-    return (
-        <div className="kpi-card">
-            <div className="kpi-label">{label}</div>
-            <div className="kpi-value" style={{ marginTop: 6 }}>{value}</div>
-            {sub && <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>{sub}</div>}
-        </div>
-    );
-}
+// Redundant definitions removed in favor of central UI components
 
 export default function OverviewPage() {
     const [clients, setClients] = useState<Client[]>([]);
@@ -82,40 +58,48 @@ export default function OverviewPage() {
                         <Link href="/clients" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>View All</Link>
                     </div>
                     <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                        <table>
-                            <thead>
-                                <tr>
-                                    {["Company", "Plan", "Status", "Site", "Phone", "Jobs"].map(h => (
-                                        <th key={h} className="table-head">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {clients.slice(0, 6).map(c => (
-                                    <tr key={c.id} className="table-row" style={{ cursor: "pointer" }}>
-                                        <td style={{ padding: "10px 14px" }}>
-                                            <div style={{ fontWeight: 600, color: "var(--text)" }}>{c.company}</div>
-                                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{c.city}, {c.state}</div>
-                                        </td>
-                                        <td style={{ padding: "10px 14px" }}>
-                                            <span className="badge" style={{ background: (PLAN_COLORS[c.plan] || "var(--info)") + "18", color: PLAN_COLORS[c.plan] || "var(--info)" }}>
-                                                {c.plan}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: "10px 14px" }}><Badge status={c.planStatus} map={STATUS_STYLES} /></td>
-                                        <td style={{ padding: "10px 14px" }}>
-                                            {c.website ? <Badge status={c.website.deployStatus} map={SITE_STYLES} /> : <span style={{ color: "var(--text-faint)", fontSize: 11 }}>—</span>}
-                                        </td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace" }}>
-                                            {c.phone?.phoneNumber || "—"}
-                                        </td>
-                                        <td style={{ padding: "10px 14px", fontWeight: 600, fontFamily: "var(--font-heading)" }}>
-                                            {c.counts.jobs.toLocaleString()}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
+                            {([["company", "Company", "30%"], ["plan", "Plan", "15%"], ["planStatus", "Status", "15%"], ["", "Systems", "20%"], ["", "Jobs", "20%"]] as [string, string, string][]).map(([f, label, width], i) => (
+                                <div key={i} style={{ flexBasis: width, flexShrink: 0, cursor: "default", display: "flex", alignItems: "center", gap: 4 }}>
+                                    {label}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="interactive-cards-list">
+                            {clients.slice(0, 6).map(c => (
+                                <Link key={c.id} href="/clients" style={{textDecoration: "none", color: "inherit", padding: "16px"}} className="interactive-row-card">
+                                    {/* Company & Avatar - 30% */}
+                                    <div style={{ flexBasis: "30%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
+                                        <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={c.company} /></div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.company}</span>
+                                            <span style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.city}, {c.state}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Plan - 15% */}
+                                    <div style={{ flexBasis: "15%", flexShrink: 0 }}>
+                                        <Badge status={c.plan} />
+                                    </div>
+
+                                    {/* Status - 15% */}
+                                    <div style={{ flexBasis: "15%", flexShrink: 0 }}>
+                                        <Badge status={c.planStatus} />
+                                    </div>
+
+                                    {/* Systems - 20% */}
+                                    <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                                        {c.website ? <Badge status={c.website.deployStatus} showDot={false} disableFallbackDot={true} /> : <span style={{ color: "var(--text-faint)", fontSize: 10 }}>No Site</span>}
+                                        <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", fontWeight: 500 }}>{c.phone?.phoneNumber || "No Phone"}</span>
+                                    </div>
+
+                                    {/* Jobs - 20% */}
+                                    <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                                        <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)" }}>{c.counts.jobs.toLocaleString()}</span>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
                         {clients.length === 0 && (
                             <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients yet</div>
                         )}

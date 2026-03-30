@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 
 interface Client {
     id: string;
@@ -22,23 +24,6 @@ interface Client {
 }
 
 const PLAN_COLORS: Record<string, string> = { starter: "#2563EB", growth: "#FF6B00", enterprise: "#8B5CF6" };
-const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    active: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Active" },
-    trialing: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Trial" },
-    past_due: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Past Due" },
-    canceled: { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Cancelled" },
-};
-const SITE_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    live: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Live" },
-    building: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Building" },
-    error: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Error" },
-    pending: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Pending" },
-};
-
-function Badge({ status, map }: { status: string; map: Record<string, { bg: string; color: string; label: string }> }) {
-    const s = map[status] || { bg: "#eee", color: "#666", label: status };
-    return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>;
-}
 
 function fmtDate(d: string | null) {
     if (!d) return "—";
@@ -133,7 +118,10 @@ export default function ClientsPage() {
                     </div>
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input" style={{ width: "auto" }}>
                         <option value="all">All Status</option>
-                        {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        <option value="active">Active</option>
+                        <option value="trialing">Trialing</option>
+                        <option value="past_due">Past Due</option>
+                        <option value="canceled">Canceled</option>
                     </select>
                     <select value={filterPlan} onChange={e => setFilterPlan(e.target.value)} className="input" style={{ width: "auto" }}>
                         <option value="all">All Plans</option>
@@ -145,49 +133,67 @@ export default function ClientsPage() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="card">
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead>
-                            <tr>
-                                {([["company", "Company"], ["plan", "Plan"], ["planStatus", "Account"], ["", "Site"], ["", "Phone"], ["", "MRR"], ["", "Jobs"], ["createdAt", "Joined"], ["", ""]] as [string, string][]).map(([f, label], i) => (
-                                    <th key={i} className="table-head" onClick={() => f ? toggleSort(f as keyof Client) : undefined} style={{ cursor: f ? "pointer" : "default" }}>
-                                        {label} {f && sortField === f ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map(c => (
-                                <tr key={c.id} className="table-row">
-                                    <td style={{ padding: "10px 14px" }}>
-                                        <div style={{ fontWeight: 600, color: "var(--text)" }}>{c.company}</div>
-                                        <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{c.city}, {c.state} · {c.name}</div>
-                                    </td>
-                                    <td style={{ padding: "10px 14px" }}>
-                                        <span className="badge" style={{ background: (PLAN_COLORS[c.plan] || "#2563EB") + "18", color: PLAN_COLORS[c.plan] || "#2563EB" }}>{c.plan}</span>
-                                    </td>
-                                    <td style={{ padding: "10px 14px" }}><Badge status={c.planStatus} map={STATUS_MAP} /></td>
-                                    <td style={{ padding: "10px 14px" }}>
-                                        {c.website ? <Badge status={c.website.deployStatus} map={SITE_MAP} /> : <span style={{ color: "var(--text-faint)", fontSize: 11 }}>—</span>}
-                                    </td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace" }}>{c.phone?.phoneNumber || "—"}</td>
-                                    <td style={{ padding: "10px 14px", fontWeight: 600, fontFamily: "var(--font-heading)" }}>${PRICES[c.plan] || 0}</td>
-                                    <td style={{ padding: "10px 14px" }}>{c.counts.jobs.toLocaleString()}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{fmtDate(c.createdAt)}</td>
-                                    <td style={{ padding: "10px 14px" }}>
-                                        <div style={{ display: "flex", gap: 4 }}>
-                                            <button className="btn btn-xs btn-ghost" onClick={() => setDetail(c)}>View</button>
-                                            <button className="btn btn-xs" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => setDeleteTarget(c)}>Delete</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients match your filters</div>}
-                </div>
+            {/* Interactive Cards List */}
+            <div className="interactive-cards-header">
+                {([["company", "Company", "28%"], ["plan", "Plan", "10%"], ["planStatus", "Status", "12%"], ["", "Systems", "18%"], ["", "Financials", "12%"], ["createdAt", "Joined", "10%"], ["", "Actions", "10%"]] as [string, string, string][]).map(([f, label, width], i) => (
+                    <div key={i} style={{ flexBasis: width, flexShrink: 0, cursor: f ? "pointer" : "default", display: "flex", alignItems: "center", gap: 4 }} onClick={() => f ? toggleSort(f as keyof Client) : undefined}>
+                        {label} {f && sortField === f ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </div>
+                ))}
+            </div>
+            
+            <div className="interactive-cards-list">
+                {filtered.map(c => (
+                    <div key={c.id} className="interactive-row-card" onClick={() => setDetail(c)} style={{ padding: "20px 24px" }}>
+                        {/* Company & Avatar - 28% */}
+                        <div style={{ flexBasis: "28%", flexShrink: 0, display: "flex", alignItems: "center", gap: 14 }}>
+                            <Avatar name={c.company} />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.company}</span>
+                                <span style={{ fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.city}, {c.state} • {c.name}</span>
+                            </div>
+                        </div>
+
+                        {/* Plan - 10% */}
+                        <div style={{ flexBasis: "10%", flexShrink: 0 }}>
+                            <Badge status={c.plan} />
+                        </div>
+
+                        {/* Status - 12% */}
+                        <div style={{ flexBasis: "12%", flexShrink: 0 }}>
+                            <Badge status={c.planStatus} />
+                        </div>
+
+                        {/* Systems - 18% */}
+                        <div style={{ flexBasis: "18%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontSize: 10, color: "var(--text-faint)", width: 34, fontWeight: 600 }}>SITE</span>
+                                {c.website ? <Badge status={c.website.deployStatus} showDot={false} disableFallbackDot={true} /> : <span style={{ color: "var(--text-faint)", fontSize: 11 }}>—</span>}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontSize: 10, color: "var(--text-faint)", width: 34, fontWeight: 600 }}>C/S</span>
+                                <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-muted)", fontWeight: 500 }}>{c.phone?.phoneNumber || "—"}</span>
+                            </div>
+                        </div>
+
+                        {/* Financials & Jobs - 12% */}
+                        <div style={{ flexBasis: "12%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)" }}>${PRICES[c.plan] || 0} <span style={{fontSize: 10, color: "var(--text-faint)", fontWeight: 600}}>MRR</span></span>
+                            <span style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500 }}>{c.counts.jobs.toLocaleString()} Jobs</span>
+                        </div>
+
+                        {/* Joined - 10% */}
+                        <div style={{ flexBasis: "10%", flexShrink: 0, display: "flex", flexDirection: "column" }}>
+                            <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>{fmtDate(c.createdAt)}</span>
+                        </div>
+
+                        {/* Actions - 10% */}
+                        <div style={{ flexBasis: "10%", flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8 }} onClick={e => e.stopPropagation()}>
+                            <button className="btn btn-xs btn-danger" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => setDeleteTarget(c)}>Delete</button>
+                        </div>
+                    </div>
+                ))}
+                {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients match your filters</div>}
             </div>
 
             {/* Detail Drawer (Modal) */}
@@ -201,10 +207,10 @@ export default function ClientsPage() {
                         </div>
                         <div className="modal-body">
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-                                <Badge status={detail.planStatus} map={STATUS_MAP} />
-                                <span className="badge" style={{ background: (PLAN_COLORS[detail.plan] || "#2563EB") + "18", color: PLAN_COLORS[detail.plan] }}>{detail.plan}</span>
-                                {detail.website && <Badge status={detail.website.deployStatus} map={SITE_MAP} />}
-                                <span style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace" }}>{detail.id}</span>
+                                <Badge status={detail.planStatus} />
+                                <Badge status={detail.plan} />
+                                {detail.website && <Badge status={detail.website.deployStatus} showDot={false} disableFallbackDot={true} />}
+                                <span style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace", display: "flex", alignItems: "center", marginLeft: 8 }}>#{detail.id}</span>
                             </div>
 
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px 24px", marginBottom: 24, fontSize: 13 }}>
@@ -228,7 +234,7 @@ export default function ClientsPage() {
                                     <h4 className="section-label">Website</h4>
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
                                         <div><span style={{ color: "var(--text-faint)" }}>Subdomain:</span> <span style={{ fontWeight: 500 }}>{detail.website.subdomain}</span></div>
-                                        <div><span style={{ color: "var(--text-faint)" }}>Status:</span> <Badge status={detail.website.deployStatus} map={SITE_MAP} /></div>
+                                        <div><span style={{ color: "var(--text-faint)" }}>Status:</span> <Badge status={detail.website.deployStatus} showDot={false} /></div>
                                         <div><span style={{ color: "var(--text-faint)" }}>Deployed:</span> <span style={{ fontWeight: 500 }}>{fmtDate(detail.website.deployedAt)}</span></div>
                                     </div>
                                 </div>
