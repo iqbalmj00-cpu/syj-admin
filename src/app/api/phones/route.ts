@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
     try {
         const phones = await prisma.phoneConfig.findMany({
+            where: { user: { isDemoAccount: false } },
             include: {
                 user: {
                     select: {

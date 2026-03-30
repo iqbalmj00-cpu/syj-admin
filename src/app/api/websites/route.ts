@@ -5,6 +5,7 @@ import { listDeployments } from "@/lib/vercel";
 export async function GET() {
     try {
         const sites = await prisma.websiteConfig.findMany({
+            where: { user: { isDemoAccount: false } },
             include: {
                 user: {
                     select: { id: true, company: true, email: true, onboarding: { select: { businessName: true } } },

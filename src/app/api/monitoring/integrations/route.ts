@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
     try {
         const integrations = await prisma.integration.findMany({
+            where: { user: { isDemoAccount: false } },
             include: { user: { select: { id: true, company: true, email: true } } },
             orderBy: { updatedAt: "desc" },
         });

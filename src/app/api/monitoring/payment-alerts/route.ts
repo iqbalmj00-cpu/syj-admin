@@ -6,13 +6,13 @@ export async function GET() {
         // Fetch payment-related notifications + all past_due users
         const [alerts, pastDueUsers] = await Promise.all([
             prisma.notification.findMany({
-                where: { type: "payment_failed" },
+                where: { type: "payment_failed", user: { isDemoAccount: false } },
                 include: { user: { select: { company: true, email: true, planTier: true } } },
                 orderBy: { createdAt: "desc" },
                 take: 50,
             }),
             prisma.user.findMany({
-                where: { planStatus: "past_due" },
+                where: { planStatus: "past_due", isDemoAccount: false },
                 select: {
                     id: true, company: true, email: true,
                     planTier: true, planStatus: true,

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
     try {
         const checks = await prisma.websiteHealthCheck.findMany({
+            where: { user: { isDemoAccount: false } },
             orderBy: { checkedAt: "desc" },
             distinct: ["userId"],
             include: { user: { select: { company: true, email: true } } },
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const sites = await prisma.websiteConfig.findMany({
-            where: { vercelProjectId: { not: null } },
+            where: { vercelProjectId: { not: null }, user: { isDemoAccount: false } },
             select: { userId: true, websiteUrl: true, subdomain: true },
         });
 

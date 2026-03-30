@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
     try {
         const sites = await prisma.websiteConfig.findMany({
-            where: { vercelProjectId: { not: null } },
+            where: { vercelProjectId: { not: null }, user: { isDemoAccount: false } },
             select: { userId: true, websiteUrl: true, subdomain: true },
         });
 

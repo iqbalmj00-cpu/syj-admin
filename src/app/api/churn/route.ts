@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
     try {
         const records = await prisma.cancellationRecord.findMany({
+            where: { user: { isDemoAccount: false } },
             orderBy: { cancelledAt: "desc" },
             include: { user: { select: { company: true, email: true, planTier: true } } },
         });

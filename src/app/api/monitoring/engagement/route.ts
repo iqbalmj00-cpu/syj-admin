@@ -6,7 +6,7 @@ export async function GET() {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         const clients = await prisma.user.findMany({
-            where: { role: "owner", orgId: null },
+            where: { role: "owner", orgId: null, isDemoAccount: false },
             select: {
                 id: true, company: true, email: true,
                 planTier: true, planStatus: true,

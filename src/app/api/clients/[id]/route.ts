@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: Params) {
     const { id } = await params;
     try {
         const client = await prisma.user.findUnique({
-            where: { id },
+            where: { id: id, isDemoAccount: false },
             include: {
                 websiteConfig: true,
                 phoneConfig: true,
@@ -50,7 +50,7 @@ export async function PATCH(req: Request, { params }: Params) {
         const { action, plan } = body;
 
         const client = await prisma.user.findUnique({
-            where: { id },
+            where: { id: id, isDemoAccount: false },
             include: { websiteConfig: true, phoneConfig: true },
         });
         if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -96,7 +96,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     const { id } = await params;
     try {
         const client = await prisma.user.findUnique({
-            where: { id },
+            where: { id: id, isDemoAccount: false },
             include: { websiteConfig: true, phoneConfig: true },
         });
         if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
