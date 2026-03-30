@@ -311,7 +311,13 @@ export default function SupportPage() {
                     </div>
                 ) : (
                     filtered.map(t => {
-                        const clientName = t.client.company || t.client.name || "Unknown Client";
+                        const companyName = t.client.company;
+                        const personName = t.client.name;
+                        const displayName = companyName && personName 
+                            ? `${companyName} (${personName})` 
+                            : companyName || personName || "Unknown Client";
+                        const avatarName = companyName || personName || "?";
+                        
                         return (
                             <div 
                                 key={t.id} 
@@ -335,7 +341,7 @@ export default function SupportPage() {
                             >
                                 {/* Left: Avatar & Subject */}
                                 <div style={{ display: "flex", alignItems: "center", gap: 16, flex: "1 1 auto", minWidth: 200, overflow: "hidden" }}>
-                                    <Avatar name={clientName} />
+                                    <Avatar name={avatarName} />
                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", flexShrink: 0 }}>
@@ -346,7 +352,7 @@ export default function SupportPage() {
                                             </span>
                                         </div>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-light)", flexWrap: "wrap" }}>
-                                            <span style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 }}>{clientName}</span>
+                                            <span style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{displayName}</span>
                                             <span style={{ color: "var(--border)" }}>•</span>
                                             <Badge status={t.client.planTier} map={PLAN_MAP} />
                                             <span style={{ color: "var(--border)" }}>•</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface GrowthData {
     totalSignups: number;
@@ -35,6 +36,14 @@ export default function GrowthPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-heading)" }}>Growth Overview</h2>
+                <Link href="/growth/demo-leads" className="btn btn-primary" style={{ textDecoration: "none" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Live Demo Leads
+                </Link>
+            </div>
+
             <div className="grid-4">
                 <Kpi label="Total Signups" value={data.totalSignups} sub="all time" />
                 <Kpi label="Active Clients" value={data.activeClients} />

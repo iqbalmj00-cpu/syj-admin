@@ -2115,3 +2115,17 @@ model AdminSetting {
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
+
+// ── Demo Leads (Marketing Pipeline) ──────────────────────────────────────────
+
+model DemoSession {
+  id              String   @id @default(cuid())
+  visitorName     String
+  visitorEmail    String
+  visitorPhone    String?
+  visitorCompany  String?
+  fleetSize       String?
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
+  demoUserId      String?
+}
