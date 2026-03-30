@@ -52,24 +52,76 @@ interface TicketDetail {
 
 /* ─── Constants ─────────────────────────────────────────────────────── */
 
-const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
     open:        { bg: "rgba(249,115,22,0.12)", color: "#EA580C", label: "Open" },
     in_progress: { bg: "rgba(37,99,235,0.12)",  color: "#2563EB", label: "In Progress" },
     resolved:    { bg: "rgba(0,216,74,0.12)",   color: "#00A83A", label: "Resolved" },
     closed:      { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Closed" },
 };
 
-const PRIORITY_COLORS: Record<string, { bg: string; color: string }> = {
-    Low:    { bg: "rgba(107,114,128,0.12)", color: "#6B7280" },
-    Medium: { bg: "rgba(245,158,11,0.12)", color: "#D97706" },
-    High:   { bg: "rgba(239,68,68,0.12)",  color: "#EF4444" },
+const PRIORITY_MAP: Record<string, { bg: string; color: string; label: string }> = {
+    Low:    { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Low" },
+    Medium: { bg: "rgba(245,158,11,0.12)",  color: "#D97706", label: "Medium" },
+    High:   { bg: "rgba(239,68,68,0.12)",   color: "#EF4444", label: "High" },
 };
 
-const PLAN_COLORS: Record<string, { bg: string; color: string }> = {
-    starter:    { bg: "rgba(107,114,128,0.10)", color: "#6B7280" },
-    growth:     { bg: "rgba(37,99,235,0.10)",   color: "#2563EB" },
-    enterprise: { bg: "rgba(124,58,237,0.10)",  color: "#7C3AED" },
+const PLAN_MAP: Record<string, { bg: string; color: string; label: string }> = {
+    starter:    { bg: "rgba(37,99,235,0.10)",   color: "#2563EB", label: "Starter" },
+    growth:     { bg: "rgba(255,107,0,0.10)",   color: "#FF6B00", label: "Growth" },
+    enterprise: { bg: "rgba(139,92,246,0.10)",  color: "#8B5CF6", label: "Enterprise" },
 };
+
+/* ─── Reusable Components (match existing dashboard patterns) ────── */
+
+function Avatar({ name }: { name: string }) {
+    if (!name) name = "?";
+    const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || "?";
+    const colors = [
+        "linear-gradient(135deg, #FF6B00 0%, #FF8533 100%)",
+        "linear-gradient(135deg, #2563EB 0%, #60A5FA 100%)",
+        "linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%)",
+        "linear-gradient(135deg, #00D84A 0%, #4ADE80 100%)",
+        "linear-gradient(135deg, #EF4444 0%, #F87171 100%)",
+    ];
+    let num = 0;
+    for (let i = 0; i < name.length; i++) num += name.charCodeAt(i);
+    return (
+        <div style={{
+            width: 38, height: 38, borderRadius: 12, background: colors[num % colors.length],
+            color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", flexShrink: 0
+        }}>
+            {initials}
+        </div>
+    );
+}
+
+function Badge({ status, map }: { status: string; map: Record<string, { bg: string; color: string; label: string }> }) {
+    const s = map[status] || { bg: "#f1f5f9", color: "#64748b", label: status };
+    return (
+        <span className="badge" style={{ 
+            background: s.bg, color: s.color, 
+            padding: "4px 10px", borderRadius: "10px",
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontWeight: 600, fontSize: 11,
+            boxShadow: `0 0 0 1px ${s.color}20 inset`
+        }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: s.color, display: "inline-block" }} />
+            {s.label}
+        </span>
+    );
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+    return (
+        <div className="kpi-card">
+            <div className="kpi-label">{label}</div>
+            <div className="kpi-value" style={{ marginTop: 6 }}>{value}</div>
+            {sub && <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>{sub}</div>}
+        </div>
+    );
+}
 
 /* ─── Helpers ───────────────────────────────────────────────────────── */
 
@@ -90,29 +142,6 @@ function formatDate(dateStr: string): string {
         month: "short", day: "numeric", year: "numeric",
         hour: "numeric", minute: "2-digit",
     });
-}
-
-/* ─── Badge Component ───────────────────────────────────────────────── */
-
-function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
-    return (
-        <span style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-            background: bg, color,
-        }}>{children}</span>
-    );
-}
-
-/* ─── KPI Component ─────────────────────────────────────────────────── */
-
-function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
-    return (
-        <div className="kpi-card">
-            <div className="kpi-label">{label}</div>
-            <div className="kpi-value" style={accent ? { color: accent } : undefined}>{value}</div>
-        </div>
-    );
 }
 
 /* ─── Main Page ─────────────────────────────────────────────────────── */
@@ -192,7 +221,6 @@ export default function SupportPage() {
             showToast(data.emailSent ? "Reply sent + email delivered" : "Reply saved (no email — Gmail not connected)");
             setReplyBody("");
             setReplyStatus("");
-            // Refresh detail + list
             openTicket(selectedTicket.id);
             fetchTickets();
         } catch (err) {
@@ -229,127 +257,167 @@ export default function SupportPage() {
         t.status === "resolved" && new Date(t.updatedAt) >= todayStart
     ).length;
 
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>;
+
     /* ── Render ────────────────────────────────────────────────────── */
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* KPIs */}
-            <div className="kpi-grid">
-                <Kpi label="Open Tickets" value={openCount} accent="var(--orange)" />
-                <Kpi label="In Progress" value={inProgressCount} accent="#2563EB" />
-                <Kpi label="Resolved Today" value={resolvedToday} accent="var(--success-dark)" />
+            {/* KPIs — grid-4 matches the 4-column layout */}
+            <div className="grid-4">
+                <Kpi label="Open Tickets" value={openCount} sub={openCount > 0 ? "Needs attention" : "All clear"} />
+                <Kpi label="In Progress" value={inProgressCount} />
+                <Kpi label="Resolved Today" value={resolvedToday} />
                 <Kpi label="Total Tickets" value={tickets.length} />
             </div>
 
-            {/* Filters */}
-            <div className="card">
-                <div className="card-body" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Filters — matches clients page pattern */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <input
                         className="input" placeholder="Search tickets, clients..."
                         value={search} onChange={e => setSearch(e.target.value)}
-                        style={{ flex: 1, minWidth: 200 }}
+                        style={{ paddingLeft: 12, width: 260 }}
                     />
-                    <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                        style={{ width: 150 }}>
+                    <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: "auto" }}>
                         <option value="all">All Statuses</option>
-                        <option value="open">Open</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
+                        {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
-                    <select className="input" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}
-                        style={{ width: 140 }}>
+                    <select className="input" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} style={{ width: "auto" }}>
                         <option value="all">All Priorities</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
+                        {Object.entries(PRIORITY_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
-                    <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{filtered.length} tickets</span>
+                    <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
                 </div>
             </div>
 
-            {/* Tickets Table */}
-            <div className="card">
-                <div style={{ overflowX: "auto" }}>
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>Ticket</th>
-                                <th>Client</th>
-                                <th>Category</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Messages</th>
-                                <th>Last Updated</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan={8} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>Loading tickets...</td></tr>
-                            ) : filtered.length === 0 ? (
-                                <tr><td colSpan={8} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>
-                                    {tickets.length === 0 ? "No support tickets yet" : "No tickets match your filters"}
-                                </td></tr>
-                            ) : filtered.map(t => {
-                                const sc = STATUS_COLORS[t.status] || STATUS_COLORS.open;
-                                const pc = PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.Medium;
-                                const planC = PLAN_COLORS[t.client.planTier] || PLAN_COLORS.starter;
-                                return (
-                                    <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => openTicket(t.id)}>
-                                        <td>
-                                            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
+            {/* Interactive Ticket List */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {filtered.length === 0 ? (
+                    <div className="card" style={{ padding: 60, textAlign: "center", border: "1px dashed var(--border)", boxShadow: "none" }}>
+                        <div style={{
+                            width: 56, height: 56, borderRadius: "50%", background: "rgba(107,114,128,0.08)",
+                            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+                            fontSize: 24, color: "var(--text-faint)"
+                        }}>
+                            🎫
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text)", fontFamily: "var(--font-heading)" }}>
+                            {tickets.length === 0 ? "No support tickets yet" : "No tickets match your filters"}
+                        </h3>
+                        <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--text-faint)" }}>
+                            You're all caught up. New tickets will appear here.
+                        </p>
+                    </div>
+                ) : (
+                    filtered.map(t => {
+                        const clientName = t.client.company || t.client.name || "Unknown Client";
+                        return (
+                            <div 
+                                key={t.id} 
+                                onClick={() => openTicket(t.id)}
+                                style={{
+                                    background: "var(--white)", border: "1px solid var(--border-light)",
+                                    borderRadius: 16, padding: "16px 20px", cursor: "pointer",
+                                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.02)", transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)"
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = "translateY(-2px)";
+                                    e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.06)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = "translateY(0)";
+                                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.02)";
+                                    e.currentTarget.style.borderColor = "var(--border-light)";
+                                }}
+                            >
+                                {/* Left: Avatar & Subject */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 16, flex: "1 1 auto", minWidth: 200, overflow: "hidden" }}>
+                                    <Avatar name={clientName} />
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", flexShrink: 0 }}>
                                                 TK-{t.ticketNumber}
-                                            </div>
-                                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            </span>
+                                            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 {t.subject}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontSize: 13, fontWeight: 500 }}>{t.client.company || t.client.name || "—"}</div>
-                                            <Badge bg={planC.bg} color={planC.color}>{t.client.planTier}</Badge>
-                                        </td>
-                                        <td><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.category}</span></td>
-                                        <td><Badge bg={pc.bg} color={pc.color}>{t.priority}</Badge></td>
-                                        <td><Badge bg={sc.bg} color={sc.color}>{sc.label}</Badge></td>
-                                        <td>
-                                            <span style={{ fontSize: 13, color: "var(--text)" }}>{t.messageCount}</span>
-                                            <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}>msgs</span>
-                                        </td>
-                                        <td><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{timeAgo(t.updatedAt)}</span></td>
-                                        <td>
-                                            <button className="btn btn-xs btn-ghost" onClick={(e) => { e.stopPropagation(); openTicket(t.id); }}>
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-light)", flexWrap: "wrap" }}>
+                                            <span style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 }}>{clientName}</span>
+                                            <span style={{ color: "var(--border)" }}>•</span>
+                                            <Badge status={t.client.planTier} map={PLAN_MAP} />
+                                            <span style={{ color: "var(--border)" }}>•</span>
+                                            <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
+                                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                                </svg>
+                                                {t.messageCount} msg{t.messageCount !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Right: Status & Meta */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <span className="badge" style={{ background: "rgba(107,114,128,0.06)", color: "#64748B", boxShadow: "0 0 0 1px rgba(107,114,128,0.1) inset", padding: "4px 10px", borderRadius: "10px", fontSize: 11 }}>
+                                            {t.category}
+                                        </span>
+                                        <Badge status={t.priority} map={PRIORITY_MAP} />
+                                        <Badge status={t.status} map={STATUS_MAP} />
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", width: 80 }}>
+                                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+                                            Updated
+                                        </span>
+                                        <span style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                                            {timeAgo(t.updatedAt)}
+                                        </span>
+                                    </div>
+                                    <button className="btn btn-sm" style={{ 
+                                        background: "var(--surface)", border: "1px solid var(--border)",
+                                        color: "var(--text)", padding: "7px 14px", borderRadius: 8,
+                                        fontWeight: 600, fontSize: 12, cursor: "pointer", transition: "all 0.15s"
+                                    }}
+                                        onClick={(e) => { e.stopPropagation(); openTicket(t.id); }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.background = "var(--white)";
+                                            e.currentTarget.style.borderColor = "var(--text-faint)";
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.background = "var(--surface)";
+                                            e.currentTarget.style.borderColor = "var(--border)";
+                                        }}
+                                    >
+                                        View
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
             {/* ── Ticket Detail Modal ─────────────────────────────────── */}
             {(selectedTicket || detailLoading) && (
                 <div style={{
                     position: "fixed", inset: 0, zIndex: 1000,
-                    background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
+                    background: "rgba(15,23,42,0.6)", backdropFilter: "blur(6px)",
                     display: "flex", justifyContent: "center", alignItems: "flex-start",
-                    paddingTop: 40, overflowY: "auto",
+                    paddingTop: 48, overflowY: "auto",
                 }} onClick={() => setSelectedTicket(null)}>
                     <div style={{
-                        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720,
-                        maxHeight: "calc(100vh - 80px)", overflowY: "auto",
-                        boxShadow: "0 25px 50px rgba(0,0,0,0.15)",
+                        background: "var(--white)", borderRadius: 16, width: "100%", maxWidth: 700,
+                        maxHeight: "calc(100vh - 96px)", overflowY: "auto",
+                        boxShadow: "0 25px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05)",
+                        animation: "fadeIn 0.2s ease-out",
                     }} onClick={e => e.stopPropagation()}>
                         {detailLoading ? (
                             <div style={{ padding: 60, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>
                         ) : selectedTicket && (() => {
-                            const sc = STATUS_COLORS[selectedTicket.status] || STATUS_COLORS.open;
-                            const pc = PRIORITY_COLORS[selectedTicket.priority] || PRIORITY_COLORS.Medium;
-                            const planC = PLAN_COLORS[selectedTicket.client.planTier] || PLAN_COLORS.starter;
-
                             return (
                                 <>
                                     {/* Modal Header */}
@@ -365,100 +433,86 @@ export default function SupportPage() {
                                                 {selectedTicket.subject}
                                             </h2>
                                             <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                                                <Badge bg={sc.bg} color={sc.color}>{sc.label}</Badge>
-                                                <Badge bg={pc.bg} color={pc.color}>{selectedTicket.priority}</Badge>
-                                                <Badge bg="rgba(107,114,128,0.08)" color="#6B7280">{selectedTicket.category}</Badge>
+                                                <Badge status={selectedTicket.status} map={STATUS_MAP} />
+                                                <Badge status={selectedTicket.priority} map={PRIORITY_MAP} />
+                                                <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "#6B7280" }}>{selectedTicket.category}</span>
                                             </div>
                                         </div>
                                         <button onClick={() => setSelectedTicket(null)}
-                                            style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-faint)", lineHeight: 1 }}>
+                                            style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-faint)", lineHeight: 1, padding: "4px 8px", borderRadius: 6 }}>
                                             ×
                                         </button>
                                     </div>
 
                                     {/* Client Info Bar */}
                                     <div style={{
-                                        padding: "12px 24px", background: "var(--surface)",
-                                        display: "flex", gap: 16, alignItems: "center", fontSize: 13,
-                                        borderBottom: "1px solid var(--border-light)",
+                                        padding: "10px 24px", background: "var(--bg)",
+                                        display: "flex", gap: 12, alignItems: "center", fontSize: 13,
+                                        borderBottom: "1px solid var(--border-light)", flexWrap: "wrap",
                                     }}>
                                         <div>
-                                            <span style={{ color: "var(--text-muted)" }}>Client: </span>
+                                            <span style={{ color: "var(--text-faint)" }}>Client </span>
                                             <strong style={{ color: "var(--text)" }}>{selectedTicket.client.company || selectedTicket.client.name || "—"}</strong>
                                         </div>
-                                        <div style={{ color: "var(--text-faint)" }}>·</div>
-                                        <div style={{ color: "var(--text-muted)" }}>{selectedTicket.client.email || "—"}</div>
-                                        <div style={{ color: "var(--text-faint)" }}>·</div>
-                                        <Badge bg={planC.bg} color={planC.color}>{selectedTicket.client.planTier}</Badge>
-                                        <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-faint)" }}>
+                                        <span style={{ color: "var(--border)" }}>·</span>
+                                        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{selectedTicket.client.email || "—"}</span>
+                                        <span style={{ color: "var(--border)" }}>·</span>
+                                        <Badge status={selectedTicket.client.planTier} map={PLAN_MAP} />
+                                        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-faint)" }}>
                                             Opened {formatDate(selectedTicket.createdAt)}
-                                        </div>
+                                        </span>
                                     </div>
 
                                     {/* Message Thread */}
-                                    <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14, minHeight: 120 }}>
+                                        {selectedTicket.messages.length === 0 && (
+                                            <div style={{ textAlign: "center", padding: 30, color: "var(--text-faint)", fontSize: 13 }}>
+                                                No messages yet
+                                            </div>
+                                        )}
                                         {selectedTicket.messages.map(msg => {
                                             const isClient = msg.sender === "client";
                                             return (
-                                                <div key={msg.id} style={{
-                                                    display: "flex",
-                                                    justifyContent: isClient ? "flex-start" : "flex-end",
-                                                }}>
+                                                <div key={msg.id} style={{ display: "flex", justifyContent: isClient ? "flex-start" : "flex-end" }}>
                                                     <div style={{
-                                                        maxWidth: "80%", padding: "12px 16px",
+                                                        maxWidth: "78%", padding: "12px 16px",
                                                         borderRadius: isClient ? "14px 14px 14px 4px" : "14px 14px 4px 14px",
                                                         background: isClient ? "#FFF7ED" : "#EFF6FF",
                                                         border: `1px solid ${isClient ? "#FED7AA" : "#BFDBFE"}`,
                                                     }}>
-                                                        <div style={{
-                                                            fontSize: 11, fontWeight: 600, marginBottom: 6,
-                                                            color: isClient ? "#EA580C" : "#2563EB",
-                                                        }}>
-                                                            {isClient ? (selectedTicket.client.name || "Client") : "Support (You)"}
+                                                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: isClient ? "#EA580C" : "#2563EB" }}>
+                                                            {isClient ? (selectedTicket.client.name || selectedTicket.client.company || "Client") : "Support (You)"}
                                                         </div>
-                                                        <div style={{
-                                                            fontSize: 13, lineHeight: 1.6, color: "#334155",
-                                                            whiteSpace: "pre-wrap",
-                                                        }}>
+                                                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", whiteSpace: "pre-wrap" }}>
                                                             {msg.body}
                                                         </div>
-                                                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 6 }}>
+                                                        <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 6 }}>
                                                             {formatDate(msg.createdAt)}
                                                         </div>
                                                     </div>
                                                 </div>
                                             );
                                         })}
-
-                                        {selectedTicket.messages.length === 0 && (
-                                            <div style={{ textAlign: "center", padding: 30, color: "var(--text-faint)", fontSize: 13 }}>
-                                                No messages yet
-                                            </div>
-                                        )}
                                     </div>
 
                                     {/* Reply Area */}
-                                    {selectedTicket.status !== "closed" && (
-                                        <div style={{
-                                            padding: "16px 24px 24px", borderTop: "1px solid var(--border-light)",
-                                            background: "var(--surface)",
-                                        }}>
+                                    {selectedTicket.status !== "closed" ? (
+                                        <div style={{ padding: "16px 24px 24px", borderTop: "1px solid var(--border-light)", background: "var(--bg)" }}>
                                             <textarea
                                                 className="input"
                                                 placeholder="Type your reply..."
                                                 value={replyBody}
                                                 onChange={e => setReplyBody(e.target.value)}
-                                                rows={4}
-                                                style={{ width: "100%", resize: "vertical", marginBottom: 12, fontFamily: "inherit" }}
+                                                rows={3}
+                                                style={{ width: "100%", resize: "vertical", marginBottom: 12, fontFamily: "inherit", fontSize: 13 }}
                                             />
                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                                    <select className="input" value={replyStatus} onChange={e => setReplyStatus(e.target.value)}
-                                                        style={{ width: 160, fontSize: 12 }}>
-                                                        <option value="">Keep Current Status</option>
-                                                        <option value="in_progress">Mark In Progress</option>
-                                                        <option value="resolved">Mark Resolved</option>
-                                                        <option value="closed">Mark Closed</option>
+                                                    <select className="input" value={replyStatus} onChange={e => setReplyStatus(e.target.value)} style={{ width: "auto", fontSize: 12 }}>
+                                                        <option value="">Keep Status</option>
+                                                        <option value="in_progress">In Progress</option>
+                                                        <option value="resolved">Resolved</option>
+                                                        <option value="closed">Closed</option>
                                                     </select>
                                                     {gmailEmail && (
                                                         <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
@@ -466,21 +520,13 @@ export default function SupportPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <button className="btn btn-sm btn-primary"
-                                                    disabled={!replyBody.trim() || replySending}
-                                                    onClick={sendReply}>
+                                                <button className="btn btn-sm btn-primary" disabled={!replyBody.trim() || replySending} onClick={sendReply}>
                                                     {replySending ? "Sending..." : "Send Reply"}
                                                 </button>
                                             </div>
                                         </div>
-                                    )}
-
-                                    {selectedTicket.status === "closed" && (
-                                        <div style={{
-                                            padding: "16px 24px", textAlign: "center",
-                                            fontSize: 13, color: "var(--text-faint)",
-                                            borderTop: "1px solid var(--border-light)", background: "var(--surface)",
-                                        }}>
+                                    ) : (
+                                        <div style={{ padding: "16px 24px", textAlign: "center", fontSize: 13, color: "var(--text-faint)", borderTop: "1px solid var(--border-light)", background: "var(--bg)" }}>
                                             This ticket is closed
                                         </div>
                                     )}
