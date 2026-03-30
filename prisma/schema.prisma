@@ -153,6 +153,9 @@ model User {
   // ── Admin Dashboard expansion relations ──
   agentErrorLogs       AgentErrorLog[]
   websiteHealthChecks  WebsiteHealthCheck[]
+  // ── Support Ticket relations ──
+  isDemoAccount        Boolean               @default(false)
+  supportTickets       SupportTicket[]
 }
 
 model OnboardingSubmission {
@@ -2073,4 +2076,42 @@ model PromoCode {
 
   @@unique([userId, code])
   @@index([userId, active])
+}
+
+// ── Support Ticket System ──────────────────────────────────────────────────
+
+model SupportTicket {
+  id            String            @id @default(cuid())
+  userId        String
+  ticketNumber  Int
+  subject       String
+  category      String
+  priority      String            @default("Medium")
+  status        String            @default("open")
+  messages      SupportMessage[]
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  sender    String                              // "client" | "support"
+  body      String        @db.Text
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+}
+
+// ── Admin Configuration (key-value store for admin-level settings) ──────────
+
+model AdminSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
 }

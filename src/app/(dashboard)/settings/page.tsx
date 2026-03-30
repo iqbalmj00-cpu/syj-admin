@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function SettingsPage() {
     const [announcement, setAnnouncement] = useState("");
     const [showKey, setShowKey] = useState<Record<string, boolean>>({});
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+    // Gmail integration state
+    const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
+    const [gmailLoading, setGmailLoading] = useState(false);
+
+    useEffect(() => {
+        fetch("/api/gmail/status").then(r => r.json()).then(setGmailStatus).catch(() => {});
+    }, []);
 
     const keys = [
         { id: "vercel", label: "Vercel", masked: "v_••••••••••••" },
@@ -75,6 +83,56 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+
+                {/* Email Integration */}
+                <div className="card">
+                    <div className="card-header"><h3>Email Integration</h3></div>
+                    <div className="card-body">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>Gmail</div>
+                                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Send support replies from your Gmail account</div>
+                            </div>
+                            <div style={{
+                                display: "flex", alignItems: "center", gap: 6,
+                                padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                background: gmailStatus.connected ? "rgba(0,216,74,0.12)" : "rgba(107,114,128,0.12)",
+                                color: gmailStatus.connected ? "#00A83A" : "#6B7280",
+                            }}>
+                                <div style={{ width: 7, height: 7, borderRadius: "50%", background: gmailStatus.connected ? "#00D84A" : "#9CA3AF" }} />
+                                {gmailStatus.connected ? "Connected" : "Not Connected"}
+                            </div>
+                        </div>
+                        {gmailStatus.connected && gmailStatus.email && (
+                            <div style={{
+                                padding: 12, background: "var(--surface)", borderRadius: 10,
+                                fontSize: 13, color: "var(--text-muted)", marginBottom: 12,
+                                display: "flex", alignItems: "center", gap: 8,
+                            }}>
+                                <span style={{ fontSize: 16 }}>📧</span>
+                                <span>Sending as <strong style={{ color: "var(--text)" }}>{gmailStatus.email}</strong></span>
+                            </div>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                            {!gmailStatus.connected ? (
+                                <button className="btn btn-sm btn-primary" onClick={() => {
+                                    setGmailLoading(true);
+                                    window.location.href = "/api/gmail/connect";
+                                }} disabled={gmailLoading}>
+                                    {gmailLoading ? "Connecting..." : "Connect Gmail"}
+                                </button>
+                            ) : (
+                                <button className="btn btn-sm btn-ghost" style={{ color: "var(--danger)" }}
+                                    onClick={async () => {
+                                        if (!confirm("Disconnect Gmail? Support replies will stop sending until you reconnect.")) return;
+                                        await fetch("/api/gmail/disconnect", { method: "POST" });
+                                        setGmailStatus({ connected: false, email: null });
+                                        showToast("Gmail disconnected");
+                                    }}>Disconnect</button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
