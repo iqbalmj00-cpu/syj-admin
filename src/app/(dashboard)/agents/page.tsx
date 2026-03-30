@@ -118,7 +118,6 @@ interface GeneratedVideo {
 
 const TABS: { id: TabId; label: string }[] = [
     { id: "agents", label: "Agents" },
-    { id: "leads", label: "Leads" },
     { id: "messages", label: "Messages" },
     { id: "content", label: "Content" },
     { id: "syj_blogs", label: "SYJ Blogs" },
@@ -131,8 +130,6 @@ const TABS: { id: TabId; label: string }[] = [
 export default function AgentsPage() {
     const [tab, setTab] = useState<TabId>("agents");
     const [agents, setAgents] = useState<Agent[]>([]);
-    const [leads, setLeads] = useState<Lead[]>([]);
-    const [funnel, setFunnel] = useState<FunnelData>({ total: 0, new: 0, emailed: 0, sms_sent: 0, replied: 0, converted: 0, skipped: 0 });
     const [blogs, setBlogs] = useState<BlogPostPreview[]>([]);
     const [blogCounts, setBlogCounts] = useState<Record<string, number>>({ draft: 0, approved: 0, published: 0, rejected: 0 });
     const [contentVideos, setContentVideos] = useState<GeneratedVideo[]>([]);
@@ -140,18 +137,7 @@ export default function AgentsPage() {
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
 
     // Filters
-    const [gradeFilter, setGradeFilter] = useState<string>("all");
-    const [outreachFilter, setOutreachFilter] = useState<string>("all");
     const [blogStatusFilter, setBlogStatusFilter] = useState<string>("all");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [leadsPage, setLeadsPage] = useState(1);
-    const [leadsTotal, setLeadsTotal] = useState(0);
-    const [leadsSortBy, setLeadsSortBy] = useState("createdAt");
-    const [leadsSortOrder, setLeadsSortOrder] = useState<"asc" | "desc">("desc");
-    const [marketFilter, setMarketFilter] = useState("all");
-    const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
-    const [companyTypeFilter, setCompanyTypeFilter] = useState("all");
-    const LEADS_PER_PAGE = 50;
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -161,29 +147,6 @@ export default function AgentsPage() {
             if (res.ok) setAgents(await res.json());
         } catch { /* ignore */ }
     }, []);
-
-    const fetchLeads = useCallback(async () => {
-        try {
-            const params = new URLSearchParams();
-            if (gradeFilter !== "all") params.set("grade", gradeFilter);
-            if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
-            if (marketFilter !== "all") params.set("market", marketFilter);
-            if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
-            if (searchQuery) params.set("search", searchQuery);
-            params.set("page", String(leadsPage));
-            params.set("limit", String(LEADS_PER_PAGE));
-            params.set("sortBy", leadsSortBy);
-            params.set("sortOrder", leadsSortOrder);
-            const res = await fetch(`/api/agents/leads?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setLeads(data.leads);
-                setLeadsTotal(data.total);
-                setFunnel(data.funnel);
-                if (data.markets) setAvailableMarkets(data.markets);
-            }
-        } catch { /* ignore */ }
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder]);
 
     const fetchBlogs = useCallback(async () => {
         try {
@@ -206,8 +169,8 @@ export default function AgentsPage() {
     }, []);
 
     useEffect(() => {
-        Promise.all([fetchAgents(), fetchLeads(), fetchBlogs(), fetchContent()]).finally(() => setLoading(false));
-    }, [fetchAgents, fetchLeads, fetchBlogs, fetchContent]);
+        Promise.all([fetchAgents(), fetchBlogs(), fetchContent()]).finally(() => setLoading(false));
+    }, [fetchAgents, fetchBlogs, fetchContent]);
 
     // Auto-poll every 5s when any agent is running
     useEffect(() => {
@@ -217,8 +180,6 @@ export default function AgentsPage() {
         return () => clearInterval(interval);
     }, [agents, fetchAgents]);
 
-    useEffect(() => { if (!loading) { setLeadsPage(1); } }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsSortBy, leadsSortOrder, loading]);
-    useEffect(() => { if (!loading) fetchLeads(); }, [gradeFilter, outreachFilter, marketFilter, searchQuery, leadsPage, leadsSortBy, leadsSortOrder, fetchLeads, loading]);
     useEffect(() => { if (!loading) fetchBlogs(); }, [blogStatusFilter, fetchBlogs, loading]);
 
     const triggerRun = async (agentId: string) => {
@@ -305,17 +266,6 @@ export default function AgentsPage() {
                     </div>
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />
                 </>
-            )}
-            {tab === "leads" && (
-                <LeadsTab leads={leads} funnel={funnel}
-                    gradeFilter={gradeFilter} setGradeFilter={setGradeFilter}
-                    outreachFilter={outreachFilter} setOutreachFilter={setOutreachFilter}
-                    marketFilter={marketFilter} setMarketFilter={setMarketFilter}
-                    companyTypeFilter={companyTypeFilter} setCompanyTypeFilter={setCompanyTypeFilter}
-                    searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-                    page={leadsPage} setPage={setLeadsPage} total={leadsTotal} perPage={LEADS_PER_PAGE}
-                    sortBy={leadsSortBy} setSortBy={setLeadsSortBy} sortOrder={leadsSortOrder} setSortOrder={setLeadsSortOrder}
-                    availableMarkets={availableMarkets} onRefresh={fetchLeads} showToast={showToast} />
             )}
             {tab === "messages" && <MessagesTab />}
             {tab === "syj_blogs" && (
@@ -1326,12 +1276,12 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
     return (
         <div className="card">
             <div className="card-header"><h3>All Runs</h3></div>
-            <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                <table>
+            <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                <table className="op-table">
                     <thead>
                         <tr>
                             {["Agent", "Status", "Trigger", "Started", "Duration", "Results"].map(h => (
-                                <th key={h} className="table-head">{h}</th>
+                                <th key={h}>{h}</th>
                             ))}
                         </tr>
                     </thead>
@@ -1340,23 +1290,25 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
                             const a = agentMap[r.agentId];
                             const runStatus = STATUS_MAP[r.status] || { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: r.status };
                             return (
-                                <tr key={r.id} className="table-row">
-                                    <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>
+                                <tr key={r.id}>
+                                    <td style={{ fontWeight: 600 }}>
                                         {a ? `${AGENT_ICONS[a.slug] || "🤖"} ${a.name}` : r.agentId}
                                     </td>
-                                    <td style={{ padding: "10px 14px" }}><Badge bg={runStatus.bg} color={runStatus.color} label={runStatus.label} /></td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>{r.trigger}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{relTime(r.startedAt)}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace" }}>{fmtDuration(r.durationMs)}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 11, color: "var(--text-light)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <td><Badge bg={runStatus.bg} color={runStatus.color} label={runStatus.label} /></td>
+                                    <td>{r.trigger}</td>
+                                    <td style={{ color: "var(--text-faint)" }}>{relTime(r.startedAt)}</td>
+                                    <td style={{ fontFamily: "monospace" }}>{fmtDuration(r.durationMs)}</td>
+                                    <td style={{ color: "var(--text-light)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {r.results ? JSON.stringify(r.results).slice(0, 80) : "—"}
                                     </td>
                                 </tr>
                             );
                         })}
+                        {runs.length === 0 && (
+                            <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No runs yet. Trigger a run from the Agents tab.</td></tr>
+                        )}
                     </tbody>
                 </table>
-                {runs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No runs yet. Trigger a run from the Agents tab.</div>}
             </div>
         </div>
     );

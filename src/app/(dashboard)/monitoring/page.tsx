@@ -42,22 +42,22 @@ function CronTab() {
     return (
         <div className="card">
             <div className="card-header"><h3>Cron Job Status</h3></div>
-            <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                <table>
-                    <thead><tr>{["Job Name", "Last Run", "Status", "Duration", "Errors", "Total Runs"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+            <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                <table className="op-table">
+                    <thead><tr>{["Job Name", "Last Run", "Status", "Duration", "Errors", "Total Runs"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                     <tbody>
                         {data.jobs?.map((j: any) => {
                             const sc = j.lastRun?.status === "success" ? STATUS_COLORS.success : j.lastRun?.status === "error" ? STATUS_COLORS.error : STATUS_COLORS.idle;
                             return (
-                                <tr key={j.jobName} className="table-row">
-                                    <td style={{ padding: "10px 14px", fontWeight: 600, fontFamily: "monospace", fontSize: 13 }}>{j.jobName}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-light)" }}>
+                                <tr key={j.jobName}>
+                                    <td style={{ fontWeight: 600, fontFamily: "monospace", fontSize: 13 }}>{j.jobName}</td>
+                                    <td style={{ color: "var(--text-light)" }}>
                                         {j.lastRun?.ranAt ? new Date(j.lastRun.ranAt).toLocaleString() : "Never"}
                                     </td>
-                                    <td style={{ padding: "10px 14px" }}><Badge bg={sc.bg} color={sc.color} label={j.lastRun?.status || "No data"} /></td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>{j.lastRun?.duration ? `${j.lastRun.duration}ms` : "—"}</td>
-                                    <td style={{ padding: "10px 14px", fontWeight: 700, color: j.errorCount > 0 ? "var(--danger)" : "var(--text-faint)" }}>{j.errorCount}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{j.totalRuns}</td>
+                                    <td><Badge bg={sc.bg} color={sc.color} label={j.lastRun?.status || "No data"} /></td>
+                                    <td>{j.lastRun?.duration ? `${j.lastRun.duration}ms` : "—"}</td>
+                                    <td style={{ fontWeight: 700, color: j.errorCount > 0 ? "var(--danger)" : "var(--text-faint)" }}>{j.errorCount}</td>
+                                    <td style={{ color: "var(--text-faint)" }}>{j.totalRuns}</td>
                                 </tr>
                             );
                         })}
@@ -89,17 +89,17 @@ function IntegrationsTab() {
                 return (
                     <div className="card" key={group}>
                         <div className="card-header"><h3>{titleMap[group]} ({items.length})</h3></div>
-                        <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                            <table>
-                                <thead><tr>{["Client", "Provider", "Status", "Expires", "Connected"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                        <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                            <table className="op-table">
+                                <thead><tr>{["Client", "Provider", "Status", "Expires", "Connected"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                                 <tbody>
                                     {items.map((i: any) => (
-                                        <tr key={i.id} className="table-row">
-                                            <td style={{ padding: "10px 14px", fontWeight: 600 }}>{i.user?.company || i.user?.email || "—"}</td>
-                                            <td style={{ padding: "10px 14px", fontSize: 12, textTransform: "capitalize" }}>{i.provider?.replace(/_/g, " ")}</td>
-                                            <td style={{ padding: "10px 14px" }}><Badge {...(STATUS_COLORS[i.status] || STATUS_COLORS.disconnected)} /></td>
-                                            <td style={{ padding: "10px 14px", fontSize: 12 }}>{i.expiresAt ? new Date(i.expiresAt).toLocaleDateString() : "N/A"}</td>
-                                            <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{i.connectedAt ? new Date(i.connectedAt).toLocaleDateString() : "—"}</td>
+                                        <tr key={i.id}>
+                                            <td style={{ fontWeight: 600 }}>{i.user?.company || i.user?.email || "—"}</td>
+                                            <td style={{ textTransform: "capitalize" }}>{i.provider?.replace(/_/g, " ")}</td>
+                                            <td><Badge {...(STATUS_COLORS[i.status] || STATUS_COLORS.disconnected)} /></td>
+                                            <td>{i.expiresAt ? new Date(i.expiresAt).toLocaleDateString() : "N/A"}</td>
+                                            <td style={{ color: "var(--text-faint)" }}>{i.connectedAt ? new Date(i.connectedAt).toLocaleDateString() : "—"}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -134,25 +134,25 @@ function EngagementTab() {
             </div>
             <div className="card">
                 <div className="card-header"><h3>Client Engagement Scores</h3></div>
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead><tr>{["Company", "Score", "Risk", "Last Login", "Jobs (30d)", "Leads (30d)", "Calls (30d)", "Plan"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                    <table className="op-table">
+                        <thead><tr>{["Company", "Score", "Risk", "Last Login", "Jobs (30d)", "Leads (30d)", "Calls (30d)", "Plan"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                         <tbody>
                             {data.clients?.map((c: any) => (
-                                <tr key={c.id} className="table-row" style={{ cursor: "pointer" }} onClick={() => window.location.href = `/clients/${c.id}`}>
-                                    <td style={{ padding: "10px 14px", fontWeight: 600 }}>{c.company}</td>
-                                    <td style={{ padding: "10px 14px" }}>
+                                <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/clients/${c.id}`}>
+                                    <td style={{ fontWeight: 600 }}>{c.company}</td>
+                                    <td>
                                         <span style={{
                                             fontWeight: 700, fontFamily: "var(--font-heading)", fontSize: 16,
                                             color: c.score < 30 ? "var(--danger)" : c.score < 60 ? "var(--warn-dark)" : "var(--success)"
                                         }}>{c.score}</span>
                                     </td>
-                                    <td style={{ padding: "10px 14px" }}><Badge {...(RISK_BADGES[c.risk] || RISK_BADGES.healthy)} /></td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{c.lastLoginAt ? new Date(c.lastLoginAt).toLocaleDateString() : "Never"}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.counts?.jobs || 0}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.counts?.leads || 0}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.counts?.phoneCalls || 0}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, textTransform: "capitalize" }}>{c.planTier}</td>
+                                    <td><Badge {...(RISK_BADGES[c.risk] || RISK_BADGES.healthy)} /></td>
+                                    <td style={{ color: "var(--text-faint)" }}>{c.lastLoginAt ? new Date(c.lastLoginAt).toLocaleDateString() : "Never"}</td>
+                                    <td>{c.counts?.jobs || 0}</td>
+                                    <td>{c.counts?.leads || 0}</td>
+                                    <td>{c.counts?.phoneCalls || 0}</td>
+                                    <td style={{ textTransform: "capitalize" }}>{c.planTier}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -178,16 +178,16 @@ function PaymentsTab() {
             {data.pastDueUsers?.length > 0 && (
                 <div className="card">
                     <div className="card-header"><h3>Past Due Clients</h3></div>
-                    <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                        <table>
-                            <thead><tr>{["Company", "Email", "Plan", "Last Updated"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                    <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                        <table className="op-table">
+                            <thead><tr>{["Company", "Email", "Plan", "Last Updated"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                             <tbody>
                                 {data.pastDueUsers.map((u: any) => (
-                                    <tr key={u.id} className="table-row" style={{ cursor: "pointer" }} onClick={() => window.location.href = `/clients/${u.id}`}>
-                                        <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--danger)" }}>{u.company || "—"}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12 }}>{u.email}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, textTransform: "capitalize" }}>{u.planTier}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{new Date(u.updatedAt).toLocaleString()}</td>
+                                    <tr key={u.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/clients/${u.id}`}>
+                                        <td style={{ fontWeight: 600, color: "var(--danger)" }}>{u.company || "—"}</td>
+                                        <td>{u.email}</td>
+                                        <td style={{ textTransform: "capitalize" }}>{u.planTier}</td>
+                                        <td style={{ color: "var(--text-faint)" }}>{new Date(u.updatedAt).toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -198,15 +198,15 @@ function PaymentsTab() {
             {data.alerts?.length > 0 && (
                 <div className="card">
                     <div className="card-header"><h3>Recent Payment Failure Alerts</h3></div>
-                    <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                        <table>
-                            <thead><tr>{["Client", "Message", "Date"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                    <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                        <table className="op-table">
+                            <thead><tr>{["Client", "Message", "Date"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                             <tbody>
                                 {data.alerts.map((a: any) => (
-                                    <tr key={a.id} className="table-row">
-                                        <td style={{ padding: "10px 14px", fontWeight: 600 }}>{a.user?.company || "—"}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12 }}>{a.body}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{new Date(a.createdAt).toLocaleString()}</td>
+                                    <tr key={a.id}>
+                                        <td style={{ fontWeight: 600 }}>{a.user?.company || "—"}</td>
+                                        <td>{a.body}</td>
+                                        <td style={{ color: "var(--text-faint)" }}>{new Date(a.createdAt).toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -256,28 +256,28 @@ function HealthTab({ showToast }: { showToast: (m: string, t?: string) => void }
             </div>
             <div className="card">
                 <div className="card-header"><h3>Latest Health Checks</h3></div>
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead><tr>{["Client", "URL", "Status", "Response Time", "Last Checked"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                    <table className="op-table">
+                        <thead><tr>{["Client", "URL", "Status", "Response Time", "Last Checked"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                         <tbody>
                             {data?.checks?.map((c: any) => (
-                                <tr key={c.id} className="table-row">
-                                    <td style={{ padding: "10px 14px", fontWeight: 600 }}>{c.user?.company || "—"}</td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                                <tr key={c.id}>
+                                    <td style={{ fontWeight: 600 }}>{c.user?.company || "—"}</td>
+                                    <td>
                                         <a href={c.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--info)", textDecoration: "none" }}>
                                             {c.url.replace("https://", "").slice(0, 40)}
                                         </a>
                                     </td>
-                                    <td style={{ padding: "10px 14px" }}>
+                                    <td>
                                         <Badge {...(c.healthy ? STATUS_COLORS.healthy : STATUS_COLORS.error)} label={c.healthy ? `${c.statusCode} OK` : `${c.statusCode || "Timeout"}`} />
                                     </td>
                                     <td style={{
-                                        padding: "10px 14px", fontSize: 12, fontFamily: "monospace",
+                                        fontFamily: "monospace",
                                         color: c.responseTime > 5000 ? "var(--danger)" : c.responseTime > 2000 ? "var(--warn-dark)" : "var(--success)"
                                     }}>
                                         {c.responseTime}ms
                                     </td>
-                                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{new Date(c.checkedAt).toLocaleString()}</td>
+                                    <td style={{ color: "var(--text-faint)" }}>{new Date(c.checkedAt).toLocaleString()}</td>
                                 </tr>
                             ))}
                         </tbody>

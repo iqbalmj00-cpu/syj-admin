@@ -38,44 +38,44 @@ export default function PhonesPage() {
 
             <div className="card">
                 <div className="card-header"><h3>All Phone Agents</h3></div>
-                <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
-                    {([["company", "Client", "25%"], ["phoneNumber", "Number", "25%"], ["twilioSid", "Twilio SID", "30%"], ["", "Total Calls", "20%"]] as [string, string, string][]).map(([f, label, width], i) => (
-                        <div key={i} style={{ flexBasis: width, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                            {label}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="interactive-cards-list">
-                    {phones.map(p => (
-                        <div key={p.id} className="interactive-row-card">
-                            {/* Client & Avatar - 25% */}
-                            <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
-                                <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={p.company} /></div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.company}</span>
-                                </div>
-                            </div>
-
-                            {/* Number - 25% */}
-                            <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                                <span style={{ fontFamily: "monospace", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>{p.phoneNumber}</span>
-                                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Area Code: {p.areaCode || "—"}</span>
-                            </div>
-
-                            {/* Twilio SID - 30% */}
-                            <div style={{ flexBasis: "30%", flexShrink: 0 }}>
-                                <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", background: "var(--surface)", padding: "4px 8px", borderRadius: 6 }}>{p.twilioSid}</span>
-                            </div>
-
-                            {/* Calls - 20% */}
-                            <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", alignItems: "center" }}>
-                                <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{p.totalCalls.toLocaleString()}</span>
-                                <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 6 }}>calls</span>
-                            </div>
-                        </div>
-                    ))}
-                    {phones.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No phone agents configured</div>}
+                <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                    <table className="op-table">
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Number</th>
+                                <th>Twilio SID</th>
+                                <th>Total Calls</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {phones.map(p => (
+                                <tr key={p.id}>
+                                    <td style={{ minWidth: 200 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                            <div style={{ transform: "scale(0.8)" }}><Avatar name={p.company} /></div>
+                                            <span style={{ fontWeight: 600 }}>{p.company}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style={{ display: "flex", flexDirection: "column" }}>
+                                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{p.phoneNumber}</span>
+                                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>Area Code: {p.areaCode || "—"}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", background: "var(--surface)", padding: "4px 8px", borderRadius: 6 }}>{p.twilioSid}</span>
+                                    </td>
+                                    <td>
+                                        <span style={{ fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{p.totalCalls.toLocaleString()}</span>
+                                    </td>
+                                </tr>
+                            ))}
+                            {phones.length === 0 && (
+                                <tr><td colSpan={4} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No phone agents configured</td></tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

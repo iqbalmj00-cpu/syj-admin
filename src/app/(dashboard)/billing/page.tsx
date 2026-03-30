@@ -32,48 +32,38 @@ export default function BillingPage() {
                 <Kpi label="Past Due" value={data.pastDueCount} sub={data.pastDueCount > 0 ? "⚠️ Action needed" : "All clear"} />
             </div>
 
-            <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
-                {([["company", "Company", "30%"], ["plan", "Plan", "15%"], ["planStatus", "Status", "15%"], ["", "MRR", "15%"], ["", "Joined", "25%"]] as [string, string, string][]).map(([f, label, width], i) => (
-                    <div key={i} style={{ flexBasis: width, flexShrink: 0, cursor: "default", display: "flex", alignItems: "center", gap: 4 }}>
-                        {label}
-                    </div>
-                ))}
-            </div>
-            
-            <div className="interactive-cards-list">
-                {sorted.map((c: any) => (
-                    <div key={c.id} className="interactive-row-card" onClick={() => window.location.href = `/clients/${c.id}`}>
-                        {/* Company & Avatar - 30% */}
-                        <div style={{ flexBasis: "30%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
-                            <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={c.company} /></div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.company}</span>
-                                <span style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.email}</span>
-                            </div>
-                        </div>
-
-                        {/* Plan - 15% */}
-                        <div style={{ flexBasis: "15%", flexShrink: 0 }}>
-                            <Badge status={c.planTier || "starter"} />
-                        </div>
-
-                        {/* Status - 15% */}
-                        <div style={{ flexBasis: "15%", flexShrink: 0 }}>
-                            <Badge status={c.planStatus} />
-                        </div>
-
-                        {/* MRR - 15% */}
-                        <div style={{ flexBasis: "15%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)", color: c.planStatus === "canceled" ? "var(--text-faint)" : "var(--text)" }}>${c.mrr}</span>
-                        </div>
-
-                        {/* Joined - 25% */}
-                        <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", alignItems: "center" }}>
-                            <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 500 }}>{new Date(c.createdAt).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                ))}
-                {sorted.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients found</div>}
+            <div className="op-table-wrapper">
+                <table className="op-table">
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Plan</th>
+                            <th>Status</th>
+                            <th>MRR</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map((c: any) => (
+                            <tr key={c.id} onClick={() => window.location.href = `/clients/${c.id}`} style={{ cursor: "pointer" }}>
+                                <td style={{ minWidth: 200 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                        <div style={{ transform: "scale(0.8)" }}><Avatar name={c.company} /></div>
+                                        <div style={{ display: "flex", flexDirection: "column" }}>
+                                            <span style={{ fontWeight: 600 }}>{c.company}</span>
+                                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>{c.email}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><Badge status={c.planTier || "starter"} /></td>
+                                <td><Badge status={c.planStatus} /></td>
+                                <td style={{ fontWeight: 600, color: c.planStatus === "canceled" ? "var(--text-faint)" : "var(--text)" }}>${c.mrr}</td>
+                                <td style={{ color: "var(--text-light)" }}>{new Date(c.createdAt).toLocaleDateString()}</td>
+                            </tr>
+                        ))}
+                        {sorted.length === 0 && <tr><td colSpan={5} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No clients found</td></tr>}
+                    </tbody>
+                </table>
             </div>
             <Toast toast={toast} />
         </div>

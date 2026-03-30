@@ -58,51 +58,33 @@ export default function OverviewPage() {
                         <Link href="/clients" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>View All</Link>
                     </div>
                     <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                        <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
-                            {([["company", "Company", "30%"], ["plan", "Plan", "15%"], ["planStatus", "Status", "15%"], ["", "Systems", "20%"], ["", "Jobs", "20%"]] as [string, string, string][]).map(([f, label, width], i) => (
-                                <div key={i} style={{ flexBasis: width, flexShrink: 0, cursor: "default", display: "flex", alignItems: "center", gap: 4 }}>
-                                    {label}
-                                </div>
-                            ))}
+                        <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                            <table className="op-table">
+                                <thead>
+                                    <tr>
+                                        <th>Company</th>
+                                        <th>Location</th>
+                                        <th>Plan</th>
+                                        <th>Status</th>
+                                        <th>Jobs</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {clients.slice(0, 6).map(c => (
+                                        <tr key={c.id} onClick={() => window.location.href = "/clients"} style={{ cursor: "pointer" }}>
+                                            <td style={{ fontWeight: 600 }}>{c.company}</td>
+                                            <td style={{ color: "var(--text-light)" }}>{c.city}, {c.state}</td>
+                                            <td><Badge status={c.plan} /></td>
+                                            <td><Badge status={c.planStatus} /></td>
+                                            <td style={{ fontWeight: 600, color: "var(--text-light)" }}>{c.counts.jobs.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                    {clients.length === 0 && (
+                                        <tr><td colSpan={5} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No clients yet</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                        <div className="interactive-cards-list">
-                            {clients.slice(0, 6).map(c => (
-                                <Link key={c.id} href="/clients" style={{textDecoration: "none", color: "inherit", padding: "16px"}} className="interactive-row-card">
-                                    {/* Company & Avatar - 30% */}
-                                    <div style={{ flexBasis: "30%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
-                                        <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={c.company} /></div>
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.company}</span>
-                                            <span style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.city}, {c.state}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Plan - 15% */}
-                                    <div style={{ flexBasis: "15%", flexShrink: 0 }}>
-                                        <Badge status={c.plan} />
-                                    </div>
-
-                                    {/* Status - 15% */}
-                                    <div style={{ flexBasis: "15%", flexShrink: 0 }}>
-                                        <Badge status={c.planStatus} />
-                                    </div>
-
-                                    {/* Systems - 20% */}
-                                    <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                                        {c.website ? <Badge status={c.website.deployStatus} showDot={false} disableFallbackDot={true} /> : <span style={{ color: "var(--text-faint)", fontSize: 10 }}>No Site</span>}
-                                        <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", fontWeight: 500 }}>{c.phone?.phoneNumber || "No Phone"}</span>
-                                    </div>
-
-                                    {/* Jobs - 20% */}
-                                    <div style={{ flexBasis: "20%", flexShrink: 0, display: "flex", alignItems: "center" }}>
-                                        <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)" }}>{c.counts.jobs.toLocaleString()}</span>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                        {clients.length === 0 && (
-                            <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients yet</div>
-                        )}
                     </div>
                 </div>
 

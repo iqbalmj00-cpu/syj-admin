@@ -77,75 +77,71 @@ export default function WebsitesPage() {
                 <Kpi label="Building" value={sites.filter(s => s.deployStatus === "building").length} />
             </div>
 
-            <div className="interactive-cards-header" style={{ padding: "0 10px" }}>
-                {([["company", "Client", "25%"], ["", "Systems", "30%"], ["deployStatus", "Status", "15%"], ["deployedAt", "Last Deploy", "15%"], ["", "Actions", "15%"]] as [string, string, string][]).map(([f, label, width], i) => (
-                    <div key={i} style={{ flexBasis: width, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                        {label}
-                    </div>
-                ))}
-            </div>
-
-            <div className="interactive-cards-list">
-                {sites.map(s => {
-                    const isRedeploying = redeployingId === s.id;
-                    return (
-                        <div key={s.id} className="interactive-row-card" style={isRedeploying ? { opacity: 0.6 } : undefined}>
-                            {/* Client & Avatar - 25% */}
-                            <div style={{ flexBasis: "25%", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
-                                <div style={{transform: "scale(0.85)", transformOrigin: "left center"}}><Avatar name={s.company} /></div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.company}</span>
-                                    <span style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.email || "No Email"}</span>
-                                </div>
-                            </div>
-
-                            {/* Systems - 30% */}
-                            <div style={{ flexBasis: "30%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                                <span style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-                                    {s.subdomain}.scaleyourjunk.com
-                                </span>
-                                <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "monospace" }}>
-                                    ID: {s.vercelProjectId || "None"}
-                                </span>
-                            </div>
-
-                            {/* Status - 15% */}
-                            <div style={{ flexBasis: "15%", flexShrink: 0 }}>
-                                <Badge status={s.deployStatus} />
-                            </div>
-
-                            {/* Last Deploy - 15% */}
-                            <div style={{ flexBasis: "15%", flexShrink: 0, display: "flex", flexDirection: "column" }}>
-                                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 500 }}>{fmtDateTime(s.deployedAt)}</span>
-                            </div>
-
-                            {/* Actions - 15% */}
-                            <div style={{ flexBasis: "15%", flexShrink: 0, display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                                <button
-                                    className="btn btn-xs btn-ghost"
-                                    onClick={() => redeploy(s.id)}
-                                    disabled={isRedeploying}
-                                    style={isRedeploying ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-                                >
-                                    {isRedeploying ? (
-                                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                            <span className="spinner" style={{
-                                                display: "inline-block", width: 12, height: 12,
-                                                border: "2px solid var(--text-faint)", borderTopColor: "transparent",
-                                                borderRadius: "50%", animation: "spin 0.8s linear infinite",
-                                            }} />
-                                            Generating...
-                                        </span>
-                                    ) : "Redeploy"}
-                                </button>
-                                {s.websiteUrl && (
-                                    <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>Visit</a>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-                {sites.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No websites configured</div>}
+            <div className="op-table-wrapper">
+                <table className="op-table">
+                    <thead>
+                        <tr>
+                            <th>Client</th>
+                            <th>Systems</th>
+                            <th>Status</th>
+                            <th>Last Deploy</th>
+                            <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sites.map(s => {
+                            const isRedeploying = redeployingId === s.id;
+                            return (
+                                <tr key={s.id} style={isRedeploying ? { opacity: 0.6 } : undefined}>
+                                    <td style={{ minWidth: 200 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                            <div style={{ transform: "scale(0.8)" }}><Avatar name={s.company} /></div>
+                                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                                <span style={{ fontWeight: 600 }}>{s.company}</span>
+                                                <span style={{ fontSize: 11, color: "var(--text-light)" }}>{s.email || "No Email"}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                            <span style={{ fontFamily: "monospace", color: "var(--text)", fontWeight: 500 }}>{s.subdomain}.scaleyourjunk.com</span>
+                                            <span style={{ fontSize: 10, color: "var(--text-light)", fontFamily: "monospace" }}>ID: {s.vercelProjectId || "None"}</span>
+                                        </div>
+                                    </td>
+                                    <td><Badge status={s.deployStatus} /></td>
+                                    <td style={{ color: "var(--text-light)" }}>{fmtDateTime(s.deployedAt)}</td>
+                                    <td style={{ textAlign: "right" }}>
+                                        <div style={{ display: "inline-flex", gap: 6 }}>
+                                            {s.websiteUrl && (
+                                                <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>Visit</a>
+                                            )}
+                                            <button
+                                                className="btn btn-xs btn-ghost"
+                                                onClick={() => redeploy(s.id)}
+                                                disabled={isRedeploying}
+                                                style={isRedeploying ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+                                            >
+                                                {isRedeploying ? (
+                                                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                        <span className="spinner" style={{
+                                                            display: "inline-block", width: 12, height: 12,
+                                                            border: "2px solid var(--text-faint)", borderTopColor: "transparent",
+                                                            borderRadius: "50%", animation: "spin 0.8s linear infinite",
+                                                        }} />
+                                                        Generating...
+                                                    </span>
+                                                ) : "Redeploy"}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {sites.length === 0 && (
+                            <tr><td colSpan={5} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No websites configured</td></tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             {toast && <div className="toast" style={{ background: toast.type === "error" ? "var(--danger)" : "var(--success)" }}>{toast.msg}</div>}

@@ -31,12 +31,12 @@ export function Badge({ status, map = COMMON_STATUS_MAP, showDot = true, disable
     return (
         <span className="badge" style={{ 
             background: s.bg, color: s.color, 
-            padding: "4px 10px", borderRadius: "10px",
-            display: "inline-flex", alignItems: "center", gap: 6,
-            fontWeight: 600, fontSize: 11,
-            boxShadow: `0 0 0 1px ${s.color}20 inset`
+            padding: "2px 6px", borderRadius: "4px",
+            display: "inline-flex", alignItems: "center", gap: 4,
+            fontWeight: 600, fontSize: 10, textTransform: "uppercase",
+            border: `1px solid ${s.color}30`
         }}>
-            {renderDot && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: s.color, display: "inline-block" }} />}
+            {renderDot && <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: s.color, display: "inline-block" }} />}
             <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
         </span>
     );

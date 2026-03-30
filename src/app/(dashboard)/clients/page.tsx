@@ -133,67 +133,61 @@ export default function ClientsPage() {
                 </div>
             </div>
 
-            {/* Interactive Cards List */}
-            <div className="interactive-cards-header">
-                {([["company", "Company", "28%"], ["plan", "Plan", "10%"], ["planStatus", "Status", "12%"], ["", "Systems", "18%"], ["", "Financials", "12%"], ["createdAt", "Joined", "10%"], ["", "Actions", "10%"]] as [string, string, string][]).map(([f, label, width], i) => (
-                    <div key={i} style={{ flexBasis: width, flexShrink: 0, cursor: f ? "pointer" : "default", display: "flex", alignItems: "center", gap: 4 }} onClick={() => f ? toggleSort(f as keyof Client) : undefined}>
-                        {label} {f && sortField === f ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                    </div>
-                ))}
-            </div>
-            
-            <div className="interactive-cards-list">
-                {filtered.map(c => (
-                    <div key={c.id} className="interactive-row-card" onClick={() => setDetail(c)} style={{ padding: "20px 24px" }}>
-                        {/* Company & Avatar - 28% */}
-                        <div style={{ flexBasis: "28%", flexShrink: 0, display: "flex", alignItems: "center", gap: 14 }}>
-                            <Avatar name={c.company} />
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.company}</span>
-                                <span style={{ fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.city}, {c.state} • {c.name}</span>
-                            </div>
-                        </div>
-
-                        {/* Plan - 10% */}
-                        <div style={{ flexBasis: "10%", flexShrink: 0 }}>
-                            <Badge status={c.plan} />
-                        </div>
-
-                        {/* Status - 12% */}
-                        <div style={{ flexBasis: "12%", flexShrink: 0 }}>
-                            <Badge status={c.planStatus} />
-                        </div>
-
-                        {/* Systems - 18% */}
-                        <div style={{ flexBasis: "18%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontSize: 10, color: "var(--text-faint)", width: 34, fontWeight: 600 }}>SITE</span>
-                                {c.website ? <Badge status={c.website.deployStatus} showDot={false} disableFallbackDot={true} /> : <span style={{ color: "var(--text-faint)", fontSize: 11 }}>—</span>}
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontSize: 10, color: "var(--text-faint)", width: 34, fontWeight: 600 }}>C/S</span>
-                                <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-muted)", fontWeight: 500 }}>{c.phone?.phoneNumber || "—"}</span>
-                            </div>
-                        </div>
-
-                        {/* Financials & Jobs - 12% */}
-                        <div style={{ flexBasis: "12%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)" }}>${PRICES[c.plan] || 0} <span style={{fontSize: 10, color: "var(--text-faint)", fontWeight: 600}}>MRR</span></span>
-                            <span style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500 }}>{c.counts.jobs.toLocaleString()} Jobs</span>
-                        </div>
-
-                        {/* Joined - 10% */}
-                        <div style={{ flexBasis: "10%", flexShrink: 0, display: "flex", flexDirection: "column" }}>
-                            <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>{fmtDate(c.createdAt)}</span>
-                        </div>
-
-                        {/* Actions - 10% */}
-                        <div style={{ flexBasis: "10%", flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8 }} onClick={e => e.stopPropagation()}>
-                            <button className="btn btn-xs btn-danger" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => setDeleteTarget(c)}>Delete</button>
-                        </div>
-                    </div>
-                ))}
-                {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients match your filters</div>}
+            {/* Data Table */}
+            <div className="op-table-wrapper">
+                <table className="op-table">
+                    <thead>
+                        <tr>
+                            {([["company", "Company"], ["plan", "Plan"], ["planStatus", "Status"], ["", "Systems"], ["", "Financials"], ["createdAt", "Joined"], ["", "Actions"]] as [string, string][]).map(([f, label], i) => (
+                                <th key={i} style={{ cursor: f ? "pointer" : "default" }} onClick={() => f ? toggleSort(f as keyof Client) : undefined}>
+                                    {label} {f && sortField === f ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.map(c => (
+                            <tr key={c.id} onClick={() => setDetail(c)} style={{ cursor: "pointer" }}>
+                                <td style={{ minWidth: 200 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                        <div style={{ transform: "scale(0.8)" }}><Avatar name={c.company} /></div>
+                                        <div style={{ display: "flex", flexDirection: "column" }}>
+                                            <span style={{ fontWeight: 600 }}>{c.company}</span>
+                                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>{c.city}, {c.state} • {c.name}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><Badge status={c.plan} /></td>
+                                <td><Badge status={c.planStatus} /></td>
+                                <td>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <span style={{ fontSize: 9, color: "var(--text-faint)", width: 28, fontWeight: 700 }}>SITE</span>
+                                            {c.website ? <Badge status={c.website.deployStatus} showDot={false} disableFallbackDot={true} /> : <span style={{ color: "var(--text-faint)", fontSize: 11 }}>—</span>}
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <span style={{ fontSize: 9, color: "var(--text-faint)", width: 28, fontWeight: 700 }}>C/S</span>
+                                            <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)" }}>{c.phone?.phoneNumber || "—"}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style={{ display: "flex", flexDirection: "column" }}>
+                                        <span style={{ fontWeight: 600 }}>${PRICES[c.plan] || 0} <span style={{fontSize: 9, color: "var(--text-faint)", fontWeight: 700}}>MRR</span></span>
+                                        <span style={{ fontSize: 11, color: "var(--text-light)" }}>{c.counts.jobs.toLocaleString()} Jobs</span>
+                                    </div>
+                                </td>
+                                <td style={{ color: "var(--text-light)" }}>{fmtDate(c.createdAt)}</td>
+                                <td onClick={e => e.stopPropagation()}>
+                                    <button className="btn btn-xs" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "none" }} onClick={() => setDeleteTarget(c)}>Delete</button>
+                                </td>
+                            </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                            <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>No clients match your filters</td></tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             {/* Detail Drawer (Modal) */}

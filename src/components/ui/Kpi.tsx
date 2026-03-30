@@ -4,10 +4,9 @@ export function Kpi({ label, value, sub, icon }: { label: string; value: string 
     return (
         <div style={{
             background: "var(--white)",
-            borderRadius: 16,
-            padding: "20px 24px",
-            border: "1px solid var(--border-light)",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+            borderRadius: 8,
+            padding: "16px",
+            border: "1px solid var(--border)",
             position: "relative",
             overflow: "hidden"
         }}>
@@ -24,11 +23,10 @@ export function Kpi({ label, value, sub, icon }: { label: string; value: string 
                         {label}
                     </div>
                     <div style={{
-                        fontSize: 28,
-                        fontWeight: 700,
+                        fontSize: 24,
+                        fontWeight: 600,
                         color: "var(--text)",
-                        letterSpacing: "-0.02em",
-                        fontFamily: "var(--font-heading)"
+                        letterSpacing: "-0.01em"
                     }}>
                         {value}
                     </div>

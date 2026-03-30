@@ -4,25 +4,59 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, ReactNode } from "react";
 
-const NAV = [
-    { id: "/", label: "Overview", icon: "dashboard" },
-    { id: "/clients", label: "Clients", icon: "users" },
-    { id: "/billing", label: "Billing", icon: "dollar" },
-    { id: "/revenue", label: "Revenue", icon: "dollar" },
-    { id: "/websites", label: "Websites", icon: "globe" },
-    { id: "/phones", label: "Phone Agents", icon: "phone" },
-    { id: "/onboarding", label: "Onboarding", icon: "chart" },
-    { id: "/churn", label: "Churn", icon: "bell" },
-    { id: "/growth", label: "Growth", icon: "chart" },
-    { id: "/agents", label: "AI Agents", icon: "cpu" },
-    { id: "/monitoring", label: "Monitoring", icon: "bell" },
-    { id: "/support", label: "Support", icon: "support" },
-    { id: "/settings", label: "Settings", icon: "settings" },
+const NAV_GROUPS = [
+    {
+        label: "",
+        items: [
+            { id: "/", label: "Overview", icon: "dashboard" }
+        ]
+    },
+    {
+        label: "Accounts & Pipeline",
+        items: [
+            { id: "/clients", label: "Clients", icon: "users" },
+            { id: "/leads/demo", label: "Demo Leads", icon: "bell" },
+            { id: "/leads/scraped", label: "Scraped Leads", icon: "cpu" },
+        ]
+    },
+    {
+        label: "Revenue",
+        items: [
+            { id: "/billing", label: "Billing & Invoices", icon: "dollar" },
+            { id: "/revenue", label: "Revenue Metrics", icon: "chart" },
+        ]
+    },
+    {
+        label: "Lifecycle",
+        items: [
+            { id: "/onboarding", label: "Onboarding", icon: "users" },
+            { id: "/churn", label: "Churn Risk", icon: "bell" },
+            { id: "/growth", label: "Growth", icon: "chart" },
+        ]
+    },
+    {
+        label: "System Ops",
+        items: [
+            { id: "/agents", label: "AI Agents", icon: "cpu" },
+            { id: "/monitoring", label: "Monitoring", icon: "globe" },
+            { id: "/websites", label: "Websites", icon: "globe" },
+            { id: "/phones", label: "Phone Agents", icon: "phone" },
+        ]
+    },
+    {
+        label: "Admin",
+        items: [
+            { id: "/support", label: "Support", icon: "support" },
+            { id: "/settings", label: "Settings", icon: "settings" },
+        ]
+    }
 ];
 
 const TITLES: Record<string, string> = {
     "/": "Dashboard Overview",
     "/clients": "Client Accounts",
+    "/leads/demo": "Demo Leads Pipeline",
+    "/leads/scraped": "Outbound Scraped Leads",
     "/billing": "Billing & Payments",
     "/revenue": "Revenue & Billing",
     "/websites": "Website Management",
@@ -81,16 +115,29 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </div>
 
                 <nav className="sidebar-nav">
-                    {NAV.map(n => {
-                        const isActive = pathname === n.id || (n.id !== "/" && pathname.startsWith(n.id));
-                        return (
-                            <Link key={n.id} href={n.id} className={`nav-item ${isActive ? "active" : ""}`}
-                                style={{ justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? 10 : undefined }}>
-                                <NavIcon name={n.icon} />
-                                {!collapsed && n.label}
-                            </Link>
-                        );
-                    })}
+                    {NAV_GROUPS.map((group, i) => (
+                        <div key={i} style={{ marginBottom: group.label && !collapsed ? 16 : 4 }}>
+                            {!collapsed && group.label && (
+                                <div style={{ 
+                                    padding: "0 12px", fontSize: 10, fontWeight: 700, 
+                                    color: "var(--text-light)", textTransform: "uppercase", 
+                                    letterSpacing: "0.05em", marginBottom: 6, opacity: 0.8
+                                }}>
+                                    {group.label}
+                                </div>
+                            )}
+                            {group.items.map(n => {
+                                const isActive = pathname === n.id || (n.id !== "/" && pathname.startsWith(n.id));
+                                return (
+                                    <Link key={n.id} href={n.id} className={`nav-item ${isActive ? "active" : ""}`}
+                                        style={{ justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? 10 : undefined, marginBottom: 2 }}>
+                                        <NavIcon name={n.icon} />
+                                        {!collapsed && n.label}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    ))}
                 </nav>
 
                 {/* Collapse toggle */}
@@ -131,13 +178,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     padding: "14px 28px", display: "flex", justifyContent: "space-between", alignItems: "center"
                 }}>
                     <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{title}</h1>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Search...</span>
+                            <div style={{ fontSize: 10, background: "var(--border)", padding: "2px 4px", borderRadius: 4, color: "var(--text-light)", fontWeight: 600 }}>⌘K</div>
+                        </div>
                         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
                             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                             <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)" }} />
-                            <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Systems OK</span>
+                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>System OK</span>
                         </div>
                     </div>
                 </header>
