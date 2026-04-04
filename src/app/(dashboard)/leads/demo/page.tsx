@@ -126,8 +126,10 @@ export default function DemoLeadsPage() {
 
     useEffect(() => {
         fetchLeads();
-        // Poll every 30 seconds for new hot leads
-        const interval = setInterval(fetchLeads, 30000);
+        // Poll every 30 seconds for new hot leads — pause when tab hidden
+        const interval = setInterval(() => {
+            if (document.visibilityState === "visible") fetchLeads();
+        }, 30000);
         return () => clearInterval(interval);
     }, [fetchLeads]);
 

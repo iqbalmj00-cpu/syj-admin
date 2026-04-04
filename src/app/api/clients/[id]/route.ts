@@ -1,11 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { cancelSubscription, pauseSubscription, resumeSubscription } from "@/lib/stripe";
+import { cancelSubscription, resumeSubscription } from "@/lib/stripe";
 import { deleteVercelProject } from "@/lib/vercel";
 import { releasePhoneNumber } from "@/lib/twilio";
+import bcrypt from "bcryptjs";
 
 type Params = { params: Promise<{ id: string }> };
 
+/* ── Helper: write an audit log entry ─────────────────────────────── */
+async function audit(userId: string, action: string, details?: Record<string, unknown>) {
+    try {
+        await prisma.auditLog.create({
+            data: {
+                userId,
+                actorId: "admin",
+                actorName: "Jamal",
+                action,
+                entity: "User",
+                entityId: userId,
+                details: details ? JSON.parse(JSON.stringify(details)) : undefined,
+            },
+        });
+    } catch (e) {
+        console.error("Audit log write failed:", e);
+    }
+}
+
+/* ── GET: Full client detail ──────────────────────────────────────── */
 export async function GET(_req: Request, { params }: Params) {
     const { id } = await params;
     try {
@@ -54,6 +75,7 @@ export async function GET(_req: Request, { params }: Params) {
     }
 }
 
+/* ── PATCH: Client actions ────────────────────────────────────────── */
 export async function PATCH(req: Request, { params }: Params) {
     const { id } = await params;
     try {
@@ -66,34 +88,32 @@ export async function PATCH(req: Request, { params }: Params) {
         });
         if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-        if (action === "suspend") {
-            if (client.stripeSubscriptionId) {
-                try { await pauseSubscription(client.stripeSubscriptionId); } catch (e) { console.error("Stripe pause failed:", e); }
-            }
-            const updated = await prisma.user.update({
-                where: { id },
-                data: { planStatus: "canceled" },
-            });
-            return NextResponse.json(updated);
-        }
-
         if (action === "reactivate") {
+            let stripeWarning: string | undefined;
             if (client.stripeSubscriptionId) {
-                try { await resumeSubscription(client.stripeSubscriptionId); } catch (e) { console.error("Stripe resume failed:", e); }
+                try { await resumeSubscription(client.stripeSubscriptionId); } catch (e) {
+                    console.error("Stripe resume failed:", e);
+                    stripeWarning = "Stripe subscription could not be resumed — update billing manually";
+                }
+            } else {
+                stripeWarning = "No Stripe subscription linked — local status updated only";
             }
             const updated = await prisma.user.update({
                 where: { id },
                 data: { planStatus: "active" },
             });
-            return NextResponse.json(updated);
+            await audit(id, "reactivate", { previousStatus: client.planStatus });
+            return NextResponse.json({ ...updated, warning: stripeWarning });
         }
 
         if (action === "change_plan" && plan) {
+            const previousPlan = client.planTier;
             const updated = await prisma.user.update({
                 where: { id },
                 data: { planTier: plan },
             });
-            return NextResponse.json(updated);
+            await audit(id, "change_plan", { previousPlan, newPlan: plan });
+            return NextResponse.json({ ...updated, warning: "Plan updated locally. Stripe billing was not changed — update Stripe manually if needed." });
         }
 
         if (action === "update_profile") {
@@ -101,7 +121,6 @@ export async function PATCH(req: Request, { params }: Params) {
             if (!data || typeof data !== "object") {
                 return NextResponse.json({ error: "Missing data object" }, { status: 400 });
             }
-            // Only allow updating safe fields
             const allowed: Record<string, string | undefined> = {};
             if (typeof data.name === "string") allowed.name = data.name.trim() || null as unknown as string;
             if (typeof data.email === "string") allowed.email = data.email.trim().toLowerCase() || null as unknown as string;
@@ -116,14 +135,25 @@ export async function PATCH(req: Request, { params }: Params) {
                     where: { id },
                     data: allowed,
                 });
+                await audit(id, "update_profile", { fields: Object.keys(allowed), values: allowed });
                 return NextResponse.json(updated);
             } catch (e: unknown) {
-                // Handle unique constraint on email
                 if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
                     return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
                 }
                 throw e;
             }
+        }
+
+        if (action === "reset_password") {
+            const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$";
+            let tempPassword = "";
+            for (let i = 0; i < 14; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
+
+            const hashed = await bcrypt.hash(tempPassword, 10);
+            await prisma.user.update({ where: { id }, data: { password: hashed } });
+            await audit(id, "reset_password");
+            return NextResponse.json({ success: true, tempPassword });
         }
 
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -133,8 +163,11 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+/* ── DELETE: Soft-delete (tear down services, mark canceled) ──────── */
+export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
+    const permanent = new URL(req.url).searchParams.get("permanent") === "true";
+
     try {
         const client = await prisma.user.findUnique({
             where: { id: id, isDemoAccount: false },
@@ -142,25 +175,38 @@ export async function DELETE(_req: Request, { params }: Params) {
         });
         if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-        // 1. Cancel Stripe subscription
+        // Tear down external services regardless of soft/hard delete
+        const teardownResults: Record<string, string> = {};
+
         if (client.stripeSubscriptionId) {
-            try { await cancelSubscription(client.stripeSubscriptionId); } catch (e) { console.error("Stripe cancel failed:", e); }
+            try { await cancelSubscription(client.stripeSubscriptionId); teardownResults.stripe = "cancelled"; }
+            catch (e) { console.error("Stripe cancel failed:", e); teardownResults.stripe = "failed"; }
         }
-
-        // 2. Delete Vercel project
         if (client.websiteConfig?.vercelProjectId) {
-            try { await deleteVercelProject(client.websiteConfig.vercelProjectId); } catch (e) { console.error("Vercel delete failed:", e); }
+            try { await deleteVercelProject(client.websiteConfig.vercelProjectId); teardownResults.vercel = "deleted"; }
+            catch (e) { console.error("Vercel delete failed:", e); teardownResults.vercel = "failed"; }
         }
-
-        // 3. Release Twilio number
         if (client.phoneConfig?.twilioSid) {
-            try { await releasePhoneNumber(client.phoneConfig.twilioSid); } catch (e) { console.error("Twilio release failed:", e); }
+            try { await releasePhoneNumber(client.phoneConfig.twilioSid); teardownResults.twilio = "released"; }
+            catch (e) { console.error("Twilio release failed:", e); teardownResults.twilio = "failed"; }
         }
 
-        // 4. Delete user (cascading deletes handle the rest)
-        await prisma.user.delete({ where: { id } });
+        if (permanent) {
+            // Hard delete — cascade everything
+            await prisma.user.delete({ where: { id } });
+            return NextResponse.json({ success: true, mode: "permanent", teardown: teardownResults });
+        }
 
-        return NextResponse.json({ success: true });
+        // Soft delete — mark as canceled, let data-cleanup cron handle purge after 30 days
+        await prisma.user.update({
+            where: { id },
+            data: {
+                planStatus: "canceled",
+                billingCancelledAt: new Date(),
+            },
+        });
+        await audit(id, "soft_delete", { teardown: teardownResults });
+        return NextResponse.json({ success: true, mode: "soft", teardown: teardownResults, message: "Account deactivated. Services torn down. Data will be purged after 30 days." });
     } catch (error) {
         console.error("DELETE /api/clients/[id] error:", error);
         return NextResponse.json({ error: "Failed to delete client" }, { status: 500 });

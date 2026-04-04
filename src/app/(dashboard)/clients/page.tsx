@@ -249,11 +249,7 @@ export default function ClientsPage() {
                             <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: 16 }}>
                                 <h4 className="section-label">Actions</h4>
                                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                    {detail.planStatus === "active" && (
-                                        <button className="btn btn-xs" style={{ background: "rgba(245,158,11,0.08)", color: "#D97706", border: "1px solid rgba(245,158,11,0.2)" }}
-                                            onClick={() => handleAction(detail.id, "suspend")}>Suspend</button>
-                                    )}
-                                    {detail.planStatus === "canceled" && (
+                                    {(detail.planStatus === "canceled" || detail.planStatus === "past_due") && (
                                         <button className="btn btn-xs" style={{ background: "rgba(0,216,74,0.08)", color: "#00A83A", border: "1px solid rgba(0,216,74,0.2)" }}
                                             onClick={() => handleAction(detail.id, "reactivate")}>Reactivate</button>
                                     )}

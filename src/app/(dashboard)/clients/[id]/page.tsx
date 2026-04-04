@@ -137,6 +137,7 @@ export default function ClientDetailPage() {
     const [client, setClient] = useState<any>(null);
     const [tab, setTab] = useState<TabId>("overview");
     const [loading, setLoading] = useState(true);
+    const [tempPassword, setTempPassword] = useState<string | null>(null);
     const { toast, showToast } = useToast();
 
     const fetchClient = useCallback(async () => {
@@ -152,20 +153,42 @@ export default function ClientDetailPage() {
 
     const handleAction = async (action: string, extra?: Record<string, unknown>) => {
         try {
-            const res = await fetch(`/api/clients/${id}`, {
+            const url = action === "delete" ? `/api/clients/${id}` : `/api/clients/${id}`;
+            const res = await fetch(url, {
                 method: action === "delete" ? "DELETE" : "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action, ...extra }),
             });
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                showToast(`Client ${action.replace("_", " ")}d successfully`);
+                if (action === "reset_password" && data.tempPassword) {
+                    setTempPassword(data.tempPassword);
+                    showToast("Password reset — copy the temporary password");
+                } else {
+                    showToast(data.warning || `Client ${action.replace("_", " ")}d successfully`);
+                }
                 if (action === "delete") { router.push("/clients"); return; }
                 fetchClient();
             } else {
-                const data = await res.json().catch(() => ({}));
                 showToast(data.error || "Action failed", "error");
             }
         } catch { showToast("Action failed", "error"); }
+    };
+
+    const handleSoftDelete = async () => {
+        if (!confirm("Deactivate this client? Services (Stripe, Vercel, Twilio) will be torn down. Data preserved for 30 days before auto-purge.")) return;
+        await handleAction("delete");
+    };
+
+    const handlePermanentDelete = async () => {
+        const name = client?.company || client?.email || "";
+        const input = prompt(`This permanently deletes ALL data. Type "${name}" to confirm:`);
+        if (input !== name) { showToast("Deletion cancelled — name didn't match", "error"); return; }
+        try {
+            const res = await fetch(`/api/clients/${id}?permanent=true`, { method: "DELETE" });
+            if (res.ok) { showToast("Client permanently deleted"); router.push("/clients"); }
+            else { const d = await res.json().catch(() => ({})); showToast(d.error || "Delete failed", "error"); }
+        } catch { showToast("Delete failed", "error"); }
     };
 
     const handleProfileSave = async (field: string, value: string) => {
@@ -199,9 +222,6 @@ export default function ClientDetailPage() {
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                     {/* Status-aware actions */}
-                    {client.planStatus === "active" && (
-                        <button className="btn btn-xs" style={{ color: "var(--warn-dark)", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }} onClick={() => handleAction("suspend")}>Suspend</button>
-                    )}
                     {(client.planStatus === "canceled" || client.planStatus === "past_due") && (
                         <button className="btn btn-xs" style={{ color: "var(--success)", background: "rgba(0,216,74,0.08)", border: "1px solid rgba(0,216,74,0.2)" }} onClick={() => handleAction("reactivate")}>Reactivate</button>
                     )}
@@ -213,10 +233,29 @@ export default function ClientDetailPage() {
                         <button key={p} className="btn btn-xs" style={{ color: PLAN_COLORS[p], background: PLAN_COLORS[p] + "12", border: `1px solid ${PLAN_COLORS[p]}30` }}
                             onClick={() => handleAction("change_plan", { plan: p })}>→ {p.charAt(0).toUpperCase() + p.slice(1)}</button>
                     ))}
+                    <button className="btn btn-xs" style={{ color: "var(--text-muted)", background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.2)" }}
+                        onClick={() => handleAction("reset_password")}>Reset Password</button>
                     <button className="btn btn-xs" style={{ color: "var(--danger)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
-                        onClick={() => { if (confirm("Delete this client and all their data? This tears down Stripe, Vercel, and Twilio. This CANNOT be undone.")) handleAction("delete"); }}>Delete</button>
+                        onClick={handleSoftDelete}>Deactivate</button>
+                    <button className="btn btn-xs" style={{ color: "#991B1B", background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.1)", fontSize: 10 }}
+                        onClick={handlePermanentDelete}>Permanently Delete</button>
                 </div>
             </div>
+
+            {/* Temp password display */}
+            {tempPassword && (
+                <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 2 }}>Temporary Password (share with client)</div>
+                        <code style={{ fontSize: 15, fontWeight: 700, color: "#78350F", background: "rgba(255,255,255,0.6)", padding: "2px 8px", borderRadius: 4 }}>{tempPassword}</code>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                        <button className="btn btn-xs" style={{ background: "#FFF", border: "1px solid #FED7AA" }}
+                            onClick={() => { navigator.clipboard.writeText(tempPassword); showToast("Password copied"); }}>Copy</button>
+                        <button className="btn btn-xs btn-ghost" onClick={() => setTempPassword(null)}>Dismiss</button>
+                    </div>
+                </div>
+            )}
 
             {/* ── KPIs ────────────────────────────────────────────────── */}
             <div className="grid-4">
@@ -403,8 +442,17 @@ function WebsiteTab({ client, showToast }: { client: any; showToast: (m: string,
 
     const handleRedeploy = async () => {
         if (!wc?.id) return;
-        try { const r = await fetch(`/api/websites/${wc.id}/redeploy`, { method: "POST" }); if (r.ok) showToast("Redeploy triggered"); else showToast("Redeploy failed", "error"); }
-        catch { showToast("Redeploy failed", "error"); }
+        try {
+            const r = await fetch(`/api/websites/${wc.id}/redeploy`, { method: "POST" });
+            if (r.ok) {
+                const data = await r.json();
+                if (data.imagesFailed > 0) {
+                    showToast(`Redeploy triggered — but ${data.imagesFailed} image(s) failed to generate`, "error");
+                } else {
+                    showToast(`Redeploy triggered${data.imagesRegenerated ? ` — ${data.imagesRegenerated} image(s) regenerated` : ""}`);
+                }
+            } else showToast("Redeploy failed", "error");
+        } catch { showToast("Redeploy failed", "error"); }
     };
 
     const handleResync = async () => {

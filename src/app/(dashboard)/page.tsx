@@ -71,7 +71,7 @@ export default function OverviewPage() {
                                 </thead>
                                 <tbody>
                                     {clients.slice(0, 6).map(c => (
-                                        <tr key={c.id} onClick={() => window.location.href = "/clients"} style={{ cursor: "pointer" }}>
+                                        <tr key={c.id} onClick={() => window.location.href = `/clients/${c.id}`} style={{ cursor: "pointer" }}>
                                             <td style={{ fontWeight: 600 }}>{c.company}</td>
                                             <td style={{ color: "var(--text-light)" }}>{c.city}, {c.state}</td>
                                             <td><Badge status={c.plan} /></td>

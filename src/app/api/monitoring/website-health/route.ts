@@ -35,7 +35,11 @@ export async function POST(req: NextRequest) {
             select: { userId: true, websiteUrl: true, subdomain: true },
         });
 
-        const results = await Promise.all(sites.map(async (site) => {
+        // Overall 30s timeout for the entire batch
+        const overallController = new AbortController();
+        const overallTimeout = setTimeout(() => overallController.abort(), 30_000);
+
+        const results = await Promise.allSettled(sites.map(async (site) => {
             const url = site.websiteUrl || (site.subdomain ? `https://${site.subdomain}.scaleyourjunk.com` : null);
             if (!url) return null;
 
@@ -43,7 +47,9 @@ export async function POST(req: NextRequest) {
             let statusCode = 0; let healthy = false; let error = null;
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 10_000);
+                const timeout = setTimeout(() => controller.abort(), 5_000);
+                // Abort if overall timeout also fires
+                overallController.signal.addEventListener("abort", () => controller.abort());
                 const res = await fetch(url, { signal: controller.signal, method: "HEAD" });
                 clearTimeout(timeout);
                 statusCode = res.status;
@@ -61,11 +67,15 @@ export async function POST(req: NextRequest) {
             return record;
         }));
 
-        const valid = results.filter(Boolean);
+        clearTimeout(overallTimeout);
+
+        const valid = results
+            .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled" && r.value != null)
+            .map(r => r.value);
         return NextResponse.json({
             checked: valid.length,
-            healthy: valid.filter(r => r!.healthy).length,
-            unhealthy: valid.filter(r => !r!.healthy).length,
+            healthy: valid.filter((r: any) => r.healthy).length,
+            unhealthy: valid.filter((r: any) => !r.healthy).length,
         });
     } catch (error) {
         console.error("POST /api/monitoring/website-health error:", error);

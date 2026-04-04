@@ -1,8 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState, ReactNode } from "react";
+import { useState, useEffect, useCallback, ReactNode, useRef } from "react";
 
 const NAV_GROUPS = [
     {
@@ -46,6 +46,7 @@ const NAV_GROUPS = [
     {
         label: "Admin",
         items: [
+            { id: "/alerts", label: "Alerts", icon: "bell" },
             { id: "/support", label: "Support", icon: "support" },
             { id: "/settings", label: "Settings", icon: "settings" },
         ]
@@ -66,6 +67,7 @@ const TITLES: Record<string, string> = {
     "/growth": "Growth Metrics",
     "/agents": "AI Agents",
     "/monitoring": "Platform Monitoring",
+    "/alerts": "System Alerts",
     "/support": "Support Tickets",
     "/settings": "Platform Settings",
 };
@@ -87,11 +89,100 @@ function NavIcon({ name }: { name: string }) {
     }
 }
 
+/* ─── Global Search Modal ──────────────────────────────────────────── */
+function SearchModal({ onClose }: { onClose: () => void }) {
+    const router = useRouter();
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState<Array<{ id: string; company: string; name: string; email: string; plan: string }>>([]);
+    const [allClients, setAllClients] = useState<Array<{ id: string; company: string; name: string; email: string; plan: string }>>([]);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        inputRef.current?.focus();
+        fetch("/api/clients").then(r => r.json()).then(setAllClients).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!query.trim()) { setResults([]); return; }
+        const q = query.toLowerCase();
+        setResults(allClients.filter(c =>
+            c.company?.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.id.includes(q)
+        ).slice(0, 8));
+    }, [query, allClients]);
+
+    return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", paddingTop: 80 }}
+            onClick={onClose}>
+            <div style={{ width: "100%", maxWidth: 520, background: "var(--white)", borderRadius: 16, boxShadow: "0 25px 60px rgba(0,0,0,0.25)", maxHeight: 420, overflow: "hidden", display: "flex", flexDirection: "column" }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ color: "var(--text-faint)", fontSize: 16 }}>&#x1F50D;</span>
+                    <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)} placeholder="Search clients by name, email, company..."
+                        style={{ flex: 1, border: "none", outline: "none", fontSize: 14, color: "var(--text)", background: "transparent" }}
+                        onKeyDown={e => { if (e.key === "Escape") onClose(); if (e.key === "Enter" && results.length > 0) { router.push(`/clients/${results[0].id}`); onClose(); } }} />
+                    <kbd style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-faint)" }}>ESC</kbd>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {results.length > 0 ? results.map(c => (
+                        <div key={c.id} onClick={() => { router.push(`/clients/${c.id}`); onClose(); }}
+                            style={{ padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.company || "Unnamed"}</div>
+                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{c.name} · {c.email}</div>
+                            </div>
+                            <span style={{ fontSize: 11, textTransform: "capitalize", color: "var(--text-light)" }}>{c.plan}</span>
+                        </div>
+                    )) : query.trim() ? (
+                        <div style={{ padding: 30, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No clients match &ldquo;{query}&rdquo;</div>
+                    ) : (
+                        <div style={{ padding: 30, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>Type to search clients...</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [systemStatus, setSystemStatus] = useState<"ok" | "warning" | "error">("ok");
 
     const title = TITLES[pathname] || (pathname.startsWith("/clients/") ? "Client Detail" : "Dashboard");
+
+    // Real system status check
+    useEffect(() => {
+        let mounted = true;
+        const check = async () => {
+            try {
+                const res = await fetch("/api/alerts");
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!mounted) return;
+                if (data.counts?.critical > 0) setSystemStatus("error");
+                else if (data.counts?.warning > 0) setSystemStatus("warning");
+                else setSystemStatus("ok");
+            } catch { /* keep current status */ }
+        };
+        check();
+        const interval = setInterval(check, 60_000); // refresh every 60s
+        return () => { mounted = false; clearInterval(interval); };
+    }, []);
+
+    // ⌘K keyboard shortcut
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setSearchOpen(true); }
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, []);
+
+    const statusLabel = systemStatus === "ok" ? "System OK" : systemStatus === "warning" ? "Warnings" : "Issues";
+    const statusColor = systemStatus === "ok" ? "var(--success)" : systemStatus === "warning" ? "var(--warn)" : "var(--danger)";
 
     return (
         <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -179,16 +270,22 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 }}>
                     <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{title}</h1>
                     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}>
+                        <button onClick={() => setSearchOpen(true)} style={{
+                            display: "flex", alignItems: "center", gap: 8, background: "var(--surface)",
+                            padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border-light)",
+                            cursor: "pointer", transition: "border-color 0.15s",
+                        }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--border)")}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border-light)")}>
                             <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Search...</span>
-                            <div style={{ fontSize: 10, background: "var(--border)", padding: "2px 4px", borderRadius: 4, color: "var(--text-light)", fontWeight: 600 }}>⌘K</div>
-                        </div>
+                            <kbd style={{ fontSize: 10, background: "var(--border)", padding: "2px 4px", borderRadius: 4, color: "var(--text-light)", fontWeight: 600 }}>⌘K</kbd>
+                        </button>
                         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
                             {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)" }} />
-                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>System OK</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }} onClick={() => window.location.href = "/alerts"}>
+                            <div style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor }} />
+                            <span style={{ fontSize: 11, color: "var(--text-light)" }}>{statusLabel}</span>
                         </div>
                     </div>
                 </header>
@@ -197,6 +294,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     {children}
                 </main>
             </div>
+
+            {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
         </div>
     );
 }
