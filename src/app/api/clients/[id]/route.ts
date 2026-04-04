@@ -21,6 +21,16 @@ export async function GET(_req: Request, { params }: Params) {
                 integrations: true,
                 stripeConnectAccount: true,
                 scheduleConfig: true,
+                twilioSubAccount: true,
+                supportTickets: {
+                    include: { messages: true },
+                    orderBy: { createdAt: "desc" },
+                    take: 10,
+                },
+                cancellationRecords: {
+                    orderBy: { cancelledAt: "desc" },
+                    take: 5,
+                },
                 _count: {
                     select: {
                         jobs: true,
@@ -31,6 +41,7 @@ export async function GET(_req: Request, { params }: Params) {
                         phoneCalls: true,
                         invoices: true,
                         communications: true,
+                        supportTickets: true,
                     },
                 },
             },
@@ -83,6 +94,36 @@ export async function PATCH(req: Request, { params }: Params) {
                 data: { planTier: plan },
             });
             return NextResponse.json(updated);
+        }
+
+        if (action === "update_profile") {
+            const { data } = body as { data: { name?: string; email?: string; company?: string } };
+            if (!data || typeof data !== "object") {
+                return NextResponse.json({ error: "Missing data object" }, { status: 400 });
+            }
+            // Only allow updating safe fields
+            const allowed: Record<string, string | undefined> = {};
+            if (typeof data.name === "string") allowed.name = data.name.trim() || null as unknown as string;
+            if (typeof data.email === "string") allowed.email = data.email.trim().toLowerCase() || null as unknown as string;
+            if (typeof data.company === "string") allowed.company = data.company.trim() || null as unknown as string;
+
+            if (Object.keys(allowed).length === 0) {
+                return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+            }
+
+            try {
+                const updated = await prisma.user.update({
+                    where: { id },
+                    data: allowed,
+                });
+                return NextResponse.json(updated);
+            } catch (e: unknown) {
+                // Handle unique constraint on email
+                if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
+                    return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
+                }
+                throw e;
+            }
         }
 
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });

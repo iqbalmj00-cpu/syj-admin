@@ -156,6 +156,8 @@ model User {
   // ── Support Ticket relations ──
   isDemoAccount        Boolean               @default(false)
   supportTickets       SupportTicket[]
+  // ── A2P / Sub-Account relation ──
+  twilioSubAccount     TwilioSubAccount?
 }
 
 model OnboardingSubmission {
@@ -2128,4 +2130,51 @@ model DemoSession {
   createdAt       DateTime @default(now())
   expiresAt       DateTime
   demoUserId      String?
+}
+
+// ── Twilio A2P Sub-Account (read-only from admin dash) ──────────────────────
+model TwilioSubAccount {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ── Sub-Account ──
+  subAccountSid          String    @unique
+  subAccountAuthToken    String
+
+  // ── Trust Hub ──
+  customerProfileSid     String?
+  customerProfileStatus  String    @default("pending") // pending | in_review | approved | rejected
+  trustProductSid        String?
+  trustProductStatus     String    @default("pending") // pending | in_review | approved | rejected
+
+  // ── Brand ──
+  brandSid               String?
+  brandStatus            String    @default("pending") // pending | approved | failed
+  brandType              String    @default("SOLE_PROPRIETOR")
+  otpVerified            Boolean   @default(false)
+
+  // ── Campaign ──
+  campaignSid            String?
+  campaignStatus         String    @default("pending") // pending | verified | failed
+
+  // ── Messaging Service ──
+  messagingServiceSid    String?
+  messagingServiceStatus String    @default("pending")
+
+  // ── Operational Status ──
+  voiceEnabled           Boolean   @default(true)
+  smsEnabled             Boolean   @default(false)
+  registrationType       String    @default("sole_proprietor")
+  a2pStarted             Boolean   @default(false)
+
+  // ── Error Tracking ──
+  lastError              String?   @db.Text
+  lastSyncAt             DateTime?
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([smsEnabled])
+  @@index([a2pStarted])
 }
