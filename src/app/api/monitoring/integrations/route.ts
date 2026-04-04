@@ -27,9 +27,9 @@ export async function GET() {
             if (i.status === "connected") {
                 if (i.expiresAt && new Date(i.expiresAt) < now) {
                     if (!i.refreshToken) { grouped.missing_refresh.push(i); }
-                    else { grouped.expired.push(i); }
-                } else if (i.expiresAt && new Date(i.expiresAt) < in24h) {
-                    grouped.expiring_soon.push(i);
+                    else { grouped.healthy.push(i); } // expired but has refresh token — will auto-renew
+                } else if (i.expiresAt && new Date(i.expiresAt) < in24h && !i.refreshToken) {
+                    grouped.expiring_soon.push(i); // only warn if no refresh token to auto-renew
                 } else {
                     grouped.healthy.push(i);
                 }
