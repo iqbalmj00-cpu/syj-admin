@@ -235,7 +235,7 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json().catch(() => ({}));
-        const batchSize = Math.min(body.batchSize || 50, 100);
+        const batchSize = Math.min(body.batchSize || 300, 500);
 
         // Find un-enriched leads
         const leads = await prisma.scrapedLead.findMany({

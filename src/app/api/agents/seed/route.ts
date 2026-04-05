@@ -61,7 +61,7 @@ export async function POST() {
                 description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard.",
                 schedule: null,
                 config: {
-                    batchSize: 50,
+                    batchSize: 300,
                 },
             },
             {
