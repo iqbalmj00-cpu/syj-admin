@@ -58,6 +58,10 @@ export default function ScrapedLeadsPage() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
     const [sendingOutreach, setSendingOutreach] = useState(false);
+    const [addingToGroup, setAddingToGroup] = useState(false);
+    const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
+    const [showGroupSelect, setShowGroupSelect] = useState(false);
+    const [newGroupName, setNewGroupName] = useState("");
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -91,6 +95,40 @@ export default function ScrapedLeadsPage() {
     }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
+    useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
+
+    const addToGroup = async (groupId: string) => {
+        if (selectedIds.size === 0) return;
+        setAddingToGroup(true);
+        try {
+            const res = await fetch("/api/agents/lead-groups/members", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ groupId, leadIds: Array.from(selectedIds) }),
+            });
+            const data = await res.json();
+            if (res.ok) { showToast(`Added ${data.added} lead(s) to group`); setSelectedIds(new Set()); setShowGroupSelect(false); }
+            else showToast(data.error || "Failed to add to group", "error");
+        } catch { showToast("Failed to add to group", "error"); }
+        setAddingToGroup(false);
+    };
+
+    const createGroupAndAdd = async () => {
+        if (!newGroupName.trim() || selectedIds.size === 0) return;
+        setAddingToGroup(true);
+        try {
+            const createRes = await fetch("/api/agents/lead-groups", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newGroupName.trim(), channel: "sms" }),
+            });
+            if (!createRes.ok) { showToast("Failed to create group", "error"); setAddingToGroup(false); return; }
+            const group = await createRes.json();
+            await addToGroup(group.id);
+            setNewGroupName("");
+            // Refresh groups list
+            fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {});
+        } catch { showToast("Failed to create group", "error"); }
+        setAddingToGroup(false);
+    };
 
     const totalPages = Math.max(1, Math.ceil(total / LEADS_PER_PAGE));
     const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
@@ -158,6 +196,34 @@ export default function ScrapedLeadsPage() {
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "📧 Trigger Campaign"}</button>
+                        <div style={{ position: "relative" }}>
+                            <button onClick={() => setShowGroupSelect(!showGroupSelect)} disabled={addingToGroup}
+                                style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: showGroupSelect ? "rgba(255,107,0,0.08)" : "var(--white)", color: showGroupSelect ? "var(--orange)" : "var(--text)", cursor: "pointer" }}>
+                                {addingToGroup ? "Adding..." : "📋 Add to Group"}
+                            </button>
+                            {showGroupSelect && (
+                                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "var(--white)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 220, zIndex: 50, overflow: "hidden" }}>
+                                    {groups.length > 0 && groups.map(g => (
+                                        <button key={g.id} onClick={() => addToGroup(g.id)}
+                                            style={{ display: "block", width: "100%", padding: "8px 14px", fontSize: 12, border: "none", background: "none", cursor: "pointer", textAlign: "left", borderBottom: "1px solid var(--border-light, var(--border))" }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
+                                            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                                            <div style={{ fontWeight: 600, color: "var(--text)" }}>{g.name}</div>
+                                            <div style={{ fontSize: 10, color: "var(--text-faint)" }}>{g.memberCount} members</div>
+                                        </button>
+                                    ))}
+                                    <div style={{ padding: "8px 14px", borderTop: groups.length > 0 ? "1px solid var(--border)" : "none" }}>
+                                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", marginBottom: 4 }}>New Group</div>
+                                        <div style={{ display: "flex", gap: 4 }}>
+                                            <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Group name..."
+                                                style={{ flex: 1, padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, outline: "none" }}
+                                                onKeyDown={e => e.key === "Enter" && createGroupAndAdd()} />
+                                            <button className="btn btn-xs btn-primary" onClick={createGroupAndAdd} disabled={!newGroupName.trim()} style={{ fontSize: 10, padding: "3px 8px" }}>Create</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <button onClick={deleteSelected} disabled={deleting} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid #FECACA", borderRadius: 4, background: "#FEF2F2", color: "#B91C1C", cursor: "pointer" }}>{deleting ? "Deleting..." : "🗑 Discard"}</button>
                     </>
                 ) : (

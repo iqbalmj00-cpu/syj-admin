@@ -1653,6 +1653,34 @@ model ScrapedLead {
   @@index([companyType])
   @@index([enrichedAt])
   @@index([isExistingClient])
+  groupMemberships LeadGroupMember[]
+}
+
+// ── Lead Groups & Templates (admin outreach campaigns) ──────────────────────
+model LeadGroup {
+  id              String            @id @default(cuid())
+  name            String
+  description     String?
+  channel         String            @default("sms") // sms | email
+  templateSubject String?           // email subject template
+  templateBody    String?           @db.Text // message body template with [variables]
+  lastSentAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  members         LeadGroupMember[]
+}
+
+model LeadGroupMember {
+  id      String      @id @default(cuid())
+  groupId String
+  group   LeadGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  leadId  String
+  lead    ScrapedLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  addedAt DateTime    @default(now())
+
+  @@unique([groupId, leadId])
+  @@index([groupId])
+  @@index([leadId])
 }
 
 model BlogPost {

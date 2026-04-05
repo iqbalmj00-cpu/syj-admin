@@ -116,7 +116,7 @@ function Badge({ bg, color, label }: { bg: string; color: string; label: string 
 
 /* ─── Tabs ──────────────────────────────────────────────────────────── */
 
-type TabId = "agents" | "leads" | "messages" | "syj_blogs" | "client_blogs" | "content" | "history";
+type TabId = "agents" | "leads" | "groups" | "messages" | "syj_blogs" | "client_blogs" | "content" | "history";
 
 interface GeneratedVideo {
     id: string; title: string; videoUrl: string | null; thumbnailUrl: string | null;
@@ -126,6 +126,7 @@ interface GeneratedVideo {
 
 const TABS: { id: TabId; label: string }[] = [
     { id: "agents", label: "Agents" },
+    { id: "groups", label: "Groups" },
     { id: "messages", label: "Messages" },
     { id: "content", label: "Content" },
     { id: "syj_blogs", label: "SYJ Blogs" },
@@ -293,6 +294,7 @@ export default function AgentsPage() {
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} />
                 </>
             )}
+            {tab === "groups" && <GroupsTab showToast={showToast} />}
             {tab === "messages" && <MessagesTab />}
             {tab === "syj_blogs" && (
                 <BlogsTab blogs={blogs.filter(b => !b.target || b.target === "syj")} counts={blogCounts}
@@ -1364,6 +1366,305 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
                         )}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Groups Tab ───────────────────────────────────────────────────── */
+
+interface LeadGroupData {
+    id: string; name: string; description: string | null; channel: string;
+    templateSubject: string | null; templateBody: string | null;
+    memberCount: number; lastSentAt: string | null; createdAt: string;
+}
+
+interface GroupMember {
+    id: string; addedAt: string;
+    lead: { id: string; name: string; phone: string | null; email: string | null; market: string; grade: string; leadScore: number; outreachStatus: string; city: string | null; ownerName: string | null };
+}
+
+const TEMPLATE_VARS = [
+    { label: "Company", variable: "[company_name]" },
+    { label: "Owner", variable: "[owner_name]" },
+    { label: "City", variable: "[city]" },
+    { label: "Market", variable: "[market]" },
+    { label: "Phone", variable: "[phone]" },
+    { label: "Website", variable: "[website]" },
+    { label: "Grade", variable: "[grade]" },
+    { label: "Email", variable: "[email]" },
+];
+
+function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => void }) {
+    const [groups, setGroups] = useState<LeadGroupData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    const [members, setMembers] = useState<GroupMember[]>([]);
+    const [membersLoading, setMembersLoading] = useState(false);
+    const [sending, setSending] = useState(false);
+
+    // Create group form
+    const [showCreate, setShowCreate] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [newChannel, setNewChannel] = useState<"sms" | "email">("sms");
+
+    // Template editing
+    const [editTemplate, setEditTemplate] = useState(false);
+    const [templateBody, setTemplateBody] = useState("");
+    const [templateSubject, setTemplateSubject] = useState("");
+    const [savingTemplate, setSavingTemplate] = useState(false);
+
+    const fetchGroups = useCallback(async () => {
+        try {
+            const res = await fetch("/api/agents/lead-groups");
+            if (res.ok) { const data = await res.json(); setGroups(data.groups || []); }
+        } catch { /* ignore */ }
+        setLoading(false);
+    }, []);
+
+    const fetchMembers = useCallback(async (groupId: string) => {
+        setMembersLoading(true);
+        try {
+            const res = await fetch(`/api/agents/lead-groups/members?groupId=${groupId}`);
+            if (res.ok) { const data = await res.json(); setMembers(data.members || []); }
+        } catch { /* ignore */ }
+        setMembersLoading(false);
+    }, []);
+
+    useEffect(() => { fetchGroups(); }, [fetchGroups]);
+    useEffect(() => { if (selectedGroupId) fetchMembers(selectedGroupId); }, [selectedGroupId, fetchMembers]);
+
+    const selectedGroup = groups.find(g => g.id === selectedGroupId);
+
+    const createGroup = async () => {
+        if (!newName.trim()) return;
+        try {
+            const res = await fetch("/api/agents/lead-groups", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newName.trim(), channel: newChannel }),
+            });
+            if (res.ok) { showToast("Group created"); setNewName(""); setShowCreate(false); fetchGroups(); }
+            else showToast("Failed to create group", "error");
+        } catch { showToast("Failed to create group", "error"); }
+    };
+
+    const deleteGroup = async (id: string) => {
+        if (!confirm("Delete this group? Members won't be deleted.")) return;
+        try {
+            const res = await fetch(`/api/agents/lead-groups?id=${id}`, { method: "DELETE" });
+            if (res.ok) { showToast("Group deleted"); setSelectedGroupId(null); fetchGroups(); }
+        } catch { showToast("Failed to delete group", "error"); }
+    };
+
+    const saveTemplate = async () => {
+        if (!selectedGroupId) return;
+        setSavingTemplate(true);
+        try {
+            const res = await fetch("/api/agents/lead-groups", {
+                method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: selectedGroupId, templateBody, templateSubject: selectedGroup?.channel === "email" ? templateSubject : undefined }),
+            });
+            if (res.ok) { showToast("Template saved"); setEditTemplate(false); fetchGroups(); }
+            else showToast("Failed to save template", "error");
+        } catch { showToast("Failed to save template", "error"); }
+        setSavingTemplate(false);
+    };
+
+    const sendToGroup = async () => {
+        if (!selectedGroupId) return;
+        if (!confirm(`Send this template to ${members.length} leads? This action cannot be undone.`)) return;
+        setSending(true);
+        try {
+            const res = await fetch("/api/agents/lead-groups/send", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ groupId: selectedGroupId }),
+            });
+            const data = await res.json();
+            if (res.ok) { showToast(data.message || `Sent ${data.sent} messages`); fetchGroups(); fetchMembers(selectedGroupId); }
+            else showToast(data.error || "Send failed", "error");
+        } catch { showToast("Send failed", "error"); }
+        setSending(false);
+    };
+
+    const removeMember = async (leadId: string) => {
+        if (!selectedGroupId) return;
+        try {
+            const res = await fetch("/api/agents/lead-groups/members", {
+                method: "DELETE", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ groupId: selectedGroupId, leadIds: [leadId] }),
+            });
+            if (res.ok) { fetchMembers(selectedGroupId); fetchGroups(); }
+        } catch { /* ignore */ }
+    };
+
+    const insertVariable = (variable: string) => {
+        setTemplateBody(prev => prev + variable);
+    };
+
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading groups...</div>;
+
+    return (
+        <div style={{ display: "flex", gap: 0, height: "calc(100vh - 280px)", minHeight: 500, border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--white)" }}>
+            {/* Left: Group List */}
+            <div style={{ width: 300, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>Lead Groups</span>
+                    <button onClick={() => setShowCreate(!showCreate)}
+                        style={{ background: "var(--orange)", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+
+                {showCreate && (
+                    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Group name..."
+                            style={{ width: "100%", padding: "8px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, marginBottom: 8, outline: "none" }} />
+                        <div style={{ display: "flex", gap: 6 }}>
+                            <select value={newChannel} onChange={e => setNewChannel(e.target.value as "sms" | "email")}
+                                style={{ padding: "6px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, flex: 1 }}>
+                                <option value="sms">SMS</option>
+                                <option value="email">Email</option>
+                            </select>
+                            <button className="btn btn-xs btn-primary" onClick={createGroup} disabled={!newName.trim()} style={{ fontSize: 11 }}>Create</button>
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {groups.map(g => (
+                        <div key={g.id} onClick={() => { setSelectedGroupId(g.id); setEditTemplate(false); setTemplateBody(g.templateBody || ""); setTemplateSubject(g.templateSubject || ""); }}
+                            style={{
+                                padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light, var(--border))",
+                                background: selectedGroupId === g.id ? "rgba(255,107,0,0.06)" : "transparent",
+                                borderLeft: selectedGroupId === g.id ? "3px solid var(--orange)" : "3px solid transparent",
+                            }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontWeight: 600, fontSize: 13 }}>{g.name}</span>
+                                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: g.channel === "sms" ? "rgba(139,92,246,0.1)" : "rgba(37,99,235,0.1)", color: g.channel === "sms" ? "#8B5CF6" : "#2563EB", fontWeight: 600, textTransform: "uppercase" }}>{g.channel}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>
+                                {g.memberCount} lead{g.memberCount !== 1 ? "s" : ""}{g.lastSentAt ? ` · Last sent ${new Date(g.lastSentAt).toLocaleDateString()}` : ""}
+                            </div>
+                            {g.templateBody ? (
+                                <div style={{ fontSize: 10, color: "var(--text-light)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {g.templateBody.slice(0, 50)}...
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: 10, color: "var(--warn-dark)", marginTop: 4 }}>No template set</div>
+                            )}
+                        </div>
+                    ))}
+                    {groups.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "var(--text-faint)", fontSize: 12 }}>No groups yet. Create one above.</div>}
+                </div>
+            </div>
+
+            {/* Right: Group Detail */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                {selectedGroup ? (<>
+                    {/* Header */}
+                    <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 16, fontFamily: "var(--font-heading)" }}>{selectedGroup.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{selectedGroup.memberCount} members · {selectedGroup.channel.toUpperCase()}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                            <button className="btn btn-xs" onClick={() => setEditTemplate(!editTemplate)}
+                                style={{ background: editTemplate ? "rgba(255,107,0,0.08)" : "var(--surface)", border: "1px solid var(--border)", color: editTemplate ? "var(--orange)" : "var(--text-light)" }}>
+                                {editTemplate ? "Cancel Edit" : "Edit Template"}
+                            </button>
+                            <button className="btn btn-xs btn-primary" onClick={sendToGroup}
+                                disabled={sending || !selectedGroup.templateBody || selectedGroup.memberCount === 0}
+                                style={{ opacity: !selectedGroup.templateBody || selectedGroup.memberCount === 0 ? 0.4 : 1 }}>
+                                {sending ? "Sending..." : `Send to ${selectedGroup.memberCount} Leads`}
+                            </button>
+                            <button className="btn btn-xs" onClick={() => deleteGroup(selectedGroup.id)}
+                                style={{ color: "var(--danger)", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>Delete</button>
+                        </div>
+                    </div>
+
+                    {/* Template Editor */}
+                    {editTemplate && (
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>Message Template</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
+                                Insert variables that auto-fill with each lead&apos;s data:
+                            </div>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+                                {TEMPLATE_VARS.map(v => (
+                                    <button key={v.variable} onClick={() => insertVariable(v.variable)}
+                                        style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", cursor: "pointer", color: "var(--info)", fontFamily: "monospace" }}>
+                                        {v.variable}
+                                    </button>
+                                ))}
+                            </div>
+                            {selectedGroup.channel === "email" && (
+                                <input value={templateSubject} onChange={e => setTemplateSubject(e.target.value)} placeholder="Email subject (supports [variables])..."
+                                    style={{ width: "100%", padding: "8px 12px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 8, marginBottom: 8, outline: "none" }} />
+                            )}
+                            <textarea value={templateBody} onChange={e => setTemplateBody(e.target.value)} placeholder="Type your message template here... Use [company_name] for personalization."
+                                rows={5}
+                                style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} />
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                    Preview: {templateBody.replace(/\[company_name\]/g, "Bob's Junk Removal").replace(/\[owner_name\]/g, "Bob").replace(/\[city\]/g, "Houston").replace(/\[market\]/g, "houston").slice(0, 80)}...
+                                </div>
+                                <button className="btn btn-xs btn-primary" onClick={saveTemplate} disabled={savingTemplate}>
+                                    {savingTemplate ? "Saving..." : "Save Template"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Current Template Preview (when not editing) */}
+                    {!editTemplate && selectedGroup.templateBody && (
+                        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", background: "rgba(37,99,235,0.03)" }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Template</div>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{selectedGroup.templateBody}</div>
+                        </div>
+                    )}
+
+                    {/* Member List */}
+                    <div style={{ flex: 1, overflowY: "auto" }}>
+                        {membersLoading ? (
+                            <div style={{ padding: 30, textAlign: "center", color: "var(--text-faint)", fontSize: 12 }}>Loading members...</div>
+                        ) : members.length > 0 ? (
+                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                <thead>
+                                    <tr>
+                                        {["Company", "Market", "Grade", "Score", "Status", "Phone", ""].map(h => (
+                                            <th key={h} style={{ padding: "8px 14px", fontSize: 11, fontWeight: 600, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "left", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {members.map(m => (
+                                        <tr key={m.id} style={{ borderBottom: "1px solid var(--border-light, var(--border))" }}>
+                                            <td style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>{m.lead.name}</td>
+                                            <td style={{ padding: "8px 14px", fontSize: 12, color: "var(--text-light)" }}>{m.lead.market}</td>
+                                            <td style={{ padding: "8px 14px" }}><Badge {...(GRADE_MAP[m.lead.grade] || GRADE_MAP.C)} label={m.lead.grade} /></td>
+                                            <td style={{ padding: "8px 14px", fontSize: 12, fontWeight: 600, color: "var(--text-light)" }}>{m.lead.leadScore}</td>
+                                            <td style={{ padding: "8px 14px" }}><Badge {...(OUTREACH_MAP[m.lead.outreachStatus] || OUTREACH_MAP.new)} /></td>
+                                            <td style={{ padding: "8px 14px", fontSize: 11, fontFamily: "monospace", color: "var(--text-light)" }}>{m.lead.phone || "—"}</td>
+                                            <td style={{ padding: "8px 14px" }}>
+                                                <button onClick={() => removeMember(m.lead.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", fontSize: 14 }} title="Remove from group">✕</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
+                                <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                                <div style={{ fontWeight: 600 }}>No members in this group</div>
+                                <div style={{ fontSize: 12, marginTop: 4 }}>Go to <strong>Scraped Leads</strong> page, select leads, and click &ldquo;Add to Group&rdquo;</div>
+                            </div>
+                        )}
+                    </div>
+                </>) : (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-faint)" }}>
+                        <span style={{ fontSize: 40 }}>📋</span>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>Select a group</span>
+                        <span style={{ fontSize: 12 }}>Create a group, add leads from the Scraped Leads page, then set a template and send</span>
+                    </div>
+                )}
             </div>
         </div>
     );
