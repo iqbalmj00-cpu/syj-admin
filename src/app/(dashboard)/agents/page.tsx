@@ -514,7 +514,6 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                     <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
                 </ConfigField>
                 <ConfigToggle label="Skip Yelp" checked={!!config.skip_yelp} onChange={v => onChange("skip_yelp", v)} />
-                <ConfigToggle label="Skip Enrichment" checked={!!config.skip_enrichment} onChange={v => onChange("skip_enrichment", v)} />
                 <ConfigToggle label="Use Grid Search" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
             </>
         );
