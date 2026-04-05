@@ -1387,15 +1387,18 @@ function MessagesTab() {
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [thread, setThread] = useState<ThreadMessage[]>([]);
     const [compose, setCompose] = useState("");
+    const [sendChannel, setSendChannel] = useState<"sms" | "email">("sms");
     const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(true);
     const [newConvo, setNewConvo] = useState(false);
     const [newPhone, setNewPhone] = useState("");
+    const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+    const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
     const fetchConvos = useCallback(async () => {
         try {
             const res = await fetch("/api/agents/outreach-log?conversations=true");
-            if (res.ok) { const data = await res.json(); setConvos(data.conversations); }
+            if (res.ok) { const data = await res.json(); setConvos(data.conversations || []); }
         } catch { /* ignore */ }
         setLoading(false);
     }, []);
@@ -1403,14 +1406,19 @@ function MessagesTab() {
     const fetchThread = useCallback(async (leadId: string) => {
         try {
             const res = await fetch(`/api/agents/outreach-log?leadId=${leadId}&limit=200`);
-            if (res.ok) { const data = await res.json(); setThread(data.logs); }
+            if (res.ok) { const data = await res.json(); setThread(data.logs || []); }
         } catch { /* ignore */ }
     }, []);
 
     useEffect(() => { fetchConvos(); }, [fetchConvos]);
     useEffect(() => { if (selectedLeadId) fetchThread(selectedLeadId); }, [selectedLeadId, fetchThread]);
     useEffect(() => {
-        const interval = setInterval(() => { fetchConvos(); if (selectedLeadId) fetchThread(selectedLeadId); }, 30_000);
+        const interval = setInterval(() => {
+            if (document.visibilityState === "visible") {
+                fetchConvos();
+                if (selectedLeadId) fetchThread(selectedLeadId);
+            }
+        }, 15_000); // Poll every 15s (faster than before) but only when tab visible
         return () => clearInterval(interval);
     }, [fetchConvos, fetchThread, selectedLeadId]);
 
@@ -1424,8 +1432,10 @@ function MessagesTab() {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ phone: newPhone.trim(), channel: "sms", content: compose }),
                 });
-                if (res.ok) { setCompose(""); setNewPhone(""); setNewConvo(false); fetchConvos(); }
-            } catch { /* ignore */ }
+                const data = await res.json();
+                if (res.ok && data.ok) { showToast("Message sent"); setCompose(""); setNewPhone(""); setNewConvo(false); fetchConvos(); }
+                else showToast(data.error || "Failed to send", "error");
+            } catch { showToast("Failed to send", "error"); }
             setSending(false);
             return;
         }
@@ -1435,10 +1445,12 @@ function MessagesTab() {
         try {
             const res = await fetch("/api/agents/send-message", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadId: selectedLeadId, channel: "sms", content: compose }),
+                body: JSON.stringify({ leadId: selectedLeadId, channel: sendChannel, content: compose }),
             });
-            if (res.ok) { setCompose(""); fetchThread(selectedLeadId); fetchConvos(); }
-        } catch { /* ignore */ }
+            const data = await res.json();
+            if (res.ok && data.ok) { showToast("Message sent"); setCompose(""); fetchThread(selectedLeadId); fetchConvos(); }
+            else showToast(data.error || "Failed to send", "error");
+        } catch { showToast("Failed to send", "error"); }
         setSending(false);
     };
 
@@ -1531,9 +1543,14 @@ function MessagesTab() {
                                 borderRadius: 10, background: "var(--white)", color: "var(--text)",
                                 outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "inherit"
                             }} />
+                        <select value={sendChannel} onChange={e => setSendChannel(e.target.value as "sms" | "email")}
+                            style={{ padding: "8px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", height: 42 }}>
+                            <option value="sms">SMS</option>
+                            <option value="email">Email</option>
+                        </select>
                         <button className="btn btn-xs btn-primary" onClick={sendMessage} disabled={sending || !compose.trim()}
                             style={{ padding: "10px 18px", borderRadius: 10, height: 42, whiteSpace: "nowrap" }}>
-                            {sending ? "Sending..." : "Send SMS 💬"}
+                            {sending ? "..." : sendChannel === "sms" ? "Send 💬" : "Send 📧"}
                         </button>
                     </div>
                 </>) : newConvo ? (
