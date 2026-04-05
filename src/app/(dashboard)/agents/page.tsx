@@ -1693,7 +1693,46 @@ function MessagesTab() {
     const [newConvo, setNewConvo] = useState(false);
     const [newPhone, setNewPhone] = useState("");
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+    const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
+    const [autoReplyPrompt, setAutoReplyPrompt] = useState("");
+    const [editingPrompt, setEditingPrompt] = useState(false);
+    const [savingSettings, setSavingSettings] = useState(false);
+    const [editDraftId, setEditDraftId] = useState<string | null>(null);
+    const [editDraftContent, setEditDraftContent] = useState("");
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+    // Fetch auto-reply settings on mount
+    useEffect(() => {
+        fetch("/api/agents/autoreply-settings").then(r => r.json()).then(d => {
+            setAutoReplyEnabled(d.enabled || false);
+            setAutoReplyPrompt(d.prompt || "");
+        }).catch(() => {});
+    }, []);
+
+    const saveAutoReplySettings = async () => {
+        setSavingSettings(true);
+        try {
+            const res = await fetch("/api/agents/autoreply-settings", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: autoReplyEnabled, prompt: autoReplyPrompt }),
+            });
+            if (res.ok) { showToast("Auto-reply settings saved"); setEditingPrompt(false); }
+            else showToast("Failed to save settings", "error");
+        } catch { showToast("Failed to save settings", "error"); }
+        setSavingSettings(false);
+    };
+
+    const toggleAutoReply = async () => {
+        const newVal = !autoReplyEnabled;
+        setAutoReplyEnabled(newVal);
+        try {
+            await fetch("/api/agents/autoreply-settings", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: newVal }),
+            });
+            showToast(newVal ? "Auto-reply enabled" : "Auto-reply disabled");
+        } catch { showToast("Failed to toggle auto-reply", "error"); setAutoReplyEnabled(!newVal); }
+    };
 
     const fetchConvos = useCallback(async () => {
         try {
@@ -1717,10 +1756,31 @@ function MessagesTab() {
             if (document.visibilityState === "visible") {
                 fetchConvos();
                 if (selectedLeadId) fetchThread(selectedLeadId);
+                // Process any pending auto-replies that are due
+                fetch("/api/agents/process-replies", { method: "POST" }).catch(() => {});
             }
-        }, 15_000); // Poll every 15s (faster than before) but only when tab visible
+        }, 15_000);
         return () => clearInterval(interval);
     }, [fetchConvos, fetchThread, selectedLeadId]);
+
+    const sendDraft = async (logId: string, content: string) => {
+        if (!selectedLeadId || sending) return;
+        setSending(true);
+        try {
+            const res = await fetch("/api/agents/send-message", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadId: selectedLeadId, channel: "sms", content }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                showToast("Reply sent");
+                setEditDraftId(null);
+                if (selectedLeadId) fetchThread(selectedLeadId);
+                fetchConvos();
+            } else showToast(data.error || "Failed to send", "error");
+        } catch { showToast("Failed to send", "error"); }
+        setSending(false);
+    };
 
     const sendMessage = async () => {
         if (!compose.trim() || sending) return;
@@ -1763,13 +1823,39 @@ function MessagesTab() {
         <div style={{ display: "flex", gap: 0, height: "calc(100vh - 280px)", minHeight: 500, border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--white)" }}>
             {/* Left: Conversation List */}
             <div style={{ width: 320, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>Conversations</span>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
-                        <button onClick={() => { setNewConvo(true); setSelectedLeadId(null); }} title="New Conversation"
-                            style={{ background: "var(--orange)", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>Conversations</span>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
+                            <button onClick={() => { setNewConvo(true); setSelectedLeadId(null); }} title="New Conversation"
+                                style={{ background: "var(--orange)", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
+                        </div>
                     </div>
+                    {/* Auto-reply toggle */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: autoReplyEnabled ? "var(--success)" : "var(--text-faint)" }}>Auto-Reply</span>
+                            {autoReplyEnabled && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "rgba(0,216,74,0.12)", color: "#00A83A", fontWeight: 700 }}>ON</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            <button onClick={() => setEditingPrompt(!editingPrompt)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-faint)" }} title="Edit auto-reply prompt">⚙️</button>
+                            <button onClick={toggleAutoReply}
+                                style={{ width: 32, height: 18, borderRadius: 9, border: "none", cursor: "pointer", background: autoReplyEnabled ? "var(--success)" : "var(--border)", position: "relative", transition: "background 0.2s", padding: 0 }}>
+                                <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: autoReplyEnabled ? 16 : 2, transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.15)" }} />
+                            </button>
+                        </div>
+                    </div>
+                    {editingPrompt && (
+                        <div style={{ marginTop: 6, padding: "8px 0" }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", marginBottom: 4 }}>Claude System Prompt</div>
+                            <textarea value={autoReplyPrompt} onChange={e => setAutoReplyPrompt(e.target.value)} placeholder="Describe how Claude should respond to leads..."
+                                rows={4} style={{ width: "100%", padding: "8px 10px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
+                            <button className="btn btn-xs btn-primary" onClick={saveAutoReplySettings} disabled={savingSettings} style={{ marginTop: 4, fontSize: 10, width: "100%" }}>
+                                {savingSettings ? "Saving..." : "Save Prompt"}
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {convos.map(c => {
@@ -1818,15 +1904,36 @@ function MessagesTab() {
                                         background: isOut ? "rgba(37,99,235,0.1)" : "rgba(100,116,139,0.08)",
                                         borderBottomRightRadius: isOut ? 4 : 14, borderBottomLeftRadius: isOut ? 14 : 4
                                     }}>
-                                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 4, display: "flex", gap: 6 }}>
-                                            <span>{m.sender === "agent" ? "🤖 Agent" : m.sender === "user" ? "👤 You" : "↩️ Reply"}</span>
+                                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                                            <span>{m.sender === "agent" ? "🤖 Claude" : m.sender === "user" ? "👤 You" : "↩️ Reply"}</span>
                                             <span>• {m.channel === "sms" ? "💬 SMS" : "📧 Email"}</span>
                                             {m.status === "failed" && <span style={{ color: "var(--danger)" }}>• ❌ Failed</span>}
+                                            {m.status === "draft" && <span style={{ color: "var(--warn-dark)", fontWeight: 700 }}>• DRAFT</span>}
+                                            {m.status === "pending" && <span style={{ color: "var(--info)", fontWeight: 700 }}>• PENDING ({new Date(m.sentAt) > new Date() ? `sends in ${Math.ceil((new Date(m.sentAt).getTime() - Date.now()) / 60000)}m` : "sending..."})</span>}
                                         </div>
                                         {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Re: {m.subject}</div>}
-                                        <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                                        {/* Editable draft content */}
+                                        {m.status === "draft" && editDraftId === m.id ? (
+                                            <>
+                                                <textarea value={editDraftContent} onChange={e => setEditDraftContent(e.target.value)}
+                                                    rows={3} style={{ width: "100%", padding: "8px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, marginBottom: 6 }} />
+                                                <div style={{ display: "flex", gap: 4 }}>
+                                                    <button className="btn btn-xs btn-primary" onClick={() => sendDraft(m.id, editDraftContent)} disabled={sending} style={{ fontSize: 10 }}>{sending ? "..." : "Send"}</button>
+                                                    <button className="btn btn-xs btn-ghost" onClick={() => setEditDraftId(null)} style={{ fontSize: 10 }}>Cancel</button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                                        )}
+                                        {/* Draft action buttons */}
+                                        {m.status === "draft" && editDraftId !== m.id && (
+                                            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                                                <button className="btn btn-xs btn-primary" onClick={() => sendDraft(m.id, m.content)} disabled={sending} style={{ fontSize: 10 }}>Send Now</button>
+                                                <button className="btn btn-xs btn-ghost" onClick={() => { setEditDraftId(m.id); setEditDraftContent(m.content); }} style={{ fontSize: 10 }}>Edit</button>
+                                            </div>
+                                        )}
                                         <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6, textAlign: isOut ? "right" : "left" }}>
-                                            {new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                                            {m.status === "pending" ? "Scheduled" : new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
                                             {new Date(m.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                                         </div>
                                     </div>
