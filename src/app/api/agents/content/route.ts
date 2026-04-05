@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession, verifyAgentSecret } from "@/lib/auth";
 
 /**
- * GET /api/agents/content — list all generated content
- * POST /api/agents/content — create new content (from Content Generator agent)
- * DELETE /api/agents/content?id=xxx — delete a generated content entry
+ * GET /api/agents/content — list all generated content (dashboard only)
+ * POST /api/agents/content — create new content (from Content Generator agent, secret-authenticated)
+ * DELETE /api/agents/content?id=xxx — delete a generated content entry (dashboard only)
  */
 export async function GET() {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const content = await prisma.generatedContent.findMany({
             orderBy: { createdAt: "desc" },
@@ -21,6 +23,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
+        if (!verifyAgentSecret(body.secret) && !(await getSession())) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
         const content = await prisma.generatedContent.create({
             data: {
                 agentRunId: body.agentRunId || null,
@@ -44,6 +49,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");

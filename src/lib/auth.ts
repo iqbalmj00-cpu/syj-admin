@@ -56,3 +56,21 @@ export async function requireAdmin() {
     }
     return session;
 }
+
+/**
+ * Check if the request has a valid admin session (for dashboard API calls on
+ * routes excluded from middleware). Returns the session if valid, null if not.
+ */
+export async function getSession() {
+    const session = await auth();
+    return session?.user ? session : null;
+}
+
+/**
+ * Verify AGENT_CALLBACK_SECRET from a parsed request body.
+ * Use this in POST handlers where the agent sends the secret in the body.
+ */
+export function verifyAgentSecret(secret: string | undefined): boolean {
+    const expected = process.env.AGENT_CALLBACK_SECRET;
+    return !!expected && secret === expected;
+}

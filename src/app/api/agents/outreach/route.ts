@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/outreach
- * Queue selected scraped leads for cold outreach.
+ * Queue selected scraped leads for cold outreach (dashboard only).
  * Called from Scraped Leads page and Agents > Leads tab.
  * Receives: { leadIds: string[], leads: ScrapedLead[] }
  */
 export async function POST(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { leadIds } = body as { leadIds: string[] };

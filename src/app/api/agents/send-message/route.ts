@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/send-message
- * Send a message from the dashboard to a lead (SMS via BlueBubbles or email)
+ * Send a message from the dashboard to a lead (SMS via BlueBubbles or email, dashboard only)
  */
 export async function POST(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { leadId, phone: rawPhone, channel, content, subject } = body;

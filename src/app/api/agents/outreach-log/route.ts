@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 /* POST — Log an outreach action (email or SMS) from agent */
 export async function POST(req: Request) {
@@ -35,8 +36,9 @@ export async function POST(req: Request) {
     }
 }
 
-/* GET — Retrieve outreach logs (supports conversation view) */
+/* GET — Retrieve outreach logs (supports conversation view, dashboard only) */
 export async function GET(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const { searchParams } = new URL(req.url);
         const leadId = searchParams.get("leadId");

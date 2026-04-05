@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession, verifyAgentSecret } from "@/lib/auth";
 
-// GET /api/agents/blogs — List all blog posts with filtering
+// GET /api/agents/blogs — List all blog posts with filtering (dashboard only)
 export async function GET(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const topic = searchParams.get("topic");
@@ -57,9 +59,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { secret, ...blogData } = body;
 
-        // Authenticate (agent creates via secret, dashboard creates without)
-        const expected = process.env.AGENT_CALLBACK_SECRET;
-        if (secret && expected && secret !== expected) {
+        // Authenticate: require valid agent secret OR admin session
+        if (!verifyAgentSecret(secret) && !(await getSession())) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -71,8 +72,9 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// PATCH /api/agents/blogs — Update status (approve/reject/publish), edit content
+// PATCH /api/agents/blogs — Update status (approve/reject/publish), edit content (dashboard only)
 export async function PATCH(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { id, ...updates } = body;

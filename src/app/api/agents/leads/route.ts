@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
-// GET /api/agents/leads — List scraped leads with filtering
+// GET /api/agents/leads — List scraped leads with filtering (dashboard only)
 export async function GET(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
@@ -168,8 +170,9 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// PATCH /api/agents/leads — Update a lead's outreach status
+// PATCH /api/agents/leads — Update a lead's outreach status (dashboard only)
 export async function PATCH(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { id, outreachStatus, outreachNotes } = body;
@@ -194,8 +197,9 @@ export async function PATCH(req: NextRequest) {
     }
 }
 
-// DELETE /api/agents/leads — Bulk delete leads by IDs
+// DELETE /api/agents/leads — Bulk delete leads by IDs (dashboard only)
 export async function DELETE(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { ids } = body;

@@ -16,6 +16,19 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // Verify webhook origin: check BlueBubbles password or agent secret
+        const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
+        const agentSecret = process.env.AGENT_CALLBACK_SECRET;
+        const authHeader = req.headers.get("authorization") || "";
+        const headerSecret = req.headers.get("x-agent-secret") || "";
+        const bodyPassword = body.password || "";
+        if (
+            !(bbPassword && (bodyPassword === bbPassword || authHeader === `Bearer ${bbPassword}`)) &&
+            !(agentSecret && (headerSecret === agentSecret || body.secret === agentSecret))
+        ) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         // BlueBubbles webhook payload
         const { type, data } = body;
 

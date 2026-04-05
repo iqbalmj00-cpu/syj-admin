@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 // POST /api/agents/migrate — One-time migration to create agent tables
 // DELETE THIS ROUTE AFTER RUNNING IT ONCE
 export async function POST() {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         // Create SyjAgent table
         await prisma.$executeRawUnsafe(`

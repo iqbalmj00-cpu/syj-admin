@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 // POST — Log an error from an external agent (secret-authenticated)
 export async function POST(req: NextRequest) {
@@ -31,8 +32,9 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// GET — List errors (paginated, filterable)
+// GET — List errors (paginated, filterable, dashboard only)
 export async function GET(req: NextRequest) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
     const severity = searchParams.get("severity");

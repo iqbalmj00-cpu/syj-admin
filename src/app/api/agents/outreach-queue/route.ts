@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 /**
- * GET  /api/agents/outreach-queue — list queued outreach items with lead info
- * POST /api/agents/outreach-queue — add a draft to the queue (from agent)
- * PATCH /api/agents/outreach-queue — update status (approve/reject) or edit content
+ * GET  /api/agents/outreach-queue — list queued outreach items with lead info (dashboard only)
+ * POST /api/agents/outreach-queue — add a draft to the queue (from agent, secret-authenticated)
+ * PATCH /api/agents/outreach-queue — update status (approve/reject) or edit content (dashboard only)
  */
 
 export async function GET(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const { searchParams } = new URL(req.url);
         const status = searchParams.get("status"); // pending, approved, rejected, sent, needs_review
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
         const { id, ids, status, content, subject } = body;

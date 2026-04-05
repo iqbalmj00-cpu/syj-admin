@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
 /**
- * POST /api/agents/blog-config-generate
+ * POST /api/agents/blog-config-generate (dashboard only)
  * Uses Claude to generate blog configuration (topics, categories, brand voice)
  * based on the target audience (SYJ operators vs end customers)
  */
 export async function POST(req: Request) {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const { target } = await req.json();
         const apiKey = process.env.ANTHROPIC_API_KEY;

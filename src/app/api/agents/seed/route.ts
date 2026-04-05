@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
-// POST /api/agents/seed — Seed the 4 default agents
+// POST /api/agents/seed — Seed the 4 default agents (dashboard only)
 export async function POST() {
+    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const agents = [
             {
