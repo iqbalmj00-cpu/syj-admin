@@ -24,6 +24,12 @@ const CONTENT_TYPES: Record<string, string> = {
     stat_highlight: "Stat Highlight",
     how_to: "How-To Guide",
     testimonial: "Testimonial",
+    pain_point: "Pain Point",
+    competitor_comparison: "Competitor Comparison",
+    phone_agent_highlight: "Phone Agent Highlight",
+    roi_breakdown: "ROI Breakdown",
+    day_in_the_life: "Day in the Life",
+    poll_question: "Poll / Question",
 };
 
 export async function GET() {

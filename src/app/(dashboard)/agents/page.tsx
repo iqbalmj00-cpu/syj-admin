@@ -655,6 +655,12 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                         <option value="stat_highlight">Stat Highlight</option>
                         <option value="how_to">How-To Guide</option>
                         <option value="testimonial">Testimonial</option>
+                        <option value="pain_point">Pain Point</option>
+                        <option value="competitor_comparison">Competitor Comparison</option>
+                        <option value="phone_agent_highlight">Phone Agent Highlight</option>
+                        <option value="roi_breakdown">ROI Breakdown</option>
+                        <option value="day_in_the_life">Day in the Life</option>
+                        <option value="poll_question">Poll / Question</option>
                     </select>
                 </ConfigField>
                 <ConfigField label="Platform">
@@ -1195,6 +1201,12 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
     stat_highlight: "Stat Highlight",
     how_to: "How-To",
     testimonial: "Testimonial",
+    pain_point: "Pain Point",
+    competitor_comparison: "Competitor Comparison",
+    phone_agent_highlight: "Phone Agent",
+    roi_breakdown: "ROI Breakdown",
+    day_in_the_life: "Day in the Life",
+    poll_question: "Poll / Question",
     saas_demo: "Product Demo",
     marketing_video: "Marketing",
     feature_highlight: "Feature",
