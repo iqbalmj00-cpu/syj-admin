@@ -1214,6 +1214,13 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
 };
 
 function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]; onRefresh: () => void; showToast: (msg: string, type?: string) => void }) {
+    const [showUpload, setShowUpload] = useState(false);
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploadType, setUploadType] = useState("product_feature");
+    const [uploadPlatform, setUploadPlatform] = useState("facebook");
+    const [uploadTopic, setUploadTopic] = useState("");
+    const [uploading, setUploading] = useState(false);
+
     const deleteContent = async (id: string) => {
         try {
             const res = await fetch(`/api/agents/content?id=${id}`, { method: "DELETE" });
@@ -1227,6 +1234,29 @@ function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]
         showToast("Caption copied to clipboard");
     };
 
+    const handleUpload = async () => {
+        if (!uploadFile) return;
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append("image", uploadFile);
+            formData.append("contentType", uploadType);
+            formData.append("platform", uploadPlatform);
+            formData.append("topic", uploadTopic);
+            formData.append("brandColor", "#FF6B00");
+            formData.append("tagline", "Scale Your Junk Removal Business");
+
+            const res = await fetch("/api/agents/content/upload", { method: "POST", body: formData });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`Post created: "${data.title?.slice(0, 40)}..."`);
+                setUploadFile(null); setUploadTopic(""); setShowUpload(false);
+                onRefresh();
+            } else showToast(data.error || "Upload failed", "error");
+        } catch { showToast("Upload failed", "error"); }
+        setUploading(false);
+    };
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* KPIs */}
@@ -1236,6 +1266,52 @@ function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]
                 <Kpi label="Failed" value={videos.filter(v => v.status === "failed").length} />
                 <Kpi label="Platforms" value={new Set(videos.map(v => v.platform)).size} />
             </div>
+
+            {/* Upload Panel */}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button className="btn btn-xs" onClick={() => setShowUpload(!showUpload)}
+                    style={{ background: showUpload ? "rgba(255,107,0,0.08)" : "var(--surface)", border: "1px solid var(--border)", color: showUpload ? "var(--orange)" : "var(--text-light)" }}>
+                    {showUpload ? "Cancel Upload" : "📤 Upload Own Image"}
+                </button>
+            </div>
+            {showUpload && (
+                <div className="card" style={{ padding: "16px 20px" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-heading)" }}>Upload Your Own Image</div>
+                    <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 12 }}>Upload a screenshot or photo — Claude will write matching copy for it.</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Image</label>
+                            <input type="file" accept="image/*" onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                                style={{ fontSize: 12, width: "100%" }} />
+                            {uploadFile && <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 4 }}>{uploadFile.name} ({(uploadFile.size / 1024).toFixed(0)} KB)</div>}
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Topic (optional)</label>
+                            <input value={uploadTopic} onChange={e => setUploadTopic(e.target.value)} placeholder="What is this image showing?"
+                                style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Content Type</label>
+                            <select value={uploadType} onChange={e => setUploadType(e.target.value)}
+                                style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}>
+                                {Object.entries(CONTENT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Platform</label>
+                            <select value={uploadPlatform} onChange={e => setUploadPlatform(e.target.value)}
+                                style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}>
+                                <option value="facebook">Facebook</option>
+                                <option value="linkedin">LinkedIn</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button className="btn btn-sm btn-primary" onClick={handleUpload} disabled={!uploadFile || uploading}
+                        style={{ width: "100%", opacity: !uploadFile ? 0.4 : 1 }}>
+                        {uploading ? "Uploading & generating copy..." : "Upload & Generate Copy"}
+                    </button>
+                </div>
+            )}
 
             {/* Content Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 16 }}>
