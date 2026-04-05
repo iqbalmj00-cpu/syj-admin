@@ -147,7 +147,7 @@ export default function ClientsPage() {
                     </thead>
                     <tbody>
                         {filtered.map(c => (
-                            <tr key={c.id} onClick={() => setDetail(c)} style={{ cursor: "pointer" }}>
+                            <tr key={c.id} onClick={() => window.location.href = `/clients/${c.id}`} style={{ cursor: "pointer" }}>
                                 <td style={{ minWidth: 200 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                         <div style={{ transform: "scale(0.8)" }}><Avatar name={c.company} /></div>
