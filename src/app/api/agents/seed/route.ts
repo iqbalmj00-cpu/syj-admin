@@ -56,6 +56,15 @@ export async function POST() {
                 },
             },
             {
+                slug: "lead_enrichment",
+                name: "Lead Enrichment",
+                description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard.",
+                schedule: null,
+                config: {
+                    batchSize: 50,
+                },
+            },
+            {
                 slug: "blog_writer",
                 name: "Blog Writer",
                 description: "Researches trending topics via Perplexity and writes SEO-optimized blog posts for scaleyourjunk.com using Claude AI.",

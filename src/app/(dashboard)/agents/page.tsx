@@ -19,6 +19,13 @@ interface Lead {
     market: string; grade: string; leadScore: number; websiteScore: number; qualification: string;
     outreachStatus: string; painPoints: string[]; reasons: string[]; notesFlags: string[];
     createdAt: string;
+    // Enrichment fields
+    serviceTypes?: string[]; phoneType?: string | null; hasActiveWebsite?: boolean;
+    usingCompetitor?: boolean; competitorPlatform?: string | null;
+    seoScore?: number | null; uiuxScore?: number | null;
+    estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
+    serviceAreaCities?: string[]; serviceAreaSize?: string | null;
+    enrichedAt?: string | null; isExistingClient?: boolean;
 }
 
 interface BlogPostPreview {

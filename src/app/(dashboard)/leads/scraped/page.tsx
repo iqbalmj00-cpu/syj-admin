@@ -9,6 +9,13 @@ interface Lead {
     market: string; grade: string; leadScore: number; websiteScore: number; qualification: string;
     outreachStatus: string; painPoints: string[]; reasons: string[]; notesFlags: string[];
     createdAt: string;
+    // Enrichment fields
+    serviceTypes?: string[]; phoneType?: string | null; hasActiveWebsite?: boolean;
+    usingCompetitor?: boolean; competitorPlatform?: string | null;
+    seoScore?: number | null; uiuxScore?: number | null;
+    estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
+    serviceAreaCities?: string[]; serviceAreaSize?: string | null;
+    enrichedAt?: string | null; isExistingClient?: boolean;
 }
 
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
@@ -42,6 +49,10 @@ export default function ScrapedLeadsPage() {
     const [marketFilter, setMarketFilter] = useState("all");
     const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
     const [companyTypeFilter, setCompanyTypeFilter] = useState("all");
+    const [enrichedFilter, setEnrichedFilter] = useState("all");
+    const [competitorFilter, setCompetitorFilter] = useState("all");
+    const [phoneTypeFilter, setPhoneTypeFilter] = useState("all");
+    const [existingClientFilter, setExistingClientFilter] = useState("false");
     const LEADS_PER_PAGE = 50;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -57,6 +68,10 @@ export default function ScrapedLeadsPage() {
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
             if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
+            if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
+            if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
+            if (phoneTypeFilter !== "all") params.set("phoneType", phoneTypeFilter);
+            if (existingClientFilter !== "all") params.set("isExistingClient", existingClientFilter);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -73,7 +88,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -158,6 +173,22 @@ export default function ScrapedLeadsPage() {
                 <div style={{ display: "flex", gap: 4, background: "var(--border-light)", padding: 4, borderRadius: 8 }}>
                     {["all", "new", "emailed", "replied"].map(s => <FilterChip key={s} label={s === "all" ? "Outreach" : s} active={outreachFilter === s} onClick={() => setOutreachFilter(s)} />)}
                 </div>
+                <select value={enrichedFilter} onChange={e => setEnrichedFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">Enrichment</option>
+                    <option value="true">Enriched</option>
+                    <option value="false">Not Enriched</option>
+                </select>
+                <select value={competitorFilter} onChange={e => setCompetitorFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">Competitor</option>
+                    <option value="true">Using Competitor</option>
+                    <option value="false">No Competitor</option>
+                </select>
+                <select value={phoneTypeFilter} onChange={e => setPhoneTypeFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">Phone Type</option>
+                    <option value="local">Local</option>
+                    <option value="toll_free">Toll-Free</option>
+                    <option value="none">No Phone</option>
+                </select>
                 <input placeholder="Search company..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                     style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", width: 160, outline: "none" }} />
             </div>
@@ -172,13 +203,17 @@ export default function ScrapedLeadsPage() {
                                 <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll} style={{ cursor: "pointer" }} />
                             </th>
                             <SortHeader label="Company" field="name" />
-                            <SortHeader label="Market" field="market" w={120} />
-                            <SortHeader label="Grade" field="grade" w={80} />
-                            <SortHeader label="Score" field="leadScore" w={80} />
+                            <SortHeader label="Market" field="market" w={100} />
+                            <SortHeader label="Grade" field="grade" w={60} />
+                            <SortHeader label="Score" field="leadScore" w={60} />
+                            <th style={{ width: 80 }}>Services</th>
                             <th>Website</th>
-                            <th>Phone</th>
-                            <SortHeader label="Status" field="outreachStatus" w={100} />
-                            <th>Pain Points</th>
+                            <th style={{ width: 60 }}>Phone</th>
+                            <SortHeader label="SEO" field="seoScore" w={50} />
+                            <SortHeader label="UX" field="uiuxScore" w={50} />
+                            <th style={{ width: 80 }}>Competitor</th>
+                            <SortHeader label="Status" field="outreachStatus" w={90} />
+                            <th style={{ width: 60 }}>Enriched</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -187,19 +222,31 @@ export default function ScrapedLeadsPage() {
                                 <td style={{ textAlign: "center" }}>
                                     <input type="checkbox" checked={selectedIds.has(l.id)} onChange={() => toggleSelect(l.id)} style={{ cursor: "pointer" }} />
                                 </td>
-                                <td style={{ fontWeight: 600 }}>{l.name}</td>
-                                <td>{l.market}</td>
+                                <td style={{ fontWeight: 600 }}>
+                                    <div>{l.name}</div>
+                                    {l.isExistingClient && <span style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", background: "rgba(139,92,246,0.1)", padding: "1px 6px", borderRadius: 4 }}>EXISTING CLIENT</span>}
+                                </td>
+                                <td style={{ fontSize: 12 }}>{l.market}</td>
                                 <td><Badge status={l.grade === "A" ? "success" : l.grade === "B" ? "building" : "paused"} /></td>
                                 <td style={{ fontWeight: 600, color: "var(--text-light)" }}>{l.leadScore}</td>
-                                <td>{l.website ? <a href={l.website} target="_blank" rel="noopener noreferrer" style={{ color: "var(--info)", textDecoration: "none" }}>{l.website.replace(/^https?:\/\//, "").slice(0, 20)}</a> : "—"}</td>
-                                <td style={{ fontFamily: "monospace", color: "var(--text-light)" }}>{l.phone || "—"}</td>
-                                <td><Badge status={l.outreachStatus} /></td>
-                                <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-light)" }}>
-                                    {l.painPoints?.length > 0 ? l.painPoints.join(", ") : "—"}
+                                <td style={{ fontSize: 11 }}>
+                                    {l.serviceTypes?.length ? l.serviceTypes.map(t => t.replace("_", " ")).join(", ") : "—"}
                                 </td>
+                                <td>{l.website ? <a href={l.website.startsWith("http") ? l.website : `https://${l.website}`} target="_blank" rel="noopener noreferrer" style={{ color: l.hasActiveWebsite ? "var(--info)" : "var(--text-faint)", textDecoration: "none", fontSize: 11 }}>{l.website.replace(/^https?:\/\//, "").slice(0, 20)}{l.hasActiveWebsite === false && l.enrichedAt ? " ✗" : ""}</a> : "—"}</td>
+                                <td style={{ fontFamily: "monospace", color: "var(--text-light)", fontSize: 11 }}>
+                                    {l.phone || "—"}
+                                    {l.phoneType && l.phoneType !== "none" && <span style={{ fontSize: 9, marginLeft: 4, color: l.phoneType === "toll_free" ? "var(--info)" : "var(--text-faint)" }}>{l.phoneType === "toll_free" ? "TF" : "L"}</span>}
+                                </td>
+                                <td style={{ fontSize: 12, fontWeight: 600, color: l.seoScore != null ? (l.seoScore >= 60 ? "var(--success)" : l.seoScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.seoScore ?? "—"}</td>
+                                <td style={{ fontSize: 12, fontWeight: 600, color: l.uiuxScore != null ? (l.uiuxScore >= 60 ? "var(--success)" : l.uiuxScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.uiuxScore ?? "—"}</td>
+                                <td style={{ fontSize: 11 }}>
+                                    {l.usingCompetitor ? <span style={{ color: "var(--danger)", fontWeight: 600 }}>{l.competitorPlatform || "Yes"}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}
+                                </td>
+                                <td><Badge status={l.outreachStatus} /></td>
+                                <td style={{ fontSize: 11, color: l.enrichedAt ? "var(--success)" : "var(--text-faint)" }}>{l.enrichedAt ? "✓" : "—"}</td>
                             </tr>
                         ))}
-                        {leads.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>No leads match the criteria.</td></tr>}
+                        {leads.length === 0 && <tr><td colSpan={13} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>No leads match the criteria.</td></tr>}
                     </tbody>
                 </table>}
             </div>

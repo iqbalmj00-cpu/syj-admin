@@ -17,7 +17,17 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType"];
+    // New enrichment filters
+    const hasActiveWebsite = searchParams.get("hasActiveWebsite");
+    const usingCompetitor = searchParams.get("usingCompetitor");
+    const competitorPlatform = searchParams.get("competitorPlatform");
+    const phoneType = searchParams.get("phoneType");
+    const serviceAreaSize = searchParams.get("serviceAreaSize");
+    const enriched = searchParams.get("enriched");
+    const isExistingClient = searchParams.get("isExistingClient");
+    const serviceType = searchParams.get("serviceType");
+
+    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "seoScore", "uiuxScore", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
 
     try {
@@ -26,6 +36,18 @@ export async function GET(req: NextRequest) {
         if (market) where.market = market;
         if (companyType) where.companyType = { in: companyType.split(",") };
         if (outreachStatus) where.outreachStatus = { in: outreachStatus.split(",") };
+        if (hasActiveWebsite === "true") where.hasActiveWebsite = true;
+        if (hasActiveWebsite === "false") where.hasActiveWebsite = false;
+        if (usingCompetitor === "true") where.usingCompetitor = true;
+        if (usingCompetitor === "false") where.usingCompetitor = false;
+        if (competitorPlatform) where.competitorPlatform = competitorPlatform;
+        if (phoneType) where.phoneType = phoneType;
+        if (serviceAreaSize) where.serviceAreaSize = serviceAreaSize;
+        if (enriched === "true") where.enrichedAt = { not: null };
+        if (enriched === "false") where.enrichedAt = null;
+        if (isExistingClient === "true") where.isExistingClient = true;
+        if (isExistingClient === "false") where.isExistingClient = false;
+        if (serviceType) where.serviceTypes = { has: serviceType };
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },

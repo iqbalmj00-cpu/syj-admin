@@ -1610,6 +1610,20 @@ model ScrapedLead {
   notesFlags      String[]
   // ── Classification ──
   companyType     String       @default("junk_removal") // junk_removal | dumpster_rental | demolition | other
+  // ── Enrichment Agent fields ──
+  serviceTypes         String[]                  // ["junk_removal", "dumpster_rental"] — more granular than companyType
+  phoneType            String?                   // "toll_free" | "local" | "none"
+  hasActiveWebsite     Boolean   @default(false) // URL responds with 200
+  usingCompetitor      Boolean   @default(false) // on competitor platform (Jobber, Workiz, etc.)
+  competitorPlatform   String?                   // "Jobber" | "Workiz" | "Housecall Pro" etc
+  seoScore             Int?                      // 0-100
+  uiuxScore            Int?                      // 0-100
+  estimatedEmployees   Int?                      // from about/team page
+  estimatedFleetSize   Int?                      // from about/team page
+  serviceAreaCities    String[]                  // cities they serve
+  serviceAreaSize      String?                   // "small" | "medium" | "large"
+  enrichedAt           DateTime?                 // when enrichment last ran
+  isExistingClient     Boolean   @default(false) // matches an existing SYJ User
   // ── Qualification ──
   websiteScore    Int          @default(0)
   leadScore       Int          @default(0)
@@ -1637,6 +1651,8 @@ model ScrapedLead {
   @@index([market])
   @@index([agentRunId])
   @@index([companyType])
+  @@index([enrichedAt])
+  @@index([isExistingClient])
 }
 
 model BlogPost {
