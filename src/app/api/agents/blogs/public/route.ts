@@ -102,7 +102,10 @@ function buildClientBlog(post: {
                 };
             })(),
             structuredData: content.structuredData || null,
-            relatedPages: content.relatedPages || [],
+            relatedPages: ((content.relatedPages || []) as Array<Record<string, unknown>>).map(p => ({
+                label: p.label || p.title || "Related",
+                href: p.href || "/",
+            })),
             meta: content.meta || {
                 title: post.title,
                 description: post.excerpt || "",
