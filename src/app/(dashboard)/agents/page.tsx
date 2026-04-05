@@ -72,6 +72,7 @@ const OUTREACH_MAP: Record<string, { bg: string; color: string; label: string }>
 
 const AGENT_ICONS: Record<string, string> = {
     lead_scraper: "🔍",
+    lead_enrichment: "🧪",
     cold_outreach: "📧",
     content_generator: "🎬",
     blog_writer: "📝",
@@ -189,9 +190,27 @@ export default function AgentsPage() {
 
     useEffect(() => { if (!loading) fetchBlogs(); }, [blogStatusFilter, fetchBlogs, loading]);
 
-    const triggerRun = async (agentId: string) => {
+    const triggerRun = async (agent: Agent) => {
         try {
-            const res = await fetch(`/api/agents/${agentId}`, { method: "POST" });
+            // Enrichment agent runs inside the dashboard — special handler
+            if (agent.slug === "lead_enrichment") {
+                const res = await fetch("/api/agents/enrichment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ batchSize: (agent.config as Record<string, unknown>)?.batchSize || 50 }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} existing clients filtered`);
+                } else {
+                    showToast(data.error || "Enrichment failed", "error");
+                }
+                fetchAgents();
+                return;
+            }
+
+            // All other agents — trigger via standard run endpoint
+            const res = await fetch(`/api/agents/${agent.id}`, { method: "POST" });
             if (res.ok) {
                 showToast("Run triggered");
                 fetchAgents();
@@ -210,7 +229,7 @@ export default function AgentsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ enabled: newEnabled, status: newEnabled ? "idle" : "paused" }),
             });
-            if (res.ok) { showToast(newEnabled ? "Agent resumed" : "Agent paused"); fetchAgents(); }
+            if (res.ok) { showToast(newEnabled ? "Agent enabled" : "Agent disabled"); fetchAgents(); }
         } catch { showToast("Failed to toggle agent", "error"); }
     };
 
@@ -271,7 +290,7 @@ export default function AgentsPage() {
                         <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`); showToast("Copied!"); }}
                             style={{ fontSize: 11, padding: "3px 8px", color: "rgb(59,130,246)" }}>📋 Copy</button>
                     </div>
-                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} />
+                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} />
                 </>
             )}
             {tab === "messages" && <MessagesTab />}
@@ -295,7 +314,7 @@ export default function AgentsPage() {
 
 /* ─── Agents Tab ────────────────────────────────────────────────────── */
 
-function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: string) => void; onToggle: (a: Agent) => void }) {
+function AgentsTab({ agents, onRun, onToggle, showToast }: { agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void }) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
     const [saving, setSaving] = useState(false);
@@ -366,20 +385,28 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                             {a.description && <p style={{ fontSize: 12, color: "var(--text-light)", marginTop: 10, lineHeight: 1.5 }}>{a.description}</p>}
                         </div>
 
-                        <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                        <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                 <span style={{ color: "var(--text-light)" }}>Last run</span>
                                 <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>
                                     {a.lastRun ? `${relTime(a.lastRun.startedAt)} — ${fmtDuration(a.lastRun.durationMs)}` : "Never"}
                                 </span>
                             </div>
+                            {a.lastRun?.status && (
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: "var(--text-light)" }}>Last result</span>
+                                    <Badge {...(STATUS_MAP[a.lastRun.status] || STATUS_MAP.idle)} />
+                                </div>
+                            )}
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                 <span style={{ color: "var(--text-light)" }}>Total runs</span>
                                 <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>{a.totalRuns}</span>
                             </div>
                             {a.lastError && (
-                                <div style={{ fontSize: 11, color: "var(--danger)", background: "rgba(239,68,68,0.08)", padding: "6px 10px", borderRadius: 6, marginTop: 4 }}>
-                                    {a.lastError.slice(0, 120)}
+                                <div style={{ fontSize: 11, color: "var(--danger)", background: "rgba(239,68,68,0.06)", padding: "8px 10px", borderRadius: 8, marginTop: 4, border: "1px solid rgba(239,68,68,0.1)" }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Last Error</div>
+                                    <div style={{ lineHeight: 1.4, wordBreak: "break-word" }}>{a.lastError.slice(0, 200)}</div>
+                                    {a.lastRun?.completedAt && <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 4 }}>Failed {relTime(a.lastRun.completedAt)}</div>}
                                 </div>
                             )}
                         </div>
@@ -387,7 +414,7 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                         {/* Config Panel */}
                         {isExpanded && (
                             <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>⚙️ Configuration</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>Configuration</div>
                                 <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} onRefreshBlog={a.slug === "blog_writer" ? refreshBlogConfig : undefined} refreshingBlog={refreshingBlog} />
                                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                                     <button className="btn btn-xs btn-primary" onClick={() => saveConfig(a.id)} disabled={saving}
@@ -397,19 +424,40 @@ function AgentsTab({ agents, onRun, onToggle }: { agents: Agent[]; onRun: (id: s
                             </div>
                         )}
 
-                        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 8 }}>
-                            <button className="btn btn-xs btn-primary" onClick={() => onRun(a.id)}
-                                disabled={a.status === "running" || !a.enabled}
-                                style={{ flex: 1, opacity: a.status === "running" || !a.enabled ? 0.5 : 1 }}>
-                                {a.status === "running" ? "Running..." : "Run Now"}
-                            </button>
+                        {/* ── Simplified Action Bar ── */}
+                        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
+                            {/* Primary action: Run or Running indicator */}
+                            {a.status === "running" ? (
+                                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(37,99,235,0.08)", borderRadius: 6 }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB", animation: "pulse 1.5s infinite" }} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#2563EB" }}>Running...</span>
+                                </div>
+                            ) : (
+                                <button className="btn btn-xs btn-primary" onClick={() => onRun(a)}
+                                    disabled={!a.enabled}
+                                    style={{ flex: 1, opacity: !a.enabled ? 0.4 : 1 }}>
+                                    Run Now
+                                </button>
+                            )}
+                            {/* Configure */}
                             <button className="btn btn-xs btn-ghost" onClick={() => openConfig(a)}
-                                style={{ color: isExpanded ? "var(--orange)" : "var(--text-light)" }}>
-                                ⚙️ Configure
+                                style={{ color: isExpanded ? "var(--orange)" : "var(--text-light)", padding: "6px 10px" }}
+                                title="Configure">
+                                ⚙️
                             </button>
-                            <button className="btn btn-xs btn-ghost" onClick={() => onToggle(a)}
-                                style={{ color: a.enabled ? "var(--text-light)" : "var(--warn)" }}>
-                                {a.enabled ? "Pause" : "Resume"}
+                            {/* Enable/Disable toggle */}
+                            <button onClick={() => onToggle(a)}
+                                style={{
+                                    width: 36, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
+                                    background: a.enabled ? "var(--success)" : "var(--border)",
+                                    position: "relative", transition: "background 0.2s", flexShrink: 0, padding: 0,
+                                }}
+                                title={a.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}>
+                                <div style={{
+                                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                                    position: "absolute", top: 2, left: a.enabled ? 18 : 2,
+                                    transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                                }} />
                             </button>
                         </div>
                     </div>
