@@ -74,7 +74,7 @@ const AGENT_ICONS: Record<string, string> = {
     lead_scraper: "🔍",
     lead_enrichment: "🧪",
     cold_outreach: "📧",
-    content_generator: "🎬",
+    content_generator: "📸",
     blog_writer: "📝",
 };
 
@@ -205,6 +205,31 @@ export default function AgentsPage() {
                     showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} existing clients filtered`);
                 } else {
                     showToast(data.error || "Enrichment failed", "error");
+                }
+                fetchAgents();
+                return;
+            }
+
+            if (agent.slug === "content_generator") {
+                const config = agent.config as Record<string, unknown> || {};
+                const res = await fetch("/api/agents/content", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        generate: true,
+                        contentType: config.content_type || "industry_tip",
+                        platform: config.platform || "facebook",
+                        topic: config.topic || "",
+                        brandColor: (config.brand as Record<string, string>)?.primaryColor || "#FF6B00",
+                        tagline: (config.brand as Record<string, string>)?.tagline || "Scale Your Junk Removal Business",
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Content created: "${data.title?.slice(0, 40)}..."`);
+                    fetchContent();
+                } else {
+                    showToast(data.error || "Content generation failed", "error");
                 }
                 fetchAgents();
                 return;
@@ -618,52 +643,33 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
     }
 
     if (slug === "content_generator") {
-        const contentType = String(config.content_type || "saas_demo");
         return (
             <>
                 <ConfigField label="Content Type">
-                    <select value={contentType} onChange={e => onChange("content_type", e.target.value)}
+                    <select value={String(config.content_type || "industry_tip")} onChange={e => onChange("content_type", e.target.value)}
                         style={{ ...inputStyle, cursor: "pointer" }}>
-                        <option value="saas_demo">SaaS Product Demo</option>
-                        <option value="marketing_video">SaaS Marketing Video (Social Media)</option>
-                        <option value="feature_highlight">Feature Highlight / Walkthrough</option>
-                        <option value="client_website_showcase">Client Website Showcase</option>
-                        <option value="testimonial">Customer Testimonial / Case Study</option>
+                        <option value="industry_tip">Industry Tip</option>
+                        <option value="success_story">Success Story</option>
+                        <option value="product_feature">Product Feature</option>
                         <option value="before_after">Before & After</option>
-                        <option value="educational">Educational / How-To</option>
+                        <option value="stat_highlight">Stat Highlight</option>
+                        <option value="how_to">How-To Guide</option>
+                        <option value="testimonial">Testimonial</option>
                     </select>
                 </ConfigField>
-                <ConfigField label="Product / Asset to Feature">
-                    <select value={String(config.asset || "dashboard")} onChange={e => onChange("asset", e.target.value)}
+                <ConfigField label="Platform">
+                    <select value={String(config.platform || "facebook")} onChange={e => onChange("platform", e.target.value)}
                         style={{ ...inputStyle, cursor: "pointer" }}>
-                        <option value="dashboard">SYJ Dashboard</option>
-                        <option value="client_website">Client Website Template</option>
-                        <option value="syj_website">ScaleYourJunk.com (Main Site)</option>
-                        <option value="phone_agent">AI Phone Agent</option>
-                        <option value="lead_scraper">Lead Scraper</option>
-                        <option value="cold_outreach">Cold Outreach System</option>
-                    </select>
-                </ConfigField>
-                <ConfigField label="Target Platform">
-                    <select value={String(config.platform || "instagram_reels")} onChange={e => onChange("platform", e.target.value)}
-                        style={{ ...inputStyle, cursor: "pointer" }}>
-                        <option value="instagram_reels">Instagram Reels</option>
-                        <option value="tiktok">TikTok</option>
-                        <option value="youtube_shorts">YouTube Shorts</option>
-                        <option value="youtube_long">YouTube (Long Form)</option>
+                        <option value="facebook">Facebook</option>
                         <option value="linkedin">LinkedIn</option>
-                        <option value="twitter">Twitter/X</option>
                     </select>
                 </ConfigField>
-                <ConfigField label="Video Duration (seconds)">
-                    <ConfigInput value={String(config.duration_seconds || 30)} onChange={v => onChange("duration_seconds", parseInt(v) || 30)} />
+                <ConfigField label="Topic / Focus (optional)">
+                    <textarea value={String(config.topic || "")} onChange={e => onChange("topic", e.target.value)}
+                        placeholder="E.g. 'How AI phone agents increase bookings by 40%' or leave empty for auto-generated topic..."
+                        style={{ ...inputStyle, height: 60, resize: "vertical" }} />
                 </ConfigField>
-                <ConfigField label="Script / Talking Points">
-                    <textarea value={String(config.script_notes || "")} onChange={e => onChange("script_notes", e.target.value)}
-                        placeholder="Key points to cover, specific features to demo, CTA..."
-                        style={{ ...inputStyle, height: 80, resize: "vertical" }} />
-                </ConfigField>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>🎨 Brand Settings</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>Brand</div>
                 <ConfigField label="Primary Color">
                     <ConfigInput value={String((config.brand as Record<string, string>)?.primaryColor || "#FF6B00")} onChange={v => onChange("brand", { ...(config.brand as Record<string, string> || {}), primaryColor: v })} />
                 </ConfigField>
@@ -1169,110 +1175,107 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
     );
 }
 
-/* ─── Content Tab (Generated Videos) ────────────────────────────────── */
+/* ─── Content Tab (Generated Content) ───────────────────────────────── */
 
 const PLATFORM_LABELS: Record<string, string> = {
-    instagram_reels: "📱 Instagram Reels",
+    facebook: "📘 Facebook",
+    linkedin: "💼 LinkedIn",
+    instagram_reels: "📱 Instagram",
     tiktok: "🎵 TikTok",
     youtube_shorts: "📺 YouTube Shorts",
     youtube_long: "📺 YouTube",
-    linkedin: "💼 LinkedIn",
     twitter: "🐦 X/Twitter",
 };
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
+    industry_tip: "Industry Tip",
+    success_story: "Success Story",
+    product_feature: "Product Feature",
+    before_after: "Before & After",
+    stat_highlight: "Stat Highlight",
+    how_to: "How-To",
+    testimonial: "Testimonial",
     saas_demo: "Product Demo",
     marketing_video: "Marketing",
-    feature_highlight: "Feature Walkthrough",
-    client_website_showcase: "Website Showcase",
-    testimonial: "Testimonial",
-    before_after: "Before & After",
+    feature_highlight: "Feature",
     educational: "Educational",
 };
 
 function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]; onRefresh: () => void; showToast: (msg: string, type?: string) => void }) {
-    const [playingId, setPlayingId] = useState<string | null>(null);
-
-    const deleteVideo = async (id: string) => {
+    const deleteContent = async (id: string) => {
         try {
             const res = await fetch(`/api/agents/content?id=${id}`, { method: "DELETE" });
-            if (res.ok) { showToast("Video deleted"); onRefresh(); }
+            if (res.ok) { showToast("Content deleted"); onRefresh(); }
             else showToast("Failed to delete", "error");
         } catch { showToast("Failed to delete", "error"); }
+    };
+
+    const copyCaption = (text: string) => {
+        navigator.clipboard.writeText(text);
+        showToast("Caption copied to clipboard");
     };
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* KPIs */}
             <div className="grid-4">
-                <Kpi label="Total Videos" value={videos.length} />
-                <Kpi label="Ready" value={videos.filter(v => v.status === "ready" && v.videoUrl).length} sub="With video URL" />
-                <Kpi label="Rendering" value={videos.filter(v => v.status === "rendering").length} />
+                <Kpi label="Total Posts" value={videos.length} />
+                <Kpi label="Ready" value={videos.filter(v => v.status === "ready").length} />
+                <Kpi label="Failed" value={videos.filter(v => v.status === "failed").length} />
                 <Kpi label="Platforms" value={new Set(videos.map(v => v.platform)).size} />
             </div>
 
-            {/* Video Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+            {/* Content Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 16 }}>
                 {videos.map(v => {
-                    const isPlaying = playingId === v.id;
                     const script = v.script as Record<string, unknown>;
                     const hashtags = (script?.hashtags || []) as string[];
                     const caption = String(script?.caption || "");
 
                     return (
                         <div key={v.id} className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                            {/* Video / Thumbnail */}
-                            <div style={{ position: "relative", background: "#0A192F", aspectRatio: v.platform.includes("vertical") || ["instagram_reels", "tiktok", "youtube_shorts"].includes(v.platform) ? "9/16" : "16/9", maxHeight: 280, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                {isPlaying && v.videoUrl ? (
-                                    <video
-                                        src={v.videoUrl}
-                                        controls
-                                        autoPlay
-                                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                                    />
-                                ) : v.thumbnailUrl ? (
+                            {/* Image */}
+                            <div style={{ position: "relative", background: "#F1F5F9", aspectRatio: "1/1", maxHeight: 360, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {v.thumbnailUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={v.thumbnailUrl} alt={v.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                 ) : (
-                                    <div style={{ textAlign: "center", color: "rgba(255,255,255,0.3)" }}>
-                                        <div style={{ fontSize: 40 }}>🎬</div>
-                                        <div style={{ fontSize: 11, marginTop: 6 }}>{v.videoUrl ? "Click to play" : "No video yet"}</div>
+                                    <div style={{ textAlign: "center", color: "var(--text-faint)" }}>
+                                        <div style={{ fontSize: 40 }}>{v.status === "failed" ? "❌" : "📸"}</div>
+                                        <div style={{ fontSize: 11, marginTop: 6 }}>{v.status === "failed" ? "Image generation failed" : "Generating..."}</div>
                                     </div>
                                 )}
-                                {!isPlaying && v.videoUrl && (
-                                    <button
-                                        onClick={() => setPlayingId(v.id)}
-                                        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                    >
-                                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,107,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "#fff" }}>▶</div>
-                                    </button>
-                                )}
-                                {/* Duration badge */}
-                                <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
-                                    {Math.floor(v.duration / 60)}:{String(v.duration % 60).padStart(2, "0")}
+                                {/* Status badge */}
+                                <div style={{ position: "absolute", top: 8, right: 8, padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                                    background: v.status === "ready" ? "rgba(0,216,74,0.9)" : v.status === "failed" ? "rgba(239,68,68,0.9)" : "rgba(245,158,11,0.9)",
+                                    color: "#fff" }}>
+                                    {v.status === "ready" ? "Ready" : v.status === "failed" ? "Failed" : "Generating"}
                                 </div>
                             </div>
 
-                            {/* Info */}
-                            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-                                <div style={{ fontWeight: 700, fontSize: 13, fontFamily: "var(--font-heading)", color: "var(--text)", lineHeight: 1.3 }}>{v.title}</div>
+                            {/* Copy + Info */}
+                            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                    <div style={{ fontWeight: 700, fontSize: 14, fontFamily: "var(--font-heading)", color: "var(--text)", lineHeight: 1.3, flex: 1 }}>{v.title}</div>
+                                </div>
                                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(37,99,235,0.08)", color: "var(--primary)", fontWeight: 600 }}>
+                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(37,99,235,0.08)", color: "#2563EB", fontWeight: 600 }}>
                                         {PLATFORM_LABELS[v.platform] || v.platform}
                                     </span>
                                     <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(255,107,0,0.08)", color: "var(--orange)", fontWeight: 600 }}>
                                         {CONTENT_TYPE_LABELS[v.contentType] || v.contentType}
                                     </span>
-                                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: v.status === "ready" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.08)", color: v.status === "ready" ? "var(--success)" : "var(--warning)", fontWeight: 600 }}>
-                                        {v.status === "ready" ? "✓ Ready" : "⏳ " + v.status}
-                                    </span>
                                 </div>
-                                {caption && <p style={{ fontSize: 11, color: "var(--text-light)", lineHeight: 1.5, margin: 0 }}>{caption}</p>}
-                                {hashtags.length > 0 && (
-                                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                        {hashtags.slice(0, 5).map((h, i) => (
-                                            <span key={i} style={{ fontSize: 10, color: "var(--primary)" }}>{h}</span>
-                                        ))}
+                                {caption && (
+                                    <div style={{ background: "var(--surface)", borderRadius: 8, padding: "10px 12px", marginTop: 4 }}>
+                                        <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{caption}</div>
+                                        {hashtags.length > 0 && (
+                                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+                                                {hashtags.map((h, i) => (
+                                                    <span key={i} style={{ fontSize: 10, color: "#2563EB", fontWeight: 500 }}>#{h.replace(/^#/, "")}</span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 8, borderTop: "1px solid var(--border-light)" }}>
@@ -1280,10 +1283,14 @@ function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]
                                         {new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                                     </span>
                                     <div style={{ display: "flex", gap: 6 }}>
-                                        {v.videoUrl && (
-                                            <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ fontSize: 10, color: "var(--primary)" }}>↗ Download</a>
+                                        {caption && (
+                                            <button className="btn btn-xs btn-ghost" onClick={() => copyCaption(caption + (hashtags.length ? "\n\n" + hashtags.map(h => `#${h.replace(/^#/, "")}`).join(" ") : ""))}
+                                                style={{ fontSize: 10, color: "var(--info)" }}>📋 Copy Caption</button>
                                         )}
-                                        <button className="btn btn-xs btn-ghost" onClick={() => deleteVideo(v.id)} style={{ fontSize: 10, color: "var(--danger)" }}>🗑 Delete</button>
+                                        {v.thumbnailUrl && (
+                                            <a href={v.thumbnailUrl} target="_blank" rel="noopener noreferrer" download className="btn btn-xs btn-ghost" style={{ fontSize: 10, color: "var(--success)", textDecoration: "none" }}>↗ Download Image</a>
+                                        )}
+                                        <button className="btn btn-xs btn-ghost" onClick={() => deleteContent(v.id)} style={{ fontSize: 10, color: "var(--danger)" }}>Delete</button>
                                     </div>
                                 </div>
                             </div>
@@ -1293,7 +1300,7 @@ function ContentTab({ videos, onRefresh, showToast }: { videos: GeneratedVideo[]
             </div>
             {videos.length === 0 && (
                 <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
-                    No videos yet. Run the Content Generator agent to create videos.
+                    No content yet. Configure and run the Content Generator to create social media posts with AI-generated images.
                 </div>
             )}
         </div>

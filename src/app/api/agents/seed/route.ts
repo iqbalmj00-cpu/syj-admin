@@ -41,15 +41,14 @@ export async function POST() {
             {
                 slug: "content_generator",
                 name: "Content Generator",
-                description: "Generates daily video content for ScaleYourJunk social media using Claude AI scripts and Remotion rendering.",
-                schedule: "0 6 * * *", // Daily 6 AM
+                description: "Creates social media content with AI-generated copy and images for Facebook and LinkedIn. Runs inside the dashboard — no external server needed.",
+                schedule: null,
                 config: {
-                    duration_seconds: 30,
-                    topics: ["product_feature", "industry_stats", "customer_success", "tips_and_tricks"],
+                    content_type: "industry_tip",
+                    platform: "facebook",
+                    topic: "",
                     brand: {
                         primaryColor: "#FF6B00",
-                        secondaryColor: "#0A192F",
-                        fontFamily: "Space Grotesk",
                         tagline: "Scale Your Junk Removal Business",
                     },
                     templates_enabled: ["StatCounter", "ProblemSolution", "FeatureShowcase"],
