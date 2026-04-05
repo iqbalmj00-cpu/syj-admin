@@ -16,6 +16,22 @@ const PLATFORM_ASPECT: Record<string, string> = {
     linkedin: "1:1",
 };
 
+const IMAGE_STYLE_GUIDE: Record<string, string> = {
+    industry_tip: "Clean infographic-style image with a single tip highlighted. Bold text overlay on a dark or branded background. 'Pro Tip' banner style with an icon like a lightbulb or wrench. Minimal, professional.",
+    success_story: "Revenue chart trending upward with key metrics called out. Or a clean card layout showing growth numbers (jobs per week, trucks, revenue). Data visualization style, polished and aspirational.",
+    product_feature: "Screenshot-style image of a SaaS dashboard showing a specific feature — dispatch board, driver app, route optimizer. Annotated with arrows or highlights pointing to key functionality. Clean UI mockup aesthetic.",
+    before_after: "Split screen. Left side shows chaos (messy spreadsheet, whiteboard with scribbled routes, phone full of missed calls) in red tones. Right side shows organized platform (clean dispatch board, optimized routes, organized job queue) in green tones. Clear visual contrast.",
+    stat_highlight: "Single bold number taking up most of the image. Very large font, contrasting background. Example: '42%' in huge text with smaller subtitle below. Minimal design, maximum impact. Clean data-driven visual.",
+    how_to: "Step-by-step visual with 3-4 numbered steps laid out vertically or horizontally. Each step has a small icon and one-line description. Clean, instructional, easy to scan quickly. Educational poster style.",
+    testimonial: "Quote card with testimonial text in large font, customer name and company below, star rating. Subtle branded background. Text-focused, no stock photos of random people. Professional quote card design.",
+    pain_point: "Visual showing frustration. Piled-up missed call notifications on a phone screen, or a dispatcher buried in sticky notes, or a whiteboard with crossed-out schedules. Red tones, visual tension. The image should convey operational pain and chaos.",
+    competitor_comparison: "Side-by-side comparison table or checklist. Left column labeled 'Generic Software' with red X marks. Right column labeled 'Built for Junk Removal' with green checkmarks. Clean comparison infographic. No specific competitor names.",
+    phone_agent_highlight: "Phone screen showing incoming calls being answered with checkmarks and booking confirmations. Or a clock showing 3 AM with a 'New job booked' notification overlaid. Nighttime imagery contrasted with active call handling. Convey 24/7 automated booking.",
+    roi_breakdown: "Calculator or ledger-style image showing cost vs return. Left side: '$150/mo subscription.' Right side: '$12,000 in captured revenue.' Arrow connecting them. Clean financial visual with dollar signs and percentages.",
+    day_in_the_life: "Timeline-style image showing a dispatcher's morning. 6 AM: routes optimized. 7 AM: drivers get notifications. 8 AM: first job en route with GPS. Sequential visual with clock icons, clean flow. Morning routine infographic.",
+    poll_question: "Bold question text centered on a branded background. 2-3 answer options listed below with emoji or icons next to each. Example style: 'What's your biggest headache?' with icons for scheduling, dispatch, invoicing. Designed to encourage engagement.",
+};
+
 const CONTENT_TYPES: Record<string, string> = {
     industry_tip: "Industry Tip",
     success_story: "Success Story",
@@ -82,12 +98,25 @@ export async function POST(req: NextRequest) {
 
 Write engaging ${platformLabel} posts that resonate with junk removal business owners. Keep it professional but relatable. Include relevant emojis sparingly. Always include a call-to-action.
 
+IMAGE PROMPT RULES:
+- The imagePrompt will be sent to an AI image generator (Imagen/Gemini)
+- Use your brand colors consistently (primary: ${brandColor}, dark: #0A192F)
+- No stock photos of random people
+- Clean, minimal design — not cluttered
+- Text on images should be large enough to read on mobile
+- Every image should be readable in 3 seconds or less
+- Aspect ratio: square (1:1)
+- Be VERY specific and detailed in the image prompt
+
+IMAGE STYLE FOR THIS CONTENT TYPE (${typeLabel}):
+${IMAGE_STYLE_GUIDE[contentType] || "Professional, clean design related to junk removal business operations. Branded colors, minimal layout."}
+
 Return ONLY valid JSON with this exact structure:
 {
   "title": "short internal title for this post",
   "caption": "the full post caption/copy text",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
-  "imagePrompt": "a detailed prompt for generating a matching image — describe the visual scene, style, colors, composition. Must be professional, photorealistic, related to junk removal industry. No text overlays."
+  "imagePrompt": "a highly detailed prompt for the AI image generator following the style guide above. Describe exact visual elements, layout, colors, text overlays, icons, and composition. Be specific."
 }`,
                     messages: [{
                         role: "user",
