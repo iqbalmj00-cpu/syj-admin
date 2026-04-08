@@ -69,6 +69,10 @@ export default function ScrapedLeadsPage() {
     const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
     const [showGroupSelect, setShowGroupSelect] = useState(false);
     const [newGroupName, setNewGroupName] = useState("");
+    // Manual add lead
+    const [showAddLead, setShowAddLead] = useState(false);
+    const [addingLead, setAddingLead] = useState(false);
+    const [newLead, setNewLead] = useState({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -180,6 +184,42 @@ export default function ScrapedLeadsPage() {
         setDeleting(false);
     };
 
+    const addManualLead = async () => {
+        if (!newLead.name.trim()) { showToast("Company name is required", "error"); return; }
+        setAddingLead(true);
+        try {
+            const res = await fetch("/api/agents/leads", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    secret: "manual_add",
+                    leads: [{
+                        name: newLead.name.trim(),
+                        phone: newLead.phone.trim() || null,
+                        email: newLead.email.trim() || null,
+                        website: newLead.website.trim() || null,
+                        market: newLead.market.trim() || "Unknown",
+                        ownerName: newLead.ownerName.trim() || null,
+                        discoveredVia: "manual",
+                        source: "manual",
+                        categories: [],
+                        companyType: "junk_removal",
+                    }],
+                }),
+            });
+            if (res.ok) {
+                showToast("Lead added");
+                setNewLead({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
+                setShowAddLead(false);
+                fetchLeads();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                showToast(data.error || "Failed to add lead", "error");
+            }
+        } catch { showToast("Failed to add lead", "error"); }
+        setAddingLead(false);
+    };
+
     const sendToOutreach = async () => {
         if (selectedIds.size === 0) return;
         setSendingOutreach(true);
@@ -201,10 +241,56 @@ export default function ScrapedLeadsPage() {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Header & Meta */}
-            <div>
-                <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", fontFamily: "var(--font-heading)" }}>Outbound Scraped Leads</h1>
-                <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review, curate, and trigger campaigns for leads discovered by the AI Lead Scraper.</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                    <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", fontFamily: "var(--font-heading)" }}>Outbound Scraped Leads</h1>
+                    <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review, curate, and trigger campaigns for leads discovered by the AI Lead Scraper.</p>
+                </div>
+                <button className="btn btn-sm btn-primary" onClick={() => setShowAddLead(!showAddLead)}>
+                    {showAddLead ? "Cancel" : "+ Add Lead"}
+                </button>
             </div>
+
+            {showAddLead && (
+                <div className="card" style={{ padding: "16px 20px" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-heading)" }}>Add Lead Manually</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Company Name *</label>
+                            <input value={newLead.name} onChange={e => setNewLead(p => ({ ...p, name: e.target.value }))} placeholder="Bob's Junk Hauling"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Owner Name</label>
+                            <input value={newLead.ownerName} onChange={e => setNewLead(p => ({ ...p, ownerName: e.target.value }))} placeholder="Bob Smith"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Market / City</label>
+                            <input value={newLead.market} onChange={e => setNewLead(p => ({ ...p, market: e.target.value }))} placeholder="Houston"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Phone</label>
+                            <input value={newLead.phone} onChange={e => setNewLead(p => ({ ...p, phone: e.target.value }))} placeholder="(713) 555-1234"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Email</label>
+                            <input value={newLead.email} onChange={e => setNewLead(p => ({ ...p, email: e.target.value }))} placeholder="bob@junkremoval.com"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Website</label>
+                            <input value={newLead.website} onChange={e => setNewLead(p => ({ ...p, website: e.target.value }))} placeholder="https://bobsjunk.com"
+                                style={{ width: "100%", padding: "7px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none" }} />
+                        </div>
+                    </div>
+                    <button className="btn btn-sm btn-primary" onClick={addManualLead} disabled={!newLead.name.trim() || addingLead}>
+                        {addingLead ? "Adding..." : "Add Lead"}
+                    </button>
+                </div>
+            )}
 
             {/* Micro KPIs */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>

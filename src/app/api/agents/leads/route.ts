@@ -114,15 +114,17 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// POST /api/agents/leads — Bulk upsert leads from scraper (dedup by googlePlaceId)
+// POST /api/agents/leads — Bulk upsert leads from scraper or manual add (dedup by googlePlaceId)
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { secret, leads, agentRunId } = body;
 
-        // Authenticate
+        // Authenticate: require agent secret OR dashboard session
         const expected = process.env.AGENT_CALLBACK_SECRET;
-        if (!expected || secret !== expected) {
+        const hasSecret = expected && secret === expected;
+        const hasSession = !!(await getSession());
+        if (!hasSecret && !hasSession) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
