@@ -270,17 +270,31 @@ async function fetchSubpage(baseUrl: string, paths: string[]): Promise<string> {
 async function extractCompanyInfo(website: string, serviceAreaCities: string[], anthropicKey: string): Promise<{
     employees: number | null; fleetSize: number | null; cities: string[];
     yearsInBusiness: number | null; isVeteranOwned: boolean; isFamilyBusiness: boolean;
-    ownerBio: string | null; serviceAreaDescription: string | null;
+    ownerBio: string | null; serviceAreaDescription: string | null; ownerName: string | null;
 }> {
-    const aboutHtml = await fetchSubpage(website, ["/about", "/about-us", "/about-us/", "/team", "/our-team"]);
-    const text = aboutHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    // Check multiple page types for company/owner info
+    const aboutHtml = await fetchSubpage(website, [
+        "/about", "/about-us", "/about-us/", "/our-story", "/our-story/",
+        "/team", "/our-team", "/meet-the-team",
+    ]);
+    const reviewsHtml = await fetchSubpage(website, [
+        "/testimonials", "/reviews", "/testimonials/", "/reviews/",
+    ]);
+
+    // Combine text from both sources
+    const stripHtml = (html: string) => html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+        .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+    const aboutText = stripHtml(aboutHtml).slice(0, 3000);
+    const reviewsText = stripHtml(reviewsHtml).slice(0, 1500);
+    const combinedText = `${aboutText}\n\n${reviewsText ? `Testimonials/Reviews page:\n${reviewsText}` : ""}`.trim();
 
     const cityList = serviceAreaCities.length > 0 ? serviceAreaCities.join(", ") : "";
-    const defaults = { employees: null, fleetSize: null, cities: [], yearsInBusiness: null, isVeteranOwned: false, isFamilyBusiness: false, ownerBio: null, serviceAreaDescription: null };
+    const defaults = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
 
-    if (text.length < 50 && !cityList) return defaults;
+    if (combinedText.length < 50 && !cityList) return defaults;
 
     try {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -289,11 +303,11 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
             body: JSON.stringify({
                 model: "claude-haiku-4-5-20251001",
                 max_tokens: 400,
-                messages: [{ role: "user", content: `Extract info from this junk removal company's about page. Also generate a natural-language service area description from the city list if provided. Return ONLY valid JSON.
+                messages: [{ role: "user", content: `Extract info from this junk removal company's website pages (about page, team page, testimonials/reviews page). Also generate a natural-language service area description from the city list if provided. Return ONLY valid JSON.
 
-{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
+{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_name": "<the owner's full name if found on about/team/testimonials page — look for 'Owner', 'Founded by', 'Meet the owner', names on team pages, or names in testimonial responses. null if not found>", "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
 
-${text.length >= 50 ? `About page text:\n${text}` : "No about page found."}
+${combinedText.length >= 50 ? `Website pages text:\n${combinedText}` : "No relevant pages found."}
 ${cityList ? `\nCities served: ${cityList}` : ""}` }],
             }),
         });
@@ -309,6 +323,7 @@ ${cityList ? `\nCities served: ${cityList}` : ""}` }],
             yearsInBusiness: typeof p.years_in_business === "number" ? p.years_in_business : null,
             isVeteranOwned: p.is_veteran_owned === true,
             isFamilyBusiness: p.is_family_business === true,
+            ownerName: typeof p.owner_name === "string" ? p.owner_name : null,
             ownerBio: typeof p.owner_bio === "string" ? p.owner_bio : null,
             serviceAreaDescription: typeof p.service_area_description === "string" ? p.service_area_description : null,
         };
@@ -482,7 +497,7 @@ export async function POST(req: Request) {
                 let serviceAreaCities = extractServiceAreaCities(html);
 
                 // ── Company info via Claude (bio + team + service area NLP) ──
-                let companyInfo = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
+                let companyInfo = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
                 if (anthropicKey && (hasActiveWebsite || serviceAreaCities.length > 0) && lead.website) {
                     companyInfo = await extractCompanyInfo(lead.website, serviceAreaCities, anthropicKey);
                     if (companyInfo.cities.length > 0 && serviceAreaCities.length === 0) serviceAreaCities = companyInfo.cities;
@@ -629,9 +644,10 @@ export async function POST(req: Request) {
                         hasYouTube: social.hasYouTube, youtubeChannelUrl: social.youtubeChannelUrl,
                         // Market context
                         marketCompetitorCount, marketCompetitionLevel, marketRankByReviews, marketRankPercentile,
-                        // Bio
+                        // Bio + owner name from website pages
                         yearsInBusiness: companyInfo.yearsInBusiness, isVeteranOwned: companyInfo.isVeteranOwned,
                         isFamilyBusiness: companyInfo.isFamilyBusiness, ownerBio: companyInfo.ownerBio,
+                        ownerName: companyInfo.ownerName || undefined, // Only set if found, don't overwrite existing
                         // Service area NLP
                         serviceAreaDescription: companyInfo.serviceAreaDescription,
                     },
