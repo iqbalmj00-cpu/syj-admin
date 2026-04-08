@@ -1624,6 +1624,51 @@ model ScrapedLead {
   serviceAreaSize      String?                   // "small" | "medium" | "large"
   enrichedAt           DateTime?                 // when enrichment last ran
   isExistingClient     Boolean   @default(false) // matches an existing SYJ User
+  // ── Coordinates (from Outscraper) ──
+  latitude             Float?
+  longitude            Float?
+  // ── Review Intelligence ──
+  reviewsData          Json?                     // raw review data from Outscraper
+  lastReviewDate       DateTime?
+  reviewVelocity90d    Int?                      // reviews in last 90 days
+  ownerResponseRate    Float?                    // 0.0-1.0
+  lastOwnerResponseDate DateTime?
+  ownerNameFromReviews String?                   // extracted from review response signatures
+  reviewComplaints     String[]                  // recurring complaints from reviews
+  reviewPraise         String[]                  // recurring praise from reviews
+  mentionedStaffNames  String[]                  // staff names mentioned in reviews
+  // ── Marketing Signals ──
+  hasGoogleAds         Boolean   @default(false)
+  hasFacebookPixel     Boolean   @default(false)
+  hasCallTracking      Boolean   @default(false)
+  callTrackingProvider String?
+  hasGTM               Boolean   @default(false)
+  hasChatWidget        Boolean   @default(false)
+  chatWidgetName       String?
+  hasGoogleAnalytics   Boolean   @default(false)
+  marketingMaturityScore Int?                    // 0-100 non-linear weighted
+  // ── CMS / Tech Stack ──
+  cmsDetected          String?                   // "WordPress" | "Wix" | "Squarespace" etc
+  pageBuilder          String?                   // "Elementor" | "Divi" etc
+  isDiyBuilder         Boolean   @default(false) // true for Wix, GoDaddy, Squarespace, Weebly, WP+Elementor/Divi
+  websiteBuiltBy       String?                   // "diy" | "likely_diy" | "likely_agency" | "unknown"
+  // ── Social Presence ──
+  hasFacebook          Boolean   @default(false)
+  facebookPageUrl      String?
+  hasYouTube           Boolean   @default(false)
+  youtubeChannelUrl    String?
+  // ── Market Context ──
+  marketCompetitorCount Int?
+  marketCompetitionLevel String?                 // "low" | "medium" | "high"
+  marketRankByReviews  Int?                      // rank within radius by review count
+  marketRankPercentile Float?                    // 0.0-1.0
+  // ── Owner Bio ──
+  yearsInBusiness      Int?
+  isVeteranOwned       Boolean   @default(false)
+  isFamilyBusiness     Boolean   @default(false)
+  ownerBio             String?   @db.Text
+  // ── Service Area NLP ──
+  serviceAreaDescription String? @db.Text        // natural language description
   // ── Qualification ──
   websiteScore    Int          @default(0)
   leadScore       Int          @default(0)
