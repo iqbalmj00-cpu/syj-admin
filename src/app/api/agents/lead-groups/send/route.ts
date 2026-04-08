@@ -4,11 +4,11 @@ import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/lead-groups/send
- * Send the group's template message to all members.
- * Replaces variables: [company_name], [owner_name], [city], [market], [phone], [website], [grade]
+ * Send the group's template message to all members via SMS.
+ * Replaces variables: [company_name], [owner_name], [city], [market], [phone], [website], [grade], [email]
  */
 
-export const maxDuration = 300; // 5 minutes for large groups
+export const maxDuration = 300;
 
 const VARIABLE_MAP: Record<string, (lead: Record<string, unknown>) => string> = {
     "[company_name]": (l) => String(l.name || ""),
@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
 
         if (!groupId) return NextResponse.json({ error: "groupId required" }, { status: 400 });
 
-        // Load group with template
         const group = await prisma.leadGroup.findUnique({
             where: { id: groupId },
             include: {
@@ -63,81 +62,100 @@ export async function POST(req: NextRequest) {
         const bbUrl = process.env.BLUEBUBBLES_URL;
         const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
 
+        if (!bbUrl || !bbPassword) {
+            return NextResponse.json({ error: "BlueBubbles not configured. Set BLUEBUBBLES_URL and BLUEBUBBLES_PASSWORD env vars." }, { status: 500 });
+        }
+
         let sent = 0;
         let failed = 0;
         let skipped = 0;
-        const errors: string[] = [];
+        const skippedLeads: Array<{ name: string; reason: string }> = [];
+        const failedLeads: Array<{ name: string; error: string }> = [];
 
         for (const member of group.members) {
             const lead = member.lead;
 
             // Skip opted-out leads
-            if (lead.smsOptOut) { skipped++; continue; }
-            // Skip leads already contacted recently
-            if (["converted", "opted_out"].includes(lead.outreachStatus)) { skipped++; continue; }
-
-            const personalizedBody = replaceVariables(group.templateBody, lead as unknown as Record<string, unknown>);
-            const personalizedSubject = group.templateSubject ? replaceVariables(group.templateSubject, lead as unknown as Record<string, unknown>) : null;
-
-            if (group.channel === "sms") {
-                if (!lead.phone) { skipped++; continue; }
-                if (!bbUrl || !bbPassword) { errors.push("BlueBubbles not configured"); failed = group.members.length - skipped; break; }
-
-                // Normalize phone
-                let phone = lead.phone.replace(/[^+\d]/g, "");
-                if (phone.length === 10) phone = "+1" + phone;
-                if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
-
-                try {
-                    const tempGuid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                    const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            chatGuid: `iMessage;-;${phone}`,
-                            tempGuid,
-                            message: personalizedBody,
-                            method: "apple-script",
-                        }),
-                    });
-
-                    if (bbRes.ok) {
-                        sent++;
-                        // Log the outreach
-                        await prisma.outreachLog.create({
-                            data: { leadId: lead.id, channel: "sms", direction: "outbound", sender: "user", content: personalizedBody.slice(0, 2000), status: "sent" },
-                        });
-                        // Update lead status
-                        await prisma.scrapedLead.update({
-                            where: { id: lead.id },
-                            data: { outreachStatus: "sms_sent", smsSentAt: new Date() },
-                        });
-                    } else {
-                        failed++;
-                        errors.push(`${lead.name}: BlueBubbles ${bbRes.status}`);
-                    }
-                } catch (e) {
-                    failed++;
-                    errors.push(`${lead.name}: ${e}`);
-                }
-            } else if (group.channel === "email") {
-                if (!lead.email) { skipped++; continue; }
-                // Email not implemented yet — log as sent for tracking
-                await prisma.outreachLog.create({
-                    data: { leadId: lead.id, channel: "email", direction: "outbound", sender: "user", subject: personalizedSubject, content: personalizedBody.slice(0, 2000), status: "sent" },
-                });
-                await prisma.scrapedLead.update({
-                    where: { id: lead.id },
-                    data: { outreachStatus: "emailed", emailedAt: new Date() },
-                });
-                sent++;
+            if (lead.smsOptOut) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: "Opted out" });
+                continue;
             }
 
-            // Small delay between messages to avoid rate limiting
+            // Skip converted/opted_out status
+            if (["converted", "opted_out"].includes(lead.outreachStatus)) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: `Status: ${lead.outreachStatus}` });
+                continue;
+            }
+
+            // Skip leads without phone (SMS only)
+            if (!lead.phone) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: "No phone number" });
+                continue;
+            }
+
+            // Duplicate protection — check if this lead already received a message from this group recently (24h)
+            const recentSend = await prisma.outreachLog.findFirst({
+                where: {
+                    leadId: lead.id,
+                    direction: "outbound",
+                    sender: "user",
+                    sentAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+                },
+                orderBy: { sentAt: "desc" },
+            });
+            if (recentSend) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: "Already contacted in last 24h" });
+                continue;
+            }
+
+            const personalizedBody = replaceVariables(group.templateBody, lead as unknown as Record<string, unknown>);
+
+            // Normalize phone
+            let phone = lead.phone.replace(/[^+\d]/g, "");
+            if (phone.length === 10) phone = "+1" + phone;
+            if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
+
+            try {
+                const tempGuid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chatGuid: `iMessage;-;${phone}`,
+                        tempGuid,
+                        message: personalizedBody,
+                        method: "apple-script",
+                    }),
+                });
+
+                if (bbRes.ok) {
+                    sent++;
+                    await prisma.outreachLog.create({
+                        data: { leadId: lead.id, channel: "sms", direction: "outbound", sender: "user", content: personalizedBody.slice(0, 2000), status: "sent" },
+                    });
+                    await prisma.scrapedLead.update({
+                        where: { id: lead.id },
+                        data: { outreachStatus: "sms_sent", smsSentAt: new Date() },
+                    });
+                } else {
+                    failed++;
+                    const errText = await bbRes.text().catch(() => "");
+                    failedLeads.push({ name: lead.name, error: `BlueBubbles ${bbRes.status}: ${errText.slice(0, 100)}` });
+                    // Continue to next lead — don't kill the batch
+                }
+            } catch (e) {
+                failed++;
+                failedLeads.push({ name: lead.name, error: String(e).slice(0, 100) });
+                // Continue to next lead
+            }
+
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Update group last sent
         await prisma.leadGroup.update({
             where: { id: groupId },
             data: { lastSentAt: new Date() },
@@ -149,8 +167,9 @@ export async function POST(req: NextRequest) {
             failed,
             skipped,
             total: group.members.length,
-            errors: errors.slice(0, 10),
-            message: `Sent ${sent} messages, ${skipped} skipped, ${failed} failed`,
+            skippedLeads: skippedLeads.slice(0, 20),
+            failedLeads: failedLeads.slice(0, 20),
+            message: `Sent ${sent}, skipped ${skipped}, failed ${failed} of ${group.members.length} leads`,
         });
     } catch (error) {
         console.error("POST /api/agents/lead-groups/send error:", error);
