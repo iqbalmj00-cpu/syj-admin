@@ -157,23 +157,19 @@ export default function ScrapedLeadsPage() {
     const toggleSelect = (id: string) => setSelectedIds(prev => new Set(prev).has(id) ? (prev.delete(id), new Set(prev)) : new Set(prev).add(id));
     const toggleSelectAll = () => setSelectedIds(allOnPageSelected ? new Set() : new Set(leads.map(l => l.id)));
 
-    // Drag-to-select: hold mouse down and drag across checkboxes to select multiple
+    // Drag-to-select: hold mouse down and drag across checkboxes to SELECT multiple
+    // Deselecting is click-only (no drag deselect)
     const [isDragging, setIsDragging] = useState(false);
-    const [dragAction, setDragAction] = useState<"select" | "deselect">("select");
     const handleDragStart = (id: string) => {
-        setIsDragging(true);
-        const isSelected = selectedIds.has(id);
-        setDragAction(isSelected ? "deselect" : "select");
-        toggleSelect(id);
+        // Only start drag-select from an unchecked box
+        if (!selectedIds.has(id)) {
+            setIsDragging(true);
+            setSelectedIds(prev => new Set(prev).add(id));
+        }
     };
     const handleDragEnter = (id: string) => {
         if (!isDragging) return;
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (dragAction === "select") next.add(id);
-            else next.delete(id);
-            return next;
-        });
+        setSelectedIds(prev => new Set(prev).add(id));
     };
     const handleDragEnd = () => setIsDragging(false);
     useEffect(() => { window.addEventListener("mouseup", handleDragEnd); return () => window.removeEventListener("mouseup", handleDragEnd); }, []);
@@ -472,8 +468,8 @@ export default function ScrapedLeadsPage() {
                             <><tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
                                 <td style={{ textAlign: "center" }}>
                                     <input type="checkbox" checked={selectedIds.has(l.id)}
-                                        onChange={(e) => { e.preventDefault(); }}
-                                        onClick={() => toggleSelect(l.id)}
+                                        onChange={() => {}}
+                                        onClick={() => { if (!isDragging) toggleSelect(l.id); }}
                                         onMouseDown={(e) => { e.preventDefault(); handleDragStart(l.id); }}
                                         onMouseEnter={() => handleDragEnter(l.id)}
                                         onMouseUp={handleDragEnd}
