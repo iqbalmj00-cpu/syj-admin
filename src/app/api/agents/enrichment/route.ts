@@ -577,36 +577,55 @@ export async function POST(req: Request) {
                 if (!mobileFriendly) websiteScore += 10;
                 websiteScore = Math.min(websiteScore, 100);
 
-                // ── Re-score ──
+                // ── Re-score (conversion-weighted) ──
                 let leadScore = 0;
                 const reasons: string[] = [];
 
+                // Reachability (max 20) — can't sell if you can't reach them
+                if (lead.phone) { leadScore += 10; reasons.push("Has phone"); } else { reasons.push("No phone (-10)"); }
+                if (lead.email) { leadScore += 10; reasons.push("Has email"); } else { reasons.push("No email (-10)"); }
+
+                // Relevance (max 15) — is it actually junk removal?
                 const searchable = (lead.categories.join(" ") + " " + lead.name).toLowerCase();
-                const junkKw = ["junk", "hauling", "haul", "debris", "cleanout", "trash removal", "dumpster", "roll off"];
+                const junkKw = ["junk", "hauling", "haul", "debris", "cleanout", "trash removal", "dumpster", "roll off", "clean out", "furniture removal", "appliance removal", "yard waste"];
                 const kwHits = junkKw.filter(kw => searchable.includes(kw)).length;
-                if (kwHits >= 2) { leadScore += 30; reasons.push(`Strong match (${kwHits} keywords)`); }
-                else if (kwHits === 1) { leadScore += 20; reasons.push("Category match"); }
-                else { leadScore += 5; reasons.push("Weak category match"); }
+                if (kwHits >= 2) { leadScore += 15; reasons.push(`Strong match (${kwHits} keywords)`); }
+                else if (kwHits === 1) { leadScore += 10; reasons.push("Category match"); }
+                else { leadScore += 3; reasons.push("Weak category match"); }
 
-                if (lead.phone) { leadScore += 5; } else { reasons.push("No phone"); }
-                if (lead.email) { leadScore += 5; } else { reasons.push("No email"); }
-                if (lead.website && hasActiveWebsite) { leadScore += 5; } else { reasons.push("No active website"); }
-
-                if ((lead.reviewCount || 0) >= 15) { leadScore += 10; reasons.push(`${lead.reviewCount} reviews`); }
-                else if ((lead.reviewCount || 0) > 0) { leadScore += 3; reasons.push(`${lead.reviewCount} reviews (few)`); }
-                if ((lead.rating || 0) >= 3.5) { leadScore += 5; reasons.push(`${lead.rating}★`); }
-
-                if (websiteScore >= 60) { leadScore += 25; reasons.push("Weak online presence"); }
-                else if (websiteScore >= 30) { leadScore += 15; reasons.push("Moderate online presence"); }
+                // Website weakness (max 20) — their biggest pain point
+                if (websiteScore >= 60) { leadScore += 20; reasons.push("Weak online presence"); }
+                else if (websiteScore >= 30) { leadScore += 12; reasons.push("Moderate online presence"); }
                 else { reasons.push("Strong online presence"); }
 
-                if (competitorResult.using) { leadScore -= 10; reasons.push(`Using ${competitorResult.platform}`); }
-                if (!hasOnlineBooking) { leadScore += 8; reasons.push("No online booking"); }
-                if (!hasQuoteForm) { leadScore += 7; reasons.push("No quote form"); }
-                if (cms.isDiyBuilder) { leadScore += 5; reasons.push(`DIY website (${cms.cmsDetected})`); }
+                // DIY builder (max 10) — strong buying signal, no agency to displace
+                if (cms.isDiyBuilder && cms.websiteBuiltBy === "diy") { leadScore += 10; reasons.push(`DIY website (${cms.cmsDetected})`); }
+                else if (cms.isDiyBuilder && cms.websiteBuiltBy === "likely_diy") { leadScore += 7; reasons.push(`Likely DIY (${cms.cmsDetected} + ${cms.pageBuilder})`); }
+
+                // No booking/forms (max 10) — specific product fit
+                if (!hasOnlineBooking) { leadScore += 5; reasons.push("No online booking"); }
+                if (!hasQuoteForm) { leadScore += 5; reasons.push("No quote form"); }
+
+                // Low marketing maturity (max 10) — low maturity = more upside for SYJ
+                const mktScore = marketing.marketingMaturityScore;
+                if (mktScore < 20) { leadScore += 10; reasons.push("Low marketing maturity"); }
+                else if (mktScore < 50) { leadScore += 5; reasons.push("Moderate marketing maturity"); }
+                else { reasons.push("High marketing maturity (harder sell)"); }
+
+                // Business activity (max 10) — they're real and active
+                if ((lead.reviewCount || 0) >= 15) { leadScore += 5; reasons.push(`${lead.reviewCount} reviews`); }
+                else if ((lead.reviewCount || 0) > 0) { leadScore += 2; reasons.push(`${lead.reviewCount} reviews (few)`); }
+                if ((lead.rating || 0) >= 3.5) { leadScore += 3; reasons.push(`${lead.rating}★`); }
+                if (reviewData.reviewVelocity90d > 0) { leadScore += 2; reasons.push(`${reviewData.reviewVelocity90d} reviews last 90d`); }
+
+                // Has owner name (max 5) — enables personalized outreach
+                if (companyInfo.ownerName || reviewData.ownerNameFromReviews) { leadScore += 5; reasons.push("Owner name known"); }
+
+                // Competitor penalty (max -20) — much harder to sell
+                if (competitorResult.using) { leadScore -= 20; reasons.push(`Using ${competitorResult.platform} (-20)`); }
 
                 leadScore = Math.max(0, Math.min(leadScore, 100));
-                const grade = leadScore >= 75 ? "A" : leadScore >= 50 ? "B" : "C";
+                const grade = leadScore >= 70 ? "A" : leadScore >= 45 ? "B" : "C";
 
                 // ── Update lead ──
                 await prisma.scrapedLead.update({
