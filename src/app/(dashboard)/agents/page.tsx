@@ -339,7 +339,7 @@ export default function AgentsPage() {
                                 style={{ fontSize: 11, padding: "3px 8px", color: `rgb(${a.color})` }}>📋 Copy</button>
                         </div>
                     ))}
-                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} />
+                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} onRefresh={fetchAgents} />
                 </>
             )}
             {tab === "groups" && <GroupsTab showToast={showToast} />}
@@ -364,7 +364,7 @@ export default function AgentsPage() {
 
 /* ─── Agents Tab ────────────────────────────────────────────────────── */
 
-function AgentsTab({ agents, onRun, onToggle, showToast }: { agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void }) {
+function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void; onRefresh: () => void }) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
     const [saving, setSaving] = useState(false);
@@ -490,6 +490,15 @@ function AgentsTab({ agents, onRun, onToggle, showToast }: { agents: Agent[]; on
                                             Stop
                                         </button>
                                     )}
+                                    {/* Reset button for all agents — fixes stuck "running" status */}
+                                    <button className="btn btn-xs" onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await fetch(`/api/agents/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "idle", lastError: null }) });
+                                        showToast("Agent status reset");
+                                        onRefresh();
+                                    }} style={{ color: "var(--text-faint)", background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.2)", fontSize: 10, padding: "3px 8px" }}>
+                                        Reset
+                                    </button>
                                 </div>
                             ) : (
                                 <button className="btn btn-xs btn-primary" onClick={() => onRun(a)}
