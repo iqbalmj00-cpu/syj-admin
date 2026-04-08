@@ -563,98 +563,23 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
     }
 
     if (slug === "cold_outreach") {
-        const grades = (config.target_grades as string[]) || ["A", "B"];
         return (
             <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>🎯 Campaign Mode</div>
-                <ConfigField label="Run Mode">
-                    <select value={String(config.mode || "generate")} onChange={e => onChange("mode", e.target.value)}
-                        style={{ ...inputStyle, cursor: "pointer" }}>
-                        <option value="generate">📝 Generate Drafts (review before sending)</option>
-                        <option value="send">📤 Send Approved (send reviewed items)</option>
-                    </select>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>Outreach Settings</div>
+                <ConfigField label="SMS Delay Between Messages (seconds)">
+                    <ConfigInput value={String(config.sms_delay_seconds || 1)} onChange={v => onChange("sms_delay_seconds", parseInt(v) || 1)} />
                 </ConfigField>
-                <ConfigToggle label="📧 Email Campaign Enabled" checked={config.email_enabled !== false} onChange={v => onChange("email_enabled", v)} />
-                <ConfigToggle label="💬 SMS Campaign Enabled" checked={config.sms_enabled !== false} onChange={v => onChange("sms_enabled", v)} />
-                <ConfigField label="Target Grades (comma-separated)">
-                    <ConfigInput value={grades.join(", ")} onChange={v => onChange("target_grades", v.split(",").map(s => s.trim()).filter(Boolean))} placeholder="A, B" />
+                <ConfigField label="Target Grades">
+                    <ConfigInput value={String((config.target_grades as string[])?.join(", ") || "A, B")} onChange={v => onChange("target_grades", v.split(",").map((s: string) => s.trim()).filter(Boolean))} placeholder="A, B" />
                 </ConfigField>
-
-                {config.email_enabled !== false && (<>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>📨 Email Settings</div>
-                    <ConfigField label="Daily Email Limit">
-                        <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
-                    </ConfigField>
-                    <ConfigField label="Instantly Campaign ID">
-                        <ConfigInput value={String(config.instantly_campaign_id || "")} onChange={v => onChange("instantly_campaign_id", v)} placeholder="camp_xxx" />
-                    </ConfigField>
-
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6B00", margin: "12px 0 6px" }}>✏️ Intro Email Template</div>
-                    <ConfigField label="Subject">
-                        <ConfigInput value={String(config.template_intro_email_subject || "{{company}} — quick question")} onChange={v => onChange("template_intro_email_subject", v)} placeholder="{{company}} — quick question" />
-                    </ConfigField>
-                    <ConfigField label="Body Instructions (for Claude)">
-                        <textarea value={String(config.template_intro_email_body || "Write a cold intro email for {{company}}.\nOwner: {{owner_name}}. Pain points: {{pain_points}}.\nKeep it under 100 words. Reference their website issues specifically.\nCTA: reply or book a call.")}
-                            onChange={e => onChange("template_intro_email_body", e.target.value)}
-                            style={{ ...inputStyle, height: 80, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6B00", margin: "12px 0 6px" }}>✏️ Follow-up Email Template</div>
-                    <ConfigField label="Subject">
-                        <ConfigInput value={String(config.template_followup_email_subject || "Re: {{company}} — following up")} onChange={v => onChange("template_followup_email_subject", v)} />
-                    </ConfigField>
-                    <ConfigField label="Body Instructions">
-                        <textarea value={String(config.template_followup_email_body || "Write a follow-up email for {{company}}.\nOwner: {{owner_name}}. This is a follow-up to our first email.\nBe shorter (under 60 words). Reference that you emailed before.\nCTA: reply.")}
-                            onChange={e => onChange("template_followup_email_body", e.target.value)}
-                            style={{ ...inputStyle, height: 70, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6B00", margin: "12px 0 6px" }}>✏️ Breakup Email Template</div>
-                    <ConfigField label="Subject">
-                        <ConfigInput value={String(config.template_breakup_email_subject || "Closing the loop — {{company}}")} onChange={v => onChange("template_breakup_email_subject", v)} />
-                    </ConfigField>
-                    <ConfigField label="Body Instructions">
-                        <textarea value={String(config.template_breakup_email_body || "Write a final breakup email for {{company}}.\nOwner: {{owner_name}}. This is the LAST email.\nVery short (under 40 words). Create urgency without being pushy.\nCTA: reply if interested.")}
-                            onChange={e => onChange("template_breakup_email_body", e.target.value)}
-                            style={{ ...inputStyle, height: 70, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-
-                    <ConfigField label="Additional Claude Instructions (optional)">
-                        <textarea value={String(config.email_prompt || "")}
-                            onChange={e => onChange("email_prompt", e.target.value)}
-                            placeholder="E.g. mention our free trial, emphasize 24/7 phone answering..."
-                            style={{ ...inputStyle, height: 50, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-                </>)}
-
-                {config.sms_enabled !== false && (<>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "12px 0 8px" }}>💬 SMS Settings</div>
-                    <ConfigField label="SMS Follow-up After (days)">
-                        <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
-                    </ConfigField>
-                    <ConfigField label="SMS Per Session (max per run)">
-                        <ConfigInput value={String(config.sms_session_limit || 50)} onChange={v => onChange("sms_session_limit", parseInt(v) || 50)} />
-                    </ConfigField>
-                    <ConfigField label="SMS Delay Between Messages (seconds)">
-                        <ConfigInput value={String(config.sms_delay_seconds || 60)} onChange={v => onChange("sms_delay_seconds", parseInt(v) || 60)} />
-                    </ConfigField>
-
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6B00", margin: "12px 0 6px" }}>✏️ SMS Template</div>
-                    <ConfigField label="Initial SMS">
-                        <textarea value={String(config.template_sms_body || "Hey {{owner_name}}, sent you an email about {{company}}'s website — worth a quick look?")}
-                            onChange={e => onChange("template_sms_body", e.target.value)}
-                            style={{ ...inputStyle, height: 50, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6B00", margin: "8px 0 6px" }}>✏️ SMS Follow-up Template</div>
-                    <ConfigField label="Follow-up SMS">
-                        <textarea value={String(config.template_sms_followup_body || "Hey {{owner_name}}, just following up on my email about {{company}}. Happy to share some quick ideas if you're interested.")}
-                            onChange={e => onChange("template_sms_followup_body", e.target.value)}
-                            style={{ ...inputStyle, height: 50, resize: "vertical", fontSize: 11 }} />
-                    </ConfigField>
-                </>)}
-
-                <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 8, padding: "6px 8px", background: "rgba(255,107,0,0.08)", borderRadius: 6 }}>
-                    <strong>Variables:</strong> {"{{company}}, {{owner_name}}, {{city}}, {{market}}, {{website}}, {{grade}}, {{pain_points}}"}
+                <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--surface)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+                    <strong>How to send outreach:</strong><br />
+                    1. Go to <strong>Groups tab</strong> → create a group<br />
+                    2. Go to <strong>Scraped Leads</strong> → select leads → <strong>Add to Group</strong><br />
+                    3. Back to <strong>Groups tab</strong> → click your group → <strong>Edit Template</strong><br />
+                    4. Write your message using variables: <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[company_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[city]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[market]</code><br />
+                    5. Click <strong>Send to Group</strong><br /><br />
+                    <strong>Auto-replies:</strong> Toggle in the <strong>Messages tab</strong> sidebar. Claude reads the conversation and replies with a 3-5 minute delay.
                 </div>
             </>
         );
