@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    // New enrichment filters
+    // Enrichment filters
     const hasActiveWebsite = searchParams.get("hasActiveWebsite");
     const usingCompetitor = searchParams.get("usingCompetitor");
     const competitorPlatform = searchParams.get("competitorPlatform");
@@ -26,6 +26,13 @@ export async function GET(req: NextRequest) {
     const enriched = searchParams.get("enriched");
     const isExistingClient = searchParams.get("isExistingClient");
     const serviceType = searchParams.get("serviceType");
+    // Data presence filters
+    const hasOwnerName = searchParams.get("hasOwnerName");
+    const hasPhone = searchParams.get("hasPhone");
+    const hasEmail = searchParams.get("hasEmail");
+    const hasWebsite = searchParams.get("hasWebsite");
+    const discoveredVia = searchParams.get("discoveredVia");
+    const isDiyBuilder = searchParams.get("isDiyBuilder");
 
     const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "seoScore", "uiuxScore", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
@@ -48,6 +55,17 @@ export async function GET(req: NextRequest) {
         if (isExistingClient === "true") where.isExistingClient = true;
         if (isExistingClient === "false") where.isExistingClient = false;
         if (serviceType) where.serviceTypes = { has: serviceType };
+        if (hasOwnerName === "true") where.ownerName = { not: null };
+        if (hasOwnerName === "false") where.ownerName = null;
+        if (hasPhone === "true") where.phone = { not: null };
+        if (hasPhone === "false") where.phone = null;
+        if (hasEmail === "true") where.email = { not: null };
+        if (hasEmail === "false") where.email = null;
+        if (hasWebsite === "true") where.website = { not: null };
+        if (hasWebsite === "false") where.website = null;
+        if (discoveredVia) where.discoveredVia = discoveredVia;
+        if (isDiyBuilder === "true") where.isDiyBuilder = true;
+        if (isDiyBuilder === "false") where.isDiyBuilder = false;
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },

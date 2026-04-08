@@ -53,6 +53,13 @@ export default function ScrapedLeadsPage() {
     const [competitorFilter, setCompetitorFilter] = useState("all");
     const [phoneTypeFilter, setPhoneTypeFilter] = useState("all");
     const [existingClientFilter, setExistingClientFilter] = useState("false");
+    // Data presence filters
+    const [hasOwnerName, setHasOwnerName] = useState("all");
+    const [hasPhone, setHasPhone] = useState("all");
+    const [hasEmail, setHasEmail] = useState("all");
+    const [hasWebsite, setHasWebsite] = useState("all");
+    const [sourceFilter, setSourceFilter] = useState("all");
+    const [diyFilter, setDiyFilter] = useState("all");
     const LEADS_PER_PAGE = 50;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -76,6 +83,12 @@ export default function ScrapedLeadsPage() {
             if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
             if (phoneTypeFilter !== "all") params.set("phoneType", phoneTypeFilter);
             if (existingClientFilter !== "all") params.set("isExistingClient", existingClientFilter);
+            if (hasOwnerName !== "all") params.set("hasOwnerName", hasOwnerName);
+            if (hasPhone !== "all") params.set("hasPhone", hasPhone);
+            if (hasEmail !== "all") params.set("hasEmail", hasEmail);
+            if (hasWebsite !== "all") params.set("hasWebsite", hasWebsite);
+            if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
+            if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -92,7 +105,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -135,6 +148,27 @@ export default function ScrapedLeadsPage() {
 
     const toggleSelect = (id: string) => setSelectedIds(prev => new Set(prev).has(id) ? (prev.delete(id), new Set(prev)) : new Set(prev).add(id));
     const toggleSelectAll = () => setSelectedIds(allOnPageSelected ? new Set() : new Set(leads.map(l => l.id)));
+
+    // Drag-to-select: hold mouse down and drag across checkboxes to select multiple
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragAction, setDragAction] = useState<"select" | "deselect">("select");
+    const handleDragStart = (id: string) => {
+        setIsDragging(true);
+        const isSelected = selectedIds.has(id);
+        setDragAction(isSelected ? "deselect" : "select");
+        toggleSelect(id);
+    };
+    const handleDragEnter = (id: string) => {
+        if (!isDragging) return;
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (dragAction === "select") next.add(id);
+            else next.delete(id);
+            return next;
+        });
+    };
+    const handleDragEnd = () => setIsDragging(false);
+    useEffect(() => { window.addEventListener("mouseup", handleDragEnd); return () => window.removeEventListener("mouseup", handleDragEnd); }, []);
 
     const deleteSelected = async () => {
         if (selectedIds.size === 0 || !confirm(`Delete ${selectedIds.size} lead(s)? This cannot be undone.`)) return;
@@ -187,6 +221,36 @@ export default function ScrapedLeadsPage() {
                         <div style={{ fontSize: 20, fontWeight: 600, color: "var(--text)" }}>{f.value}</div>
                     </div>
                 ))}
+            </div>
+
+            {/* Data Presence Filters */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "8px 12px", background: "var(--white)", border: "1px solid var(--border-light)", borderRadius: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-faint)", marginRight: 4 }}>Show only:</span>
+                {[
+                    { label: "Has Owner Name", state: hasOwnerName, setter: setHasOwnerName },
+                    { label: "Has Phone", state: hasPhone, setter: setHasPhone },
+                    { label: "Has Email", state: hasEmail, setter: setHasEmail },
+                    { label: "Has Website", state: hasWebsite, setter: setHasWebsite },
+                    { label: "DIY Builder", state: diyFilter, setter: setDiyFilter },
+                ].map(f => (
+                    <button key={f.label} onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                        style={{
+                            padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, cursor: "pointer",
+                            border: `1px solid ${f.state === "true" ? "var(--success)" : "var(--border)"}`,
+                            background: f.state === "true" ? "rgba(0,216,74,0.08)" : "var(--white)",
+                            color: f.state === "true" ? "#00A83A" : "var(--text-light)",
+                        }}>
+                        {f.state === "true" ? "✓ " : ""}{f.label}
+                    </button>
+                ))}
+                <div style={{ width: 1, height: 16, background: "var(--border)", margin: "0 4px" }} />
+                <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">All Sources</option>
+                    <option value="google_maps">Google Maps</option>
+                    <option value="facebook_group">Facebook</option>
+                    <option value="manual">Manual</option>
+                </select>
             </div>
 
             {/* Bulk Actions Bar */}
@@ -269,30 +333,40 @@ export default function ScrapedLeadsPage() {
                                 <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll} style={{ cursor: "pointer" }} />
                             </th>
                             <SortHeader label="Company" field="name" />
-                            <SortHeader label="Market" field="market" w={100} />
-                            <SortHeader label="Grade" field="grade" w={60} />
-                            <SortHeader label="Score" field="leadScore" w={60} />
-                            <th style={{ width: 80 }}>Services</th>
+                            <th style={{ width: 90 }}>Owner</th>
+                            <SortHeader label="Market" field="market" w={90} />
+                            <SortHeader label="Grade" field="grade" w={50} />
+                            <SortHeader label="Score" field="leadScore" w={50} />
+                            <th style={{ width: 70 }}>Services</th>
                             <th>Website</th>
-                            <th style={{ width: 60 }}>Phone</th>
-                            <SortHeader label="SEO" field="seoScore" w={50} />
-                            <SortHeader label="UX" field="uiuxScore" w={50} />
-                            <th style={{ width: 80 }}>Competitor</th>
-                            <SortHeader label="Status" field="outreachStatus" w={90} />
-                            <th style={{ width: 60 }}>Enriched</th>
+                            <th style={{ width: 55 }}>Phone</th>
+                            <SortHeader label="SEO" field="seoScore" w={40} />
+                            <SortHeader label="UX" field="uiuxScore" w={40} />
+                            <th style={{ width: 40 }}>Mkt</th>
+                            <th style={{ width: 65 }}>CMS</th>
+                            <th style={{ width: 70 }}>Competitor</th>
+                            <SortHeader label="Status" field="outreachStatus" w={80} />
+                            <th style={{ width: 45 }}>Source</th>
+                            <th style={{ width: 40 }}>Enr</th>
                         </tr>
                     </thead>
                     <tbody>
                         {leads.map(l => (
                             <tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
                                 <td style={{ textAlign: "center" }}>
-                                    <input type="checkbox" checked={selectedIds.has(l.id)} onChange={() => toggleSelect(l.id)} style={{ cursor: "pointer" }} />
+                                    <input type="checkbox" checked={selectedIds.has(l.id)}
+                                        onChange={() => toggleSelect(l.id)}
+                                        onMouseDown={() => handleDragStart(l.id)}
+                                        onMouseEnter={() => handleDragEnter(l.id)}
+                                        onMouseUp={handleDragEnd}
+                                        style={{ cursor: "pointer" }} />
                                 </td>
                                 <td style={{ fontWeight: 600 }}>
                                     <div>{l.name}</div>
                                     {l.isExistingClient && <span style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", background: "rgba(139,92,246,0.1)", padding: "1px 6px", borderRadius: 4 }}>EXISTING CLIENT</span>}
                                 </td>
-                                <td style={{ fontSize: 12 }}>{l.market}</td>
+                                <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
+                                <td style={{ fontSize: 11 }}>{l.market}</td>
                                 <td><Badge status={l.grade === "A" ? "success" : l.grade === "B" ? "building" : "paused"} /></td>
                                 <td style={{ fontWeight: 600, color: "var(--text-light)" }}>{l.leadScore}</td>
                                 <td style={{ fontSize: 11 }}>
@@ -305,14 +379,21 @@ export default function ScrapedLeadsPage() {
                                 </td>
                                 <td style={{ fontSize: 12, fontWeight: 600, color: l.seoScore != null ? (l.seoScore >= 60 ? "var(--success)" : l.seoScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.seoScore ?? "—"}</td>
                                 <td style={{ fontSize: 12, fontWeight: 600, color: l.uiuxScore != null ? (l.uiuxScore >= 60 ? "var(--success)" : l.uiuxScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.uiuxScore ?? "—"}</td>
+                                <td style={{ fontSize: 11, fontWeight: 600, color: (l as any).marketingMaturityScore != null ? ((l as any).marketingMaturityScore >= 50 ? "var(--success)" : (l as any).marketingMaturityScore >= 20 ? "var(--warn-dark)" : "var(--text-faint)") : "var(--text-faint)" }}>{(l as any).marketingMaturityScore ?? "—"}</td>
+                                <td style={{ fontSize: 10, color: "var(--text-light)" }}>
+                                    {(l as any).cmsDetected ? <span>{(l as any).cmsDetected}{(l as any).isDiyBuilder ? <span style={{ color: "var(--orange)", marginLeft: 2 }}>DIY</span> : ""}</span> : "—"}
+                                </td>
                                 <td style={{ fontSize: 11 }}>
                                     {l.usingCompetitor ? <span style={{ color: "var(--danger)", fontWeight: 600 }}>{l.competitorPlatform || "Yes"}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}
                                 </td>
                                 <td><Badge status={l.outreachStatus} /></td>
+                                <td style={{ fontSize: 10, fontWeight: 600, color: (l as any).discoveredVia === "facebook_group" ? "#1877F2" : (l as any).discoveredVia === "manual" ? "var(--text-faint)" : "var(--success)" }}>
+                                    {(l as any).discoveredVia === "facebook_group" ? "FB" : (l as any).discoveredVia === "manual" ? "Manual" : "GMaps"}
+                                </td>
                                 <td style={{ fontSize: 11, color: l.enrichedAt ? "var(--success)" : "var(--text-faint)" }}>{l.enrichedAt ? "✓" : "—"}</td>
                             </tr>
                         ))}
-                        {leads.length === 0 && <tr><td colSpan={13} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>No leads match the criteria.</td></tr>}
+                        {leads.length === 0 && <tr><td colSpan={17} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>No leads match the criteria.</td></tr>}
                     </tbody>
                 </table>}
             </div>
