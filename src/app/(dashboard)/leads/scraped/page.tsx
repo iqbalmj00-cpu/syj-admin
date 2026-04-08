@@ -60,9 +60,11 @@ export default function ScrapedLeadsPage() {
     const [hasWebsite, setHasWebsite] = useState("all");
     const [sourceFilter, setSourceFilter] = useState("all");
     const [diyFilter, setDiyFilter] = useState("all");
+    const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
     const LEADS_PER_PAGE = 50;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [enriching, setEnriching] = useState(false);
     const [sendingOutreach, setSendingOutreach] = useState(false);
@@ -94,6 +96,7 @@ export default function ScrapedLeadsPage() {
             if (hasWebsite !== "all") params.set("hasWebsite", hasWebsite);
             if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
             if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
+            if (serviceTypeFilter !== "all") params.set("serviceType", serviceTypeFilter);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -110,7 +113,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -350,6 +353,13 @@ export default function ScrapedLeadsPage() {
                     </button>
                 ))}
                 <div style={{ width: 1, height: 16, background: "var(--border)", margin: "0 4px" }} />
+                <select value={serviceTypeFilter} onChange={e => setServiceTypeFilter(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">All Services</option>
+                    <option value="junk_removal">Junk Removal</option>
+                    <option value="dumpster_rental">Dumpster Rental</option>
+                    <option value="demolition">Demolition</option>
+                </select>
                 <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
                     style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
                     <option value="all">All Sources</option>
@@ -459,7 +469,7 @@ export default function ScrapedLeadsPage() {
                     </thead>
                     <tbody>
                         {leads.map(l => (
-                            <tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
+                            <><tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
                                 <td style={{ textAlign: "center" }}>
                                     <input type="checkbox" checked={selectedIds.has(l.id)}
                                         onChange={() => toggleSelect(l.id)}
@@ -468,8 +478,11 @@ export default function ScrapedLeadsPage() {
                                         onMouseUp={handleDragEnd}
                                         style={{ cursor: "pointer" }} />
                                 </td>
-                                <td style={{ fontWeight: 600 }}>
-                                    <div>{l.name}</div>
+                                <td style={{ fontWeight: 600, cursor: "pointer" }} onClick={() => setExpandedLeadId(expandedLeadId === l.id ? null : l.id)}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        <span style={{ fontSize: 10, color: "var(--text-faint)", transition: "transform 0.15s", transform: expandedLeadId === l.id ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+                                        {l.name}
+                                    </div>
                                     {l.isExistingClient && <span style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", background: "rgba(139,92,246,0.1)", padding: "1px 6px", borderRadius: 4 }}>EXISTING CLIENT</span>}
                                 </td>
                                 <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
@@ -505,7 +518,115 @@ export default function ScrapedLeadsPage() {
                                 </td>
                                 <td style={{ fontSize: 11, color: l.enrichedAt ? "var(--success)" : "var(--text-faint)" }}>{l.enrichedAt ? "✓" : "—"}</td>
                             </tr>
-                        ))}
+                            {/* Expanded detail row */}
+                            {expandedLeadId === l.id && (
+                                <tr><td colSpan={17} style={{ padding: 0, background: "var(--surface)" }}>
+                                    <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                                        {/* Pain Points */}
+                                        <div style={{ gridColumn: "span 3", background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.1)", borderRadius: 10, padding: "12px 16px" }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger)", marginBottom: 8 }}>Pain Points</div>
+                                            {(l as any).painPoints?.length > 0 ? (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                    {((l as any).painPoints as string[]).map((p: string, i: number) => (
+                                                        <div key={i} style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 6, alignItems: "flex-start" }}>
+                                                            <span style={{ color: "var(--danger)", flexShrink: 0 }}>•</span> {p}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div style={{ fontSize: 12, color: "var(--text-faint)" }}>No pain points detected — run enrichment to analyze</div>
+                                            )}
+                                        </div>
+
+                                        {/* Company Info */}
+                                        <div>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Company</div>
+                                            {[
+                                                ["Owner", (l as any).ownerName || (l as any).ownerNameFromReviews],
+                                                ["Owner Bio", (l as any).ownerBio],
+                                                ["Years in Business", (l as any).yearsInBusiness],
+                                                ["Veteran Owned", (l as any).isVeteranOwned ? "Yes" : null],
+                                                ["Family Business", (l as any).isFamilyBusiness ? "Yes" : null],
+                                                ["Employees", (l as any).estimatedEmployees],
+                                                ["Fleet Size", (l as any).estimatedFleetSize],
+                                                ["Service Types", (l as any).serviceTypes?.join(", ")],
+                                                ["Service Area", (l as any).serviceAreaDescription || (l as any).serviceAreaCities?.join(", ")],
+                                                ["Phone Type", (l as any).phoneType],
+                                            ].filter(([, v]) => v).map(([label, value]) => (
+                                                <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--border-light)" }}>
+                                                    <span style={{ color: "var(--text-light)" }}>{label}</span>
+                                                    <span style={{ color: "var(--text)", fontWeight: 500, textAlign: "right", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Website & Tech */}
+                                        <div>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Website & Tech</div>
+                                            {[
+                                                ["SEO Score", l.seoScore != null ? `${l.seoScore}/100` : null],
+                                                ["UX Score", l.uiuxScore != null ? `${l.uiuxScore}/100` : null],
+                                                ["CMS", (l as any).cmsDetected],
+                                                ["Page Builder", (l as any).pageBuilder],
+                                                ["Built By", (l as any).websiteBuiltBy],
+                                                ["Online Booking", (l as any).hasOnlineBooking ? "Yes" : "No"],
+                                                ["Quote Form", (l as any).hasQuoteForm ? "Yes" : "No"],
+                                                ["CTA", (l as any).hasCta ? "Yes" : "No"],
+                                                ["Mobile Friendly", (l as any).mobileFriendly ? "Yes" : "No"],
+                                                ["SSL", (l as any).sslValid ? "Yes" : "No"],
+                                                ["Load Time", (l as any).loadTimeSeconds ? `${(l as any).loadTimeSeconds.toFixed(1)}s` : null],
+                                                ["Competitor", (l as any).competitorPlatform],
+                                            ].filter(([, v]) => v != null).map(([label, value]) => (
+                                                <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--border-light)" }}>
+                                                    <span style={{ color: "var(--text-light)" }}>{label}</span>
+                                                    <span style={{ color: "var(--text)", fontWeight: 500 }}>{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Marketing & Reviews */}
+                                        <div>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Marketing & Reviews</div>
+                                            {[
+                                                ["Marketing Score", (l as any).marketingMaturityScore != null ? `${(l as any).marketingMaturityScore}/100` : null],
+                                                ["Google Ads", (l as any).hasGoogleAds ? "Yes" : null],
+                                                ["Facebook Pixel", (l as any).hasFacebookPixel ? "Yes" : null],
+                                                ["Call Tracking", (l as any).callTrackingProvider || ((l as any).hasCallTracking ? "Yes" : null)],
+                                                ["GTM", (l as any).hasGTM ? "Yes" : null],
+                                                ["Chat Widget", (l as any).chatWidgetName || ((l as any).hasChatWidget ? "Yes" : null)],
+                                                ["Facebook Page", (l as any).hasFacebook ? "Linked" : null],
+                                                ["YouTube", (l as any).hasYouTube ? "Linked" : null],
+                                                ["Reviews (90d)", (l as any).reviewVelocity90d != null ? String((l as any).reviewVelocity90d) : null],
+                                                ["Owner Response", (l as any).ownerResponseRate != null ? `${Math.round((l as any).ownerResponseRate * 100)}%` : null],
+                                                ["Competitors Nearby", (l as any).marketCompetitorCount != null ? `${(l as any).marketCompetitorCount} (${(l as any).marketCompetitionLevel})` : null],
+                                                ["Market Rank", (l as any).marketRankByReviews != null ? `#${(l as any).marketRankByReviews}` : null],
+                                            ].filter(([, v]) => v != null).map(([label, value]) => (
+                                                <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--border-light)" }}>
+                                                    <span style={{ color: "var(--text-light)" }}>{label}</span>
+                                                    <span style={{ color: "var(--text)", fontWeight: 500 }}>{String(value)}</span>
+                                                </div>
+                                            ))}
+                                            {(l as any).reviewComplaints?.length > 0 && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Review Complaints</div>
+                                                    {((l as any).reviewComplaints as string[]).map((c: string, i: number) => (
+                                                        <div key={i} style={{ fontSize: 11, color: "var(--text-muted)" }}>• {c}</div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {(l as any).reviewPraise?.length > 0 && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--success)", marginBottom: 4 }}>Review Praise</div>
+                                                    {((l as any).reviewPraise as string[]).map((p: string, i: number) => (
+                                                        <div key={i} style={{ fontSize: 11, color: "var(--text-muted)" }}>• {p}</div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </td></tr>
+                            )}
+                        </>))}
                         {leads.length === 0 && <tr><td colSpan={17} style={{ textAlign: "center", padding: 40, color: "var(--text-faint)" }}>No leads match the criteria.</td></tr>}
                     </tbody>
                 </table>}

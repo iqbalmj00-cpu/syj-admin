@@ -172,19 +172,48 @@ function classifyServiceTypes(html: string, name: string, categories: string[]):
     return types;
 }
 
-function computeSeoScore(html: string, url: string): number {
+function computeSeoScore(html: string, url: string, loadTime: number): { score: number; issues: string[] } {
     let score = 0;
-    if (/<title[^>]*>.{5,}<\/title>/i.test(html)) score += 15;
-    if (/<meta[^>]+name=["']description["'][^>]+content=["'].{20,}["']/i.test(html)) score += 15;
-    if (/<h1[^>]*>.+<\/h1>/i.test(html)) score += 15;
-    if (/application\/ld\+json/i.test(html)) score += 10;
-    if (/<link[^>]+rel=["']canonical["']/i.test(html)) score += 10;
-    if (/<img[^>]+alt=["'][^"']+["']/i.test(html)) score += 10;
-    if (url.startsWith("https://")) score += 10;
-    if (/<meta[^>]+property=["']og:/i.test(html)) score += 5;
-    if (html.toLowerCase().includes("sitemap")) score += 5;
-    if (html.toLowerCase().includes("robots")) score += 5;
-    return Math.min(score, 100);
+    const issues: string[] = [];
+
+    // Content SEO (max 50)
+    if (/<title[^>]*>.{5,}<\/title>/i.test(html)) score += 8; else issues.push("Missing or empty title tag");
+    if (/<meta[^>]+name=["']description["'][^>]+content=["'].{20,}["']/i.test(html)) score += 8; else issues.push("Missing or short meta description");
+    if (/<h1[^>]*>.+<\/h1>/i.test(html)) score += 7; else issues.push("Missing H1 tag");
+    if (/<h2[^>]*>.+<\/h2>/i.test(html)) score += 3; else issues.push("No H2 headings");
+    if (/<img[^>]+alt=["'][^"']+["']/i.test(html)) score += 5; else issues.push("Images missing alt text");
+    if (/<meta[^>]+property=["']og:/i.test(html)) score += 4; else issues.push("No Open Graph tags");
+    if (/<meta[^>]+name=["']twitter:/i.test(html) || /<meta[^>]+property=["']twitter:/i.test(html)) score += 3;
+    // Check for thin content
+    const bodyText = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (bodyText.length > 1000) score += 5; else issues.push("Thin page content");
+    if (bodyText.length > 3000) score += 2;
+    // Multiple H1s is bad
+    const h1Count = (html.match(/<h1[^>]*>/gi) || []).length;
+    if (h1Count > 1) issues.push(`Multiple H1 tags (${h1Count})`);
+
+    // Technical SEO (max 50)
+    if (url.startsWith("https://")) score += 8; else issues.push("Not using HTTPS");
+    if (/<link[^>]+rel=["']canonical["']/i.test(html)) score += 7; else issues.push("Missing canonical tag");
+    if (/application\/ld\+json/i.test(html)) score += 7; else issues.push("No structured data (JSON-LD)");
+    if (/<meta[^>]+name=["']viewport["']/i.test(html)) score += 5; else issues.push("Missing viewport meta (not mobile-friendly)");
+    if (/<meta[^>]+name=["']robots["']/i.test(html)) score += 3; else issues.push("No robots meta tag");
+    if (html.toLowerCase().includes("sitemap")) score += 3; else issues.push("No sitemap reference");
+    // Page speed signals
+    if (loadTime > 0 && loadTime < 2) score += 8;
+    else if (loadTime < 3) score += 5;
+    else if (loadTime < 5) score += 2;
+    else issues.push(`Slow page load (${loadTime.toFixed(1)}s)`);
+    // Lazy loading
+    if (/<img[^>]+(loading=["']lazy["']|srcset)/i.test(html)) score += 3; else issues.push("No lazy-loaded images");
+    // Minification signals (no excessive whitespace)
+    if (html.length > 0 && html.replace(/\s+/g, " ").length / html.length > 0.85) score += 2;
+    // Check for noindex
+    if (/<meta[^>]+content=["'][^"']*noindex/i.test(html)) { score -= 10; issues.push("Page has noindex directive"); }
+    // Redirect chain (checked by how long the response took vs content)
+    if (loadTime > 3 && html.length < 5000) issues.push("Possible redirect chain (slow + small page)");
+
+    return { score: Math.max(0, Math.min(score, 100)), issues };
 }
 
 function computeUiuxScore(html: string, loadTime: number): number {
@@ -478,7 +507,9 @@ export async function POST(req: Request) {
                 const hasQuoteForm = html ? QUOTE_FORM_PATTERNS.test(html) : false;
                 const mobileFriendly = html ? /<meta[^>]+name=["']viewport["']/i.test(html) : true;
                 const sslValid = lead.website ? lead.website.startsWith("https://") : false;
-                const seoScore = html ? computeSeoScore(html, lead.website || "") : null;
+                const seoResult = html ? computeSeoScore(html, lead.website || "", loadTime) : null;
+                const seoScore = seoResult?.score ?? null;
+                const seoIssues = seoResult?.issues ?? [];
                 const uiuxScore = html ? computeUiuxScore(html, loadTime) : null;
 
                 // ── Competitor detection ──
@@ -573,6 +604,49 @@ export async function POST(req: Request) {
                     marketRankPercentile = allInRadius.length > 0 ? Math.round((1 - (rank - 1) / allInRadius.length) * 100) / 100 : null;
                 }
 
+                // ── Relevance validation — skip non-junk-removal companies ──
+                const NOT_JUNK_REMOVAL = /\b(junk\s*car|cash\s*for\s*cars|we\s*buy\s*cars|auto\s*salvage|scrap\s*metal|scrap\s*yard|tow(ing)?|car\s*buyer|vehicle\s*removal|auto\s*wreck)/i;
+                const fullSearchable = (lead.name + " " + lead.categories.join(" ") + " " + (html ? html.slice(0, 5000) : "")).toLowerCase();
+                if (NOT_JUNK_REMOVAL.test(fullSearchable) && !serviceTypes.includes("junk_removal") && !serviceTypes.includes("dumpster_rental")) {
+                    // Mark as non-relevant and skip
+                    await prisma.scrapedLead.update({
+                        where: { id: lead.id },
+                        data: { enrichedAt: new Date(), companyType: "other", grade: "C", qualification: "NO", reasons: ["Not a junk removal/dumpster company"], leadScore: 0 },
+                    });
+                    skippedExistingClients++; // reuse counter for skipped
+                    continue;
+                }
+
+                // ── Build pain points list from all signals ──
+                const painPoints: string[] = [];
+                // Website issues
+                if (!lead.website || !hasActiveWebsite) painPoints.push("No active website");
+                else {
+                    if (!sslValid) painPoints.push("Website not using HTTPS");
+                    if (loadTime > 5) painPoints.push(`Slow website (${loadTime.toFixed(1)}s load time)`);
+                    if (!hasCta) painPoints.push("No clear call-to-action on website");
+                    if (!hasOnlineBooking) painPoints.push("No online booking capability");
+                    if (!hasQuoteForm) painPoints.push("No quote request form");
+                    if (!mobileFriendly) painPoints.push("Website not mobile-friendly");
+                    if (cms.isDiyBuilder) painPoints.push(`DIY website built on ${cms.cmsDetected}`);
+                    // SEO issues (top 5)
+                    painPoints.push(...seoIssues.slice(0, 5));
+                }
+                // Marketing gaps
+                if (marketing.marketingMaturityScore < 20) painPoints.push("No digital marketing tools detected");
+                else {
+                    if (!marketing.hasGoogleAds) painPoints.push("Not running Google Ads");
+                    if (!marketing.hasGoogleAnalytics) painPoints.push("No Google Analytics tracking");
+                }
+                // Social gaps
+                if (!social.hasFacebook) painPoints.push("No Facebook business page linked");
+                // Review signals
+                if (reviewData.reviewVelocity90d === 0 && (lead.reviewCount || 0) > 0) painPoints.push("No new reviews in 90 days (dormant)");
+                if (reviewData.ownerResponseRate !== null && reviewData.ownerResponseRate < 0.3) painPoints.push(`Low review response rate (${Math.round(reviewData.ownerResponseRate * 100)}%)`);
+                if (reviewData.reviewComplaints.length > 0) painPoints.push(`Customer complaints: ${reviewData.reviewComplaints.slice(0, 3).join(", ")}`);
+                // Competitor
+                if (competitorResult.using) painPoints.push(`Currently using ${competitorResult.platform}`);
+
                 // ── Website weakness score ──
                 let websiteScore = 0;
                 if (!lead.website || !hasActiveWebsite) websiteScore += 35;
@@ -643,7 +717,7 @@ export async function POST(req: Request) {
                         seoScore, uiuxScore,
                         estimatedEmployees: companyInfo.employees, estimatedFleetSize: companyInfo.fleetSize,
                         serviceAreaCities, serviceAreaSize, enrichedAt: new Date(), isExistingClient: false,
-                        websiteScore, leadScore, grade, qualification: "YES", reasons,
+                        websiteScore, leadScore, grade, qualification: "YES", reasons, painPoints,
                         hasCta, hasOnlineBooking, hasQuoteForm, mobileFriendly, sslValid,
                         loadTimeSeconds: loadTime || null,
                         companyType: serviceTypes.includes("dumpster_rental") && serviceTypes.includes("junk_removal") ? "junk_removal" : serviceTypes[0] || "other",
