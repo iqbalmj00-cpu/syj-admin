@@ -407,8 +407,8 @@ ${cityList ? `\nCities served: ${cityList}` : ""}` }],
             yearsInBusiness: typeof p.years_in_business === "number" ? p.years_in_business : null,
             isVeteranOwned: p.is_veteran_owned === true,
             isFamilyBusiness: p.is_family_business === true,
-            ownerName: typeof p.owner_name === "string" ? p.owner_name : null,
-            ownerBio: typeof p.owner_bio === "string" ? p.owner_bio : null,
+            ownerName: typeof p.owner_name === "string" && p.owner_name.trim() ? p.owner_name.trim() : null,
+            ownerBio: typeof p.owner_bio === "string" && p.owner_bio.trim() ? p.owner_bio.trim() : null,
             serviceAreaDescription: typeof p.service_area_description === "string" ? p.service_area_description : null,
         };
     } catch { return defaults; }
@@ -446,7 +446,7 @@ ${reviewText}` }],
         const jsonStr = content.includes("{") ? content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1) : content;
         const p = JSON.parse(jsonStr);
         return {
-            ownerNameFromReviews: typeof p.owner_name === "string" ? p.owner_name : null,
+            ownerNameFromReviews: typeof p.owner_name === "string" && p.owner_name.trim() ? p.owner_name.trim() : null,
             reviewComplaints: Array.isArray(p.complaints) ? p.complaints.filter((c: unknown) => typeof c === "string") : [],
             reviewPraise: Array.isArray(p.praise) ? p.praise.filter((c: unknown) => typeof c === "string") : [],
             mentionedStaffNames: Array.isArray(p.staff_names) ? p.staff_names.filter((c: unknown) => typeof c === "string") : [],

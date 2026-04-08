@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         if (isExistingClient === "true") where.isExistingClient = true;
         if (isExistingClient === "false") where.isExistingClient = false;
         if (serviceType) where.serviceTypes = { has: serviceType };
-        if (hasOwnerName === "true") where.ownerName = { not: null };
+        if (hasOwnerName === "true") where.AND = [...(where.AND as Array<Record<string, unknown>> || []), { ownerName: { not: null } }, { ownerName: { not: "" } }];
         if (hasOwnerName === "false") where.ownerName = null;
         if (hasPhone === "true") where.phone = { not: null };
         if (hasPhone === "false") where.phone = null;
