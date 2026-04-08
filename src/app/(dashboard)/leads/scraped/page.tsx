@@ -486,7 +486,7 @@ export default function ScrapedLeadsPage() {
                                     {l.isExistingClient && <span style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", background: "rgba(139,92,246,0.1)", padding: "1px 6px", borderRadius: 4 }}>EXISTING CLIENT</span>}
                                 </td>
                                 <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
-                                <td style={{ fontSize: 11 }}>{l.market}</td>
+                                <td style={{ fontSize: 11 }}>{(l as any).city || l.market}</td>
                                 <td>
                                     <span style={{
                                         fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 8,

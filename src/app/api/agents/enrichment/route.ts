@@ -717,6 +717,8 @@ export async function POST(req: Request) {
                         seoScore, uiuxScore,
                         estimatedEmployees: companyInfo.employees, estimatedFleetSize: companyInfo.fleetSize,
                         serviceAreaCities, serviceAreaSize, enrichedAt: new Date(), isExistingClient: false,
+                        // Correct city if we found a real location from the website
+                        ...(companyInfo.cities.length > 0 ? { city: companyInfo.cities[0] } : {}),
                         websiteScore, leadScore, grade, qualification: "YES", reasons, painPoints,
                         hasCta, hasOnlineBooking, hasQuoteForm, mobileFriendly, sslValid,
                         loadTimeSeconds: loadTime || null,
