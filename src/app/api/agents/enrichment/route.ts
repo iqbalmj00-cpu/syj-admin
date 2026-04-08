@@ -407,11 +407,18 @@ export async function POST(req: Request) {
     try {
         const body = await req.json().catch(() => ({}));
         const batchSize = Math.min(body.batchSize || 300, 500);
+        const specificLeadIds: string[] | undefined = body.leadIds;
+
+        // If specific lead IDs provided, enrich those (even if already enriched — re-enrich)
+        // Otherwise, grab the top N un-enriched leads
+        const where = specificLeadIds?.length
+            ? { id: { in: specificLeadIds } }
+            : { enrichedAt: null, isExistingClient: false };
 
         const leads = await prisma.scrapedLead.findMany({
-            where: { enrichedAt: null, isExistingClient: false },
+            where,
             orderBy: { createdAt: "desc" },
-            take: batchSize,
+            take: specificLeadIds?.length ? specificLeadIds.length : batchSize,
             select: {
                 id: true, name: true, phone: true, email: true, website: true,
                 address: true, city: true, market: true, categories: true,

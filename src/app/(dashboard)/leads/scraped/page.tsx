@@ -64,6 +64,7 @@ export default function ScrapedLeadsPage() {
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
+    const [enriching, setEnriching] = useState(false);
     const [sendingOutreach, setSendingOutreach] = useState(false);
     const [addingToGroup, setAddingToGroup] = useState(false);
     const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
@@ -182,6 +183,25 @@ export default function ScrapedLeadsPage() {
             if (res.ok) { showToast(`Deleted leads`); setSelectedIds(new Set()); fetchLeads(); }
         } catch { showToast("Failed to delete leads", "error"); }
         setDeleting(false);
+    };
+
+    const enrichSelected = async () => {
+        if (selectedIds.size === 0) return;
+        setEnriching(true);
+        try {
+            const res = await fetch("/api/agents/enrichment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`Enriched ${data.enriched} lead(s), ${data.skippedExistingClients} existing clients filtered`);
+                setSelectedIds(new Set());
+                fetchLeads();
+            } else showToast(data.error || "Enrichment failed", "error");
+        } catch { showToast("Enrichment failed", "error"); }
+        setEnriching(false);
     };
 
     const addManualLead = async () => {
@@ -345,6 +365,7 @@ export default function ScrapedLeadsPage() {
                     <>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
+                        <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(139,92,246,0.3)", borderRadius: 4, background: "rgba(139,92,246,0.06)", color: "#7C3AED", cursor: "pointer" }}>{enriching ? "Enriching..." : "🧪 Enrich Selected"}</button>
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "📧 Trigger Campaign"}</button>
                         <div style={{ position: "relative" }}>
                             <button onClick={() => setShowGroupSelect(!showGroupSelect)} disabled={addingToGroup}
@@ -453,7 +474,13 @@ export default function ScrapedLeadsPage() {
                                 </td>
                                 <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
                                 <td style={{ fontSize: 11 }}>{l.market}</td>
-                                <td><Badge status={l.grade === "A" ? "success" : l.grade === "B" ? "building" : "paused"} /></td>
+                                <td>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 8,
+                                        background: l.grade === "A" ? "rgba(0,216,74,0.12)" : l.grade === "B" ? "rgba(37,99,235,0.12)" : "rgba(245,158,11,0.12)",
+                                        color: l.grade === "A" ? "#00A83A" : l.grade === "B" ? "#2563EB" : "#D97706",
+                                    }}>{l.grade}</span>
+                                </td>
                                 <td style={{ fontWeight: 600, color: "var(--text-light)" }}>{l.leadScore}</td>
                                 <td style={{ fontSize: 11 }}>
                                     {l.serviceTypes?.length ? l.serviceTypes.map(t => t.replace("_", " ")).join(", ") : "—"}
