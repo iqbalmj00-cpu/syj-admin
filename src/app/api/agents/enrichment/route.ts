@@ -749,7 +749,12 @@ export async function POST(req: Request) {
                         // Bio + owner name from website pages
                         yearsInBusiness: companyInfo.yearsInBusiness, isVeteranOwned: companyInfo.isVeteranOwned,
                         isFamilyBusiness: companyInfo.isFamilyBusiness, ownerBio: companyInfo.ownerBio,
-                        ownerName: companyInfo.ownerName || undefined, // Only set if found, don't overwrite existing
+                        // Owner name: use website > reviews > leave null (Facebook scraper picks up later)
+                        ownerName: companyInfo.ownerName || reviewData.ownerNameFromReviews || undefined,
+                        // Flag for Facebook owner lookup if we couldn't find owner name anywhere
+                        notesFlags: (!companyInfo.ownerName && !reviewData.ownerNameFromReviews && social.facebookPageUrl)
+                            ? [...(lead as any).notesFlags || [], "needs_fb_owner_lookup"]
+                            : (lead as any).notesFlags || [],
                         // Service area NLP
                         serviceAreaDescription: companyInfo.serviceAreaDescription,
                     },
