@@ -583,6 +583,30 @@ export async function POST(req: Request) {
                 // ── Social presence ──
                 const social = html ? detectSocial(html) : { hasFacebook: false, facebookPageUrl: null, hasYouTube: false, youtubeChannelUrl: null };
 
+                // ── Relevance validation (runs BEFORE service type classification) ──
+                const fullSearchable = (lead.name + " " + lead.categories.join(" ") + " " + (html ? html.slice(0, 5000) : "")).toLowerCase();
+
+                // Step 1: Hard exclusions — delete these regardless of anything else
+                const HARD_EXCLUDE = /\b(junk\s*car|cash\s*for\s*(car|junk)|we\s*buy\s*(car|junk|vehicle)|auto\s*salvage|scrap\s*metal|scrap\s*yard|car\s*buyer|vehicle\s*removal|auto\s*wreck|sell\s*your\s*car|buy\s*my\s*car|tow(ing)?\s*(company|service)|moving\s*(company|service|and\s*storage)|mover(s)?|u-?haul|relocation\s*(company|service)|storage\s*unit|self\s*storage|mini\s*storage|clean(ing)?\s*(company|service|maid|house|home|carpet|window|pressure\s*wash|power\s*wash)|maid\s*service|janitorial|custodial|pest\s*control|plumb(ing|er)|electrician|hvac|roofing|painting\s*(company|service|contractor)|landscap(ing|er)\s*(only|service|company))/i;
+
+                if (HARD_EXCLUDE.test(fullSearchable)) {
+                    await prisma.scrapedLead.delete({ where: { id: lead.id } });
+                    skippedExistingClients++;
+                    continue;
+                }
+
+                // Step 2: Positive match required — must clearly be junk removal or dumpster rental
+                const IS_JUNK_REMOVAL = /\b(junk\s*remov|hauling|haul\s*(away|it|off)|debris\s*remov|cleanout|clean\s*out|trash\s*remov|furniture\s*remov|appliance\s*remov|yard\s*waste|estate\s*clean|hoarder|foreclosure\s*clean|construction\s*clean)/i;
+                const IS_DUMPSTER = /\b(dumpster|roll[\s-]*off|container\s*rental|bin\s*rental|waste\s*container)/i;
+                const IS_DEMOLITION = /\b(demolition|demo\s*contractor|wrecking|tear\s*down)/i;
+
+                if (!IS_JUNK_REMOVAL.test(fullSearchable) && !IS_DUMPSTER.test(fullSearchable) && !IS_DEMOLITION.test(fullSearchable)) {
+                    // No positive match for any of our target services — delete
+                    await prisma.scrapedLead.delete({ where: { id: lead.id } });
+                    skippedExistingClients++;
+                    continue;
+                }
+
                 // ── Service types ──
                 const serviceTypes = classifyServiceTypes(html, lead.name, lead.categories);
 
@@ -657,16 +681,6 @@ export async function POST(req: Request) {
                     const rank = allInRadius.findIndex(l => l.id === lead.id) + 1;
                     marketRankByReviews = rank;
                     marketRankPercentile = allInRadius.length > 0 ? Math.round((1 - (rank - 1) / allInRadius.length) * 100) / 100 : null;
-                }
-
-                // ── Relevance validation — skip non-junk-removal companies ──
-                const NOT_JUNK_REMOVAL = /\b(junk\s*car|cash\s*for\s*cars|we\s*buy\s*cars|auto\s*salvage|scrap\s*metal|scrap\s*yard|tow(ing)?|car\s*buyer|vehicle\s*removal|auto\s*wreck|moving\s*(company|service|and\s*storage)|movers|u-?haul|relocation|storage\s*unit|self\s*storage|mini\s*storage)/i;
-                const fullSearchable = (lead.name + " " + lead.categories.join(" ") + " " + (html ? html.slice(0, 5000) : "")).toLowerCase();
-                if (NOT_JUNK_REMOVAL.test(fullSearchable) && !serviceTypes.includes("junk_removal") && !serviceTypes.includes("dumpster_rental")) {
-                    // Delete non-relevant leads entirely
-                    await prisma.scrapedLead.delete({ where: { id: lead.id } });
-                    skippedExistingClients++;
-                    continue;
                 }
 
                 // ── Build pain points list from all signals ──
