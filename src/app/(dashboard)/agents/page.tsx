@@ -196,14 +196,20 @@ export default function AgentsPage() {
         try {
             // Enrichment agent runs inside the dashboard — special handler
             if (agent.slug === "lead_enrichment") {
+                // Set status to running so the card shows the pulsing indicator
+                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "running" }) });
+                fetchAgents();
+                showToast("Enrichment started — processing leads...");
                 const res = await fetch("/api/agents/enrichment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ batchSize: (agent.config as Record<string, unknown>)?.batchSize || 50 }),
+                    body: JSON.stringify({ batchSize: (agent.config as Record<string, unknown>)?.batchSize || 300 }),
                 });
                 const data = await res.json();
+                // Set status back
+                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: res.ok ? "completed" : "error", lastError: res.ok ? null : (data.error || "Failed") }) });
                 if (res.ok) {
-                    showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} existing clients filtered`);
+                    showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} existing clients skipped, ${data.errors} errors`);
                 } else {
                     showToast(data.error || "Enrichment failed", "error");
                 }
@@ -213,6 +219,10 @@ export default function AgentsPage() {
 
             if (agent.slug === "content_generator") {
                 const config = agent.config as Record<string, unknown> || {};
+                // Set status to running
+                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "running" }) });
+                fetchAgents();
+                showToast("Generating content...");
                 const res = await fetch("/api/agents/content", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -226,6 +236,8 @@ export default function AgentsPage() {
                     }),
                 });
                 const data = await res.json();
+                // Set status back
+                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: res.ok ? "completed" : "error", lastError: res.ok ? null : (data.error || "Failed") }) });
                 if (res.ok) {
                     showToast(`Content created: "${data.title?.slice(0, 40)}..."`);
                     fetchContent();
@@ -683,6 +695,30 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 <ConfigField label="Tagline">
                     <ConfigInput value={String((config.brand as Record<string, string>)?.tagline || "Scale Your Junk Removal Business")} onChange={v => onChange("brand", { ...(config.brand as Record<string, string> || {}), tagline: v })} />
                 </ConfigField>
+            </>
+        );
+    }
+
+    if (slug === "facebook_scraper") {
+        const keywords = (config.keywords as string[]) || ["junk removal", "dumpster rental"];
+        return (
+            <>
+                <ConfigField label="Search Keywords (one per line)">
+                    <textarea
+                        value={keywords.join("\n")}
+                        onChange={e => onChange("keywords", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+                        placeholder={"junk removal\ndumpster rental\nhauling service"}
+                        style={{ ...inputStyle, height: 80, resize: "vertical", fontFamily: "monospace" }} />
+                </ConfigField>
+                <ConfigField label="Max Results Per Keyword">
+                    <ConfigInput value={String(config.maxResultsPerQuery || 50)} onChange={v => onChange("maxResultsPerQuery", parseInt(v) || 50)} />
+                </ConfigField>
+                <ConfigField label="Max Follower Count (skip pages above this)">
+                    <ConfigInput value={String(config.maxFollowers || 5000)} onChange={v => onChange("maxFollowers", parseInt(v) || 5000)} />
+                </ConfigField>
+                <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8, padding: "8px 10px", background: "var(--surface)", borderRadius: 6 }}>
+                    Searches Facebook Pages only. Each keyword is searched separately. Enrichment agent handles location detection. Pages with follower count above the max are skipped.
+                </div>
             </>
         );
     }

@@ -69,7 +69,7 @@ export async function POST() {
                 description: "Searches Facebook Pages for junk removal businesses by market, extracts contact info (phone, email, website, address, owner name) from each page. No external server needed — runs locally.",
                 schedule: null,
                 config: {
-                    keyword: "junk removal",
+                    keywords: ["junk removal", "dumpster rental"],
                     maxResultsPerQuery: 50,
                     scrollDelayMin: 2000,
                     scrollDelayMax: 5000,
