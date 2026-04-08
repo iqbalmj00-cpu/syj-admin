@@ -64,6 +64,23 @@ export async function POST() {
                 },
             },
             {
+                slug: "facebook_scraper",
+                name: "Facebook Group Scraper",
+                description: "Monitors Facebook groups for junk removal ads, extracts owner + company info from posts and flyer images, feeds new leads and enriches existing ones.",
+                schedule: "0 8 * * *",
+                config: {
+                    maxGroupsPerRun: 40,
+                    maxPostsPerGroup: 300,
+                    postAgeCutoffDays: 90,
+                    groupTimeoutMinutes: 5,
+                    scrollDelayMin: 2000,
+                    scrollDelayMax: 5000,
+                    groupDelayMin: 5000,
+                    groupDelayMax: 10000,
+                    maxHaikuCallsPerRun: 1000,
+                },
+            },
+            {
                 slug: "blog_writer",
                 name: "Blog Writer",
                 description: "Researches trending topics via Perplexity and writes SEO-optimized blog posts for scaleyourjunk.com using Claude AI.",

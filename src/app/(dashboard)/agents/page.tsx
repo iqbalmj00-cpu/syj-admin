@@ -75,6 +75,7 @@ const AGENT_ICONS: Record<string, string> = {
     lead_enrichment: "🧪",
     cold_outreach: "📧",
     content_generator: "📸",
+    facebook_scraper: "📘",
     blog_writer: "📝",
 };
 

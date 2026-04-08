@@ -17,6 +17,7 @@ const NAV_GROUPS = [
             { id: "/clients", label: "Clients", icon: "users" },
             { id: "/leads/demo", label: "Demo Leads", icon: "bell" },
             { id: "/leads/scraped", label: "Scraped Leads", icon: "cpu" },
+            { id: "/leads/facebook", label: "Facebook Groups", icon: "users" },
         ]
     },
     {
@@ -58,6 +59,7 @@ const TITLES: Record<string, string> = {
     "/clients": "Client Accounts",
     "/leads/demo": "Demo Leads Pipeline",
     "/leads/scraped": "Outbound Scraped Leads",
+    "/leads/facebook": "Facebook Group Leads",
     "/billing": "Billing & Payments",
     "/revenue": "Revenue & Billing",
     "/websites": "Website Management",

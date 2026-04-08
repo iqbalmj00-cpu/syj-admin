@@ -1669,6 +1669,10 @@ model ScrapedLead {
   ownerBio             String?   @db.Text
   // ── Service Area NLP ──
   serviceAreaDescription String? @db.Text        // natural language description
+  // ── Facebook Group Source ──
+  facebookPostUrl      String?                   // link to original Facebook post
+  facebookGroupName    String?                   // which group it came from
+  discoveredVia        String?                   // "google_maps" | "yelp" | "facebook_group" | "manual"
   // ── Qualification ──
   websiteScore    Int          @default(0)
   leadScore       Int          @default(0)
@@ -1726,6 +1730,51 @@ model LeadGroupMember {
   @@unique([groupId, leadId])
   @@index([groupId])
   @@index([leadId])
+}
+
+// ── Facebook Group Scraping ─────────────────────────────────────────────────
+model FacebookGroup {
+  id              String               @id @default(cuid())
+  url             String               @unique
+  name            String
+  status          String               @default("active") // active | paused
+  accountId       String?
+  account         FacebookAccount?     @relation(fields: [accountId], references: [id])
+  lastScrapedAt   DateTime?
+  postsFound      Int                  @default(0)
+  adsFound        Int                  @default(0)
+  posts           FacebookScrapedPost[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+}
+
+model FacebookScrapedPost {
+  id          String        @id @default(cuid())
+  postUrl     String        @unique
+  groupId     String
+  group       FacebookGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  authorName  String?
+  companyName String?
+  phone       String?
+  isMatch     Boolean       @default(false)
+  capturedAt  DateTime      @default(now())
+
+  @@index([groupId])
+  @@index([capturedAt])
+}
+
+model FacebookAccount {
+  id              String          @id @default(cuid())
+  name            String
+  email           String?
+  status          String          @default("active") // active | expired | banned
+  sessionFile     String?         // path to Playwright session JSON
+  dailyGroupLimit Int             @default(40)
+  dailyPostLimit  Int             @default(500)
+  lastActiveAt    DateTime?
+  groups          FacebookGroup[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model BlogPost {
