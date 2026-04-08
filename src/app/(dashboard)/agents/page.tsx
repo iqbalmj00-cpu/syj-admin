@@ -475,7 +475,16 @@ function AgentsTab({ agents, onRun, onToggle, showToast }: { agents: Agent[]; on
                             {a.status === "running" ? (
                                 <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(37,99,235,0.08)", borderRadius: 6 }}>
                                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB", animation: "pulse 1.5s infinite" }} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#2563EB" }}>Running...</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", flex: 1 }}>Running...</span>
+                                    {(a.slug === "lead_enrichment" || a.slug === "content_generator") && (
+                                        <button className="btn btn-xs" onClick={async (e) => {
+                                            e.stopPropagation();
+                                            await fetch("/api/agents/enrichment-cancel", { method: "POST" });
+                                            showToast("Stop signal sent — agent will stop after current lead");
+                                        }} style={{ color: "var(--danger)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", fontSize: 10, padding: "3px 8px" }}>
+                                            Stop
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
                                 <button className="btn btn-xs btn-primary" onClick={() => onRun(a)}

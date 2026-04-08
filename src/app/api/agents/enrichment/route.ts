@@ -534,7 +534,42 @@ export async function POST(req: Request) {
         let skippedExistingClients = 0;
         let errors = 0;
 
-        for (const lead of leads) {
+        // Find the enrichment agent record for progress updates
+        const enrichmentAgent = await prisma.syjAgent.findFirst({ where: { slug: "lead_enrichment" } });
+
+        async function updateProgress(current: number, total: number, currentLead: string) {
+            if (!enrichmentAgent) return;
+            try {
+                await prisma.syjAgent.update({
+                    where: { id: enrichmentAgent.id },
+                    data: { description: `Enriching ${current}/${total} — ${currentLead} (${enriched} done, ${errors} errors)` },
+                });
+            } catch { /* non-blocking */ }
+        }
+
+        // Clear any previous cancel flag
+        try { await prisma.adminSetting.delete({ where: { key: "enrichment_cancel" } }); } catch { /* doesn't exist yet */ }
+
+        for (const [leadIndex, lead] of leads.entries()) {
+            // Check for cancel request
+            try {
+                const cancelFlag = await prisma.adminSetting.findUnique({ where: { key: "enrichment_cancel" } });
+                if (cancelFlag?.value === "true") {
+                    await prisma.adminSetting.delete({ where: { key: "enrichment_cancel" } });
+                    // Restore description
+                    if (enrichmentAgent) {
+                        await prisma.syjAgent.update({ where: { id: enrichmentAgent.id }, data: { description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard." } });
+                    }
+                    return NextResponse.json({
+                        enriched, skippedExistingClients, errors, total: leads.length,
+                        message: `Cancelled after ${enriched} leads enriched`,
+                        cancelled: true,
+                    });
+                }
+            } catch { /* ignore */ }
+
+            // Update progress every lead
+            await updateProgress(leadIndex + 1, leads.length, lead.name);
             try {
                 // ── Existing client check ──
                 if ((lead.name && clientNames.has(lead.name.toLowerCase().trim())) || (lead.email && clientEmails.has(lead.email.toLowerCase().trim()))) {
@@ -835,12 +870,27 @@ export async function POST(req: Request) {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
 
+        // Restore original description
+        if (enrichmentAgent) {
+            try {
+                await prisma.syjAgent.update({
+                    where: { id: enrichmentAgent.id },
+                    data: { description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard." },
+                });
+            } catch { /* non-blocking */ }
+        }
+
         return NextResponse.json({
             enriched, skippedExistingClients, errors, total: leads.length,
             message: `Enriched ${enriched} leads, skipped ${skippedExistingClients} existing clients, ${errors} errors`,
         });
     } catch (error) {
         console.error("POST /api/agents/enrichment error:", error);
+        // Restore description on error too
+        try {
+            const agent = await prisma.syjAgent.findFirst({ where: { slug: "lead_enrichment" } });
+            if (agent) await prisma.syjAgent.update({ where: { id: agent.id }, data: { description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard." } });
+        } catch { /* ignore */ }
         return NextResponse.json({ error: "Enrichment failed" }, { status: 500 });
     }
 }
