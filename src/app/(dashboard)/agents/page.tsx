@@ -200,18 +200,24 @@ export default function AgentsPage() {
                 await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "running" }) });
                 fetchAgents();
                 showToast("Enrichment started — processing leads...");
-                const res = await fetch("/api/agents/enrichment", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ batchSize: (agent.config as Record<string, unknown>)?.batchSize || 300 }),
-                });
-                const data = await res.json();
-                // Set status back
-                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: res.ok ? "completed" : "error", lastError: res.ok ? null : (data.error || "Failed") }) });
-                if (res.ok) {
-                    showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} existing clients skipped, ${data.errors} errors`);
-                } else {
-                    showToast(data.error || "Enrichment failed", "error");
+                try {
+                    const batchSize = (agent.config as Record<string, unknown>)?.batchSize || 50;
+                    const res = await fetch("/api/agents/enrichment", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ batchSize }),
+                    });
+                    const data = await res.json();
+                    await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: res.ok ? "completed" : "error", lastError: res.ok ? null : (data.error || "Failed") }) });
+                    if (res.ok) {
+                        showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} skipped, ${data.errors} errors`);
+                    } else {
+                        showToast(data.error || "Enrichment failed", "error");
+                    }
+                } catch (fetchErr) {
+                    // Request failed (Vercel timeout, network error, etc.) — reset agent status
+                    await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "error", lastError: "Request timed out — reduce batch size or check Vercel logs" }) });
+                    showToast("Enrichment timed out — leads processed so far are saved. Try a smaller batch.", "error");
                 }
                 fetchAgents();
                 return;
