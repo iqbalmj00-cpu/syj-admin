@@ -472,8 +472,9 @@ export default function ScrapedLeadsPage() {
                             <><tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
                                 <td style={{ textAlign: "center" }}>
                                     <input type="checkbox" checked={selectedIds.has(l.id)}
-                                        onChange={() => toggleSelect(l.id)}
-                                        onMouseDown={() => handleDragStart(l.id)}
+                                        onChange={(e) => { e.preventDefault(); }}
+                                        onClick={() => toggleSelect(l.id)}
+                                        onMouseDown={(e) => { e.preventDefault(); handleDragStart(l.id); }}
                                         onMouseEnter={() => handleDragEnter(l.id)}
                                         onMouseUp={handleDragEnd}
                                         style={{ cursor: "pointer" }} />
