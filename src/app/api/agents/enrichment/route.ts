@@ -605,7 +605,7 @@ export async function POST(req: Request) {
                 }
 
                 // ── Relevance validation — skip non-junk-removal companies ──
-                const NOT_JUNK_REMOVAL = /\b(junk\s*car|cash\s*for\s*cars|we\s*buy\s*cars|auto\s*salvage|scrap\s*metal|scrap\s*yard|tow(ing)?|car\s*buyer|vehicle\s*removal|auto\s*wreck)/i;
+                const NOT_JUNK_REMOVAL = /\b(junk\s*car|cash\s*for\s*cars|we\s*buy\s*cars|auto\s*salvage|scrap\s*metal|scrap\s*yard|tow(ing)?|car\s*buyer|vehicle\s*removal|auto\s*wreck|moving\s*(company|service|and\s*storage)|movers|u-?haul|relocation|storage\s*unit|self\s*storage|mini\s*storage)/i;
                 const fullSearchable = (lead.name + " " + lead.categories.join(" ") + " " + (html ? html.slice(0, 5000) : "")).toLowerCase();
                 if (NOT_JUNK_REMOVAL.test(fullSearchable) && !serviceTypes.includes("junk_removal") && !serviceTypes.includes("dumpster_rental")) {
                     // Delete non-relevant leads entirely
