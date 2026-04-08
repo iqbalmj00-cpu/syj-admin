@@ -70,7 +70,6 @@ export async function POST() {
                 schedule: null,
                 config: {
                     keyword: "junk removal",
-                    markets: ["Houston", "Dallas", "Phoenix", "Philadelphia"],
                     maxResultsPerQuery: 50,
                     scrollDelayMin: 2000,
                     scrollDelayMax: 5000,

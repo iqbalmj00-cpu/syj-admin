@@ -608,12 +608,9 @@ export async function POST(req: Request) {
                 const NOT_JUNK_REMOVAL = /\b(junk\s*car|cash\s*for\s*cars|we\s*buy\s*cars|auto\s*salvage|scrap\s*metal|scrap\s*yard|tow(ing)?|car\s*buyer|vehicle\s*removal|auto\s*wreck)/i;
                 const fullSearchable = (lead.name + " " + lead.categories.join(" ") + " " + (html ? html.slice(0, 5000) : "")).toLowerCase();
                 if (NOT_JUNK_REMOVAL.test(fullSearchable) && !serviceTypes.includes("junk_removal") && !serviceTypes.includes("dumpster_rental")) {
-                    // Mark as non-relevant and skip
-                    await prisma.scrapedLead.update({
-                        where: { id: lead.id },
-                        data: { enrichedAt: new Date(), companyType: "other", grade: "C", qualification: "NO", reasons: ["Not a junk removal/dumpster company"], leadScore: 0 },
-                    });
-                    skippedExistingClients++; // reuse counter for skipped
+                    // Delete non-relevant leads entirely
+                    await prisma.scrapedLead.delete({ where: { id: lead.id } });
+                    skippedExistingClients++;
                     continue;
                 }
 
