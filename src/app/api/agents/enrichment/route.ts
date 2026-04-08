@@ -490,7 +490,7 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json().catch(() => ({}));
-        const batchSize = Math.min(body.batchSize || 300, 500);
+        const batchSize = 50; // Fixed at 50 — Vercel has a 5-minute function limit
         const specificLeadIds: string[] | undefined = body.leadIds;
 
         // If specific lead IDs provided, enrich those (even if already enriched — re-enrich)
