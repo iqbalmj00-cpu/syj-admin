@@ -317,18 +317,23 @@ export default function AgentsPage() {
                         <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText("bash ~/Documents/start_agents.sh"); showToast("Copied!"); }}
                             style={{ fontSize: 11, padding: "3px 8px", color: "var(--orange)" }}>📋 Copy</button>
                     </div>
-                    <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 16px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)",
-                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: -8,
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 14 }}>🔍</span>
-                            <span><strong>Lead Scraper only:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`}</code></span>
+                    {[
+                        { icon: "🔍", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "59,130,246" },
+                        { icon: "📘", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "24,119,242" },
+                    ].map(a => (
+                        <div key={a.label} style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            padding: "10px 16px", background: `rgba(${a.color},0.06)`, border: `1px solid rgba(${a.color},0.15)`,
+                            borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
+                        }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 14 }}>{a.icon}</span>
+                                <span><strong>{a.label}:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{a.cmd}</code></span>
+                            </div>
+                            <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(a.cmd); showToast("Copied!"); }}
+                                style={{ fontSize: 11, padding: "3px 8px", color: `rgb(${a.color})` }}>📋 Copy</button>
                         </div>
-                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(`cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`); showToast("Copied!"); }}
-                            style={{ fontSize: 11, padding: "3px 8px", color: "rgb(59,130,246)" }}>📋 Copy</button>
-                    </div>
+                    ))}
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} />
                 </>
             )}

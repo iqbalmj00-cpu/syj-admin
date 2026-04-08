@@ -65,8 +65,8 @@ export async function POST() {
             },
             {
                 slug: "facebook_scraper",
-                name: "Facebook Pages Scraper",
-                description: "Searches Facebook Pages for junk removal businesses by market, extracts contact info (phone, email, website, address, owner name) from each page. No external server needed — runs locally.",
+                name: "Facebook Lead Scraper",
+                description: "Searches Facebook Pages for junk removal and dumpster rental businesses, extracts contact info (phone, email, website, owner name) from each page. Runs locally via terminal.",
                 schedule: null,
                 config: {
                     keywords: ["junk removal", "dumpster rental"],
