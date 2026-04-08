@@ -249,6 +249,39 @@ function extractServiceAreaCities(html: string): string[] {
     return [...new Set(cities)].slice(0, 50);
 }
 
+async function findAboutPages(html: string, baseUrl: string): Promise<string[]> {
+    // Scan homepage HTML for nav links that look like about/team/owner pages
+    const base = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+    const origin = new URL(base).origin;
+    const aboutPages: string[] = [];
+    const seen = new Set<string>();
+
+    // Match all href attributes in the HTML
+    const linkMatches = html.matchAll(/href=["']([^"']+)["']/gi);
+    const ABOUT_KEYWORDS = /about|team|owner|founder|staff|our-story|meet|who-we-are|leadership|management/i;
+
+    for (const match of linkMatches) {
+        let href = match[1];
+        if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) continue;
+
+        // Resolve relative URLs
+        if (href.startsWith("/")) href = origin + href;
+        else if (!href.startsWith("http")) continue;
+
+        // Only follow internal links
+        if (!href.startsWith(origin)) continue;
+
+        // Check if the URL path contains about/team/owner keywords
+        const path = href.replace(origin, "").toLowerCase();
+        if (ABOUT_KEYWORDS.test(path) && !seen.has(href)) {
+            seen.add(href);
+            aboutPages.push(href);
+        }
+    }
+
+    return aboutPages.slice(0, 5); // Max 5 pages to check
+}
+
 function classifyServiceAreaSize(cities: string[]): string {
     if (cities.length < 5) return "small";
     if (cities.length < 20) return "medium";
@@ -301,11 +334,33 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
     yearsInBusiness: number | null; isVeteranOwned: boolean; isFamilyBusiness: boolean;
     ownerBio: string | null; serviceAreaDescription: string | null; ownerName: string | null;
 }> {
-    // Check multiple page types for company/owner info
-    const aboutHtml = await fetchSubpage(website, [
+    // First, fetch homepage to discover real about/team page URLs from navigation
+    const homepageResult = await fetchHtml(website);
+    const discoveredAboutUrls = homepageResult.ok ? await findAboutPages(homepageResult.html, website) : [];
+
+    // Check discovered URLs first, then fall back to common paths
+    const fallbackPaths = [
         "/about", "/about-us", "/about-us/", "/our-story", "/our-story/",
-        "/team", "/our-team", "/meet-the-team",
-    ]);
+        "/team", "/our-team", "/meet-the-team", "/meet-the-owner",
+        "/meet-our-team", "/our-staff", "/staff", "/owner", "/founder",
+    ];
+
+    // Fetch discovered pages (full URLs)
+    let aboutHtml = "";
+    for (const url of discoveredAboutUrls) {
+        try {
+            const result = await fetchHtml(url, 4000);
+            if (result.ok && result.html.length > 200) {
+                aboutHtml += "\n" + result.html;
+                if (aboutHtml.length > 50000) break;
+            }
+        } catch { /* skip */ }
+    }
+    // If nothing found from nav links, try common paths
+    if (aboutHtml.length < 200) {
+        aboutHtml = await fetchSubpage(website, fallbackPaths);
+    }
+
     const reviewsHtml = await fetchSubpage(website, [
         "/testimonials", "/reviews", "/testimonials/", "/reviews/",
     ]);
