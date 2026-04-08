@@ -542,6 +542,9 @@ export default function ScrapedLeadsPage() {
                                         <div>
                                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Company</div>
                                             {[
+                                                ["Phone", l.phone],
+                                                ["Email", l.email],
+                                                ["Website", l.website],
                                                 ["Owner", (l as any).ownerName || (l as any).ownerNameFromReviews],
                                                 ["Owner Bio", (l as any).ownerBio],
                                                 ["Years in Business", (l as any).yearsInBusiness],
@@ -552,6 +555,8 @@ export default function ScrapedLeadsPage() {
                                                 ["Service Types", (l as any).serviceTypes?.join(", ")],
                                                 ["Service Area", (l as any).serviceAreaDescription || (l as any).serviceAreaCities?.join(", ")],
                                                 ["Phone Type", (l as any).phoneType],
+                                                ["Market", l.market],
+                                                ["Address", (l as any).address],
                                             ].filter(([, v]) => v).map(([label, value]) => (
                                                 <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--border-light)" }}>
                                                     <span style={{ color: "var(--text-light)" }}>{label}</span>
