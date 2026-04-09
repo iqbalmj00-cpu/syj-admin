@@ -490,7 +490,9 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json().catch(() => ({}));
-        const batchSize = 50; // Fixed at 50 — Vercel has a 5-minute function limit
+        const batchSize = 50;
+        const startTime = Date.now();
+        const TIME_BUDGET_MS = 255_000; // 255s — stop 45s before Vercel's 300s limit to avoid timeout
         const specificLeadIds: string[] | undefined = body.leadIds;
 
         // If specific lead IDs provided, enrich those (even if already enriched — re-enrich)
@@ -551,6 +553,19 @@ export async function POST(req: Request) {
         try { await prisma.adminSetting.delete({ where: { key: "enrichment_cancel" } }); } catch { /* doesn't exist yet */ }
 
         for (const [leadIndex, lead] of leads.entries()) {
+            // Time guard — stop before Vercel kills the function
+            if (Date.now() - startTime > TIME_BUDGET_MS) {
+                if (enrichmentAgent) {
+                    try { await prisma.syjAgent.update({ where: { id: enrichmentAgent.id }, data: { description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard." } }); } catch { /* non-blocking */ }
+                }
+                const remaining = leads.length - leadIndex;
+                return NextResponse.json({
+                    enriched, skippedExistingClients, errors, total: leads.length,
+                    message: `Enriched ${enriched} leads, stopped early to avoid timeout — ${remaining} remaining, run again to continue`,
+                    stoppedEarly: true,
+                });
+            }
+
             // Check for cancel request
             try {
                 const cancelFlag = await prisma.adminSetting.findUnique({ where: { key: "enrichment_cancel" } });
