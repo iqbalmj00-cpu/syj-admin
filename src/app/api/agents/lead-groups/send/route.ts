@@ -12,7 +12,7 @@ export const maxDuration = 300;
 
 const VARIABLE_MAP: Record<string, (lead: Record<string, unknown>) => string> = {
     "[company_name]": (l) => String(l.name || ""),
-    "[owner_name]": (l) => String(l.ownerName || l.name || ""),
+    "[owner_name]": (l) => String(l.ownerName || l.name || "").split(" ")[0],
     "[city]": (l) => String(l.city || ""),
     "[market]": (l) => String(l.market || ""),
     "[phone]": (l) => String(l.phone || ""),
