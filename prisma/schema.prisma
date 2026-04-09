@@ -1672,6 +1672,7 @@ model ScrapedLead {
   // ── Facebook Group Source ──
   facebookPostUrl      String?                   // link to original Facebook post
   facebookGroupName    String?                   // which group it came from
+  facebookLastPostAt   String?                   // date text of most recent Facebook post (activity signal)
   discoveredVia        String?                   // "google_maps" | "yelp" | "facebook_group" | "manual"
   // ── Qualification ──
   websiteScore    Int          @default(0)
