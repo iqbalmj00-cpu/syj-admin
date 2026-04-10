@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
-// GET /api/agents/leads — List scraped leads with filtering (dashboard only)
+// GET /api/agents/leads — List scraped leads with filtering (dashboard or agent with secret)
 export async function GET(req: NextRequest) {
-    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { searchParams } = new URL(req.url);
+    const secret = searchParams.get("secret");
+    const expected = process.env.AGENT_CALLBACK_SECRET;
+    const hasSecret = expected && secret === expected;
+    const hasSession = !!(await getSession());
+    if (!hasSecret && !hasSession) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
     const companyType = searchParams.get("companyType"); // "junk_removal" or "junk_removal,dumpster_rental"

@@ -194,34 +194,6 @@ export default function AgentsPage() {
 
     const triggerRun = async (agent: Agent) => {
         try {
-            // Enrichment agent runs inside the dashboard — special handler
-            if (agent.slug === "lead_enrichment") {
-                // Set status to running so the card shows the pulsing indicator
-                await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "running" }) });
-                fetchAgents();
-                showToast("Enrichment started — processing leads...");
-                try {
-                    const res = await fetch("/api/agents/enrichment", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({}),
-                    });
-                    const data = await res.json();
-                    await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: res.ok ? "completed" : "error", lastError: res.ok ? null : (data.error || "Failed") }) });
-                    if (res.ok) {
-                        showToast(`Enriched ${data.enriched} leads, ${data.skippedExistingClients} skipped, ${data.errors} errors`);
-                    } else {
-                        showToast(data.error || "Enrichment failed", "error");
-                    }
-                } catch (fetchErr) {
-                    // Request failed (Vercel timeout, network error, etc.) — reset agent status
-                    await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "error", lastError: "Request timed out — reduce batch size or check Vercel logs" }) });
-                    showToast("Enrichment timed out — leads processed so far are saved. Try a smaller batch.", "error");
-                }
-                fetchAgents();
-                return;
-            }
-
             if (agent.slug === "content_generator") {
                 const config = agent.config as Record<string, unknown> || {};
                 // Set status to running
@@ -324,6 +296,7 @@ export default function AgentsPage() {
                     </div>
                     {[
                         { icon: "🔍", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "59,130,246" },
+                        { icon: "🧪", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn server:app --port 8006`, color: "16,185,129" },
                         { icon: "📘", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "24,119,242" },
                     ].map(a => (
                         <div key={a.label} style={{
@@ -654,6 +627,7 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
 
     if (slug === "facebook_scraper") {
         const keywords = (config.keywords as string[]) || ["junk removal", "dumpster rental"];
+        const markets = (config.markets as string[]) || [];
         return (
             <>
                 <ConfigField label="Search Keywords (one per line)">
@@ -663,14 +637,21 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                         placeholder={"junk removal\ndumpster rental\nhauling service"}
                         style={{ ...inputStyle, height: 80, resize: "vertical", fontFamily: "monospace" }} />
                 </ConfigField>
-                <ConfigField label="Max Results Per Keyword">
+                <ConfigField label="Markets (one per line — e.g. &quot;Houston TX&quot;)">
+                    <textarea
+                        value={markets.join("\n")}
+                        onChange={e => onChange("markets", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+                        placeholder={"Houston TX\nDallas TX\nAtlanta GA\nPhoenix AZ"}
+                        style={{ ...inputStyle, height: 100, resize: "vertical", fontFamily: "monospace" }} />
+                </ConfigField>
+                <ConfigField label="Max Results Per Query">
                     <ConfigInput value={String(config.maxResultsPerQuery || 50)} onChange={v => onChange("maxResultsPerQuery", parseInt(v) || 50)} />
                 </ConfigField>
                 <ConfigField label="Max Follower Count (skip pages above this)">
                     <ConfigInput value={String(config.maxFollowers || 5000)} onChange={v => onChange("maxFollowers", parseInt(v) || 5000)} />
                 </ConfigField>
                 <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8, padding: "8px 10px", background: "var(--surface)", borderRadius: 6 }}>
-                    Searches Facebook Pages only. Each keyword is searched separately. Enrichment agent handles location detection. Pages with follower count above the max are skipped.
+                    Each keyword is combined with each market (e.g. &quot;junk removal Houston TX&quot;). If no markets are set, keywords are searched without location targeting. Already-scraped pages are automatically skipped.
                 </div>
             </>
         );

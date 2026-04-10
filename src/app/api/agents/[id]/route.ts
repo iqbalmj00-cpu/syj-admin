@@ -65,6 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const gateway = process.env.AGENT_GATEWAY_URL;
         const urlMap: Record<string, string | undefined> = {
             lead_scraper: process.env.LEAD_SCRAPER_URL,
+            lead_enrichment: process.env.ENRICHMENT_AGENT_URL,
             cold_outreach: process.env.COLD_OUTREACH_URL,
             content_generator: process.env.CONTENT_GENERATOR_URL,
             blog_writer: process.env.BLOG_AGENT_URL,
