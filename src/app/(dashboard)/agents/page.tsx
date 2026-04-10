@@ -543,6 +543,13 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
         const [marketsText, setMarketsText] = useState(markets.join(", "));
         return (
             <>
+                <ConfigField label="Search Keyword">
+                    <select value={String(config.keyword || "junk removal")} onChange={e => onChange("keyword", e.target.value)}
+                        style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }}>
+                        <option value="junk removal">Junk Removal</option>
+                        <option value="dumpster rental">Dumpster Rental</option>
+                    </select>
+                </ConfigField>
                 <ConfigField label="Markets (comma-separated)">
                     <input value={marketsText} onChange={e => setMarketsText(e.target.value)}
                         onBlur={() => onChange("markets", marketsText.split(",").map(s => s.trim()).filter(Boolean))}
@@ -552,8 +559,7 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 <ConfigField label="Max Results Per Market">
                     <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
                 </ConfigField>
-                <ConfigToggle label="Skip Yelp" checked={!!config.skip_yelp} onChange={v => onChange("skip_yelp", v)} />
-                <ConfigToggle label="Use Grid Search" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
+                <ConfigToggle label="Use Grid Search (off = nationwide)" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
             </>
         );
     }

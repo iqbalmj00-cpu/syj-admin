@@ -329,7 +329,7 @@ async function fetchSubpage(baseUrl: string, paths: string[]): Promise<string> {
 }
 
 /* ── Claude extraction: team info + bio + service area NLP ──────────── */
-async function extractCompanyInfo(website: string, serviceAreaCities: string[], anthropicKey: string): Promise<{
+async function extractCompanyInfo(website: string, serviceAreaCities: string[], anthropicKey: string, companyName: string = ""): Promise<{
     employees: number | null; fleetSize: number | null; cities: string[];
     yearsInBusiness: number | null; isVeteranOwned: boolean; isFamilyBusiness: boolean;
     ownerBio: string | null; serviceAreaDescription: string | null; ownerName: string | null;
@@ -371,9 +371,13 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
         .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-    const aboutText = stripHtml(aboutHtml).slice(0, 3000);
+    const homepageText = homepageResult.ok ? stripHtml(homepageResult.html) : "";
+    const aboutText = stripHtml(aboutHtml).slice(0, 2000);
     const reviewsText = stripHtml(reviewsHtml).slice(0, 1500);
-    const combinedText = `${aboutText}\n\n${reviewsText ? `Testimonials/Reviews page:\n${reviewsText}` : ""}`.trim();
+    // Send homepage text (first 2000 chars + last 500 for footer) + about page text + reviews
+    const homepageMain = homepageText.slice(0, 2000);
+    const homepageFooter = homepageText.length > 500 ? homepageText.slice(-500) : "";
+    const combinedText = `Homepage:\n${homepageMain}\n\nFooter/bottom of homepage:\n${homepageFooter}\n\nAbout/Team pages:\n${aboutText}\n\n${reviewsText ? `Testimonials/Reviews page:\n${reviewsText}` : ""}`.trim();
 
     const cityList = serviceAreaCities.length > 0 ? serviceAreaCities.join(", ") : "";
     const defaults = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
@@ -387,9 +391,9 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
             body: JSON.stringify({
                 model: "claude-haiku-4-5-20251001",
                 max_tokens: 400,
-                messages: [{ role: "user", content: `Extract info from this junk removal company's website pages (about page, team page, testimonials/reviews page). Also generate a natural-language service area description from the city list if provided. Return ONLY valid JSON.
+                messages: [{ role: "user", content: `Extract info from this junk removal company's website pages. The company is called "${companyName}". Also generate a natural-language service area description from the city list if provided. Return ONLY valid JSON.
 
-{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_name": "<the owner's full name if found ANYWHERE on the page. Check ALL of these: (1) 'Owner', 'Founded by', 'Meet the owner' labels, (2) names on team pages, (3) names in testimonial response signatures, (4) copyright/footer text like '© 2023 by Billy Bauer' — the name after 'by' is the owner, (5) email addresses like 'bill@company.com' — the prefix is likely the owner's first name, (6) first-person language ('I can help you') combined with a name elsewhere on the page. null ONLY if no name found anywhere>", "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
+{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_name": "<the PERSON's name who owns this company — NOT the company name itself. Extract the owner's first name or full name. Check ALL of these: (1) 'Owner', 'Founded by', 'Meet the owner' labels, (2) names on team pages, (3) names in testimonial response signatures, (4) copyright/footer text like '© 2023 by Billy Bauer' — the person's name after 'by' is the owner, (5) email addresses like 'bill@company.com' — the prefix is likely the owner's first name, (6) the company name itself may contain a person's name (e.g. 'Steve Loves Junk' — owner is 'Steve', 'Mike's Hauling' — owner is 'Mike'), (7) first-person language ('I can help you') combined with a name elsewhere on the page. Return the PERSON's name only, never the business name. null ONLY if no person's name found anywhere>", "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
 
 ${combinedText.length >= 50 ? `Website pages text:\n${combinedText}` : "No relevant pages found."}
 ${cityList ? `\nCities served: ${cityList}` : ""}` }],
@@ -666,7 +670,7 @@ export async function POST(req: Request) {
                 // ── Company info via Claude (bio + team + service area NLP) ──
                 let companyInfo = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
                 if (anthropicKey && (hasActiveWebsite || serviceAreaCities.length > 0) && lead.website) {
-                    companyInfo = await extractCompanyInfo(lead.website, serviceAreaCities, anthropicKey);
+                    companyInfo = await extractCompanyInfo(lead.website, serviceAreaCities, anthropicKey, lead.name);
                     if (companyInfo.cities.length > 0 && serviceAreaCities.length === 0) serviceAreaCities = companyInfo.cities;
                 }
                 // If no about page but we have cities, generate description
