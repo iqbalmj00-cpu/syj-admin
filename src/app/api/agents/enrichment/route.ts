@@ -27,15 +27,19 @@ export const maxDuration = 300;
 const TOLL_FREE_PREFIXES = ["800", "888", "877", "866", "855", "844", "833"];
 
 const COMPETITOR_DOMAINS: Record<string, string> = {
-    "jobbersite.com": "Jobber", "workiz.com": "Workiz", "housecallpro.com": "Housecall Pro",
-    "thryv.com": "Thryv", "servicetitan.com": "ServiceTitan", "gorilladesk.com": "GorillaDesh",
+    "jobbersite.com": "Jobber", "getjobber.com": "Jobber",
+    "workiz.com": "Workiz", "housecallpro.com": "Housecall Pro",
+    "thryv.com": "Thryv", "servicetitan.com": "ServiceTitan", "gorilladesk.com": "GorillaDesk",
     "fieldpulse.com": "FieldPulse", "kickserv.com": "Kickserv", "markate.com": "Markate",
     "launchcart.com": "LaunchCart", "broadly.com": "Broadly", "signpost.com": "Signpost", "podium.com": "Podium",
+    "vonigo.com": "Vonigo", "responsibid.com": "ResponsiBid",
 };
 const COMPETITOR_HTML_MARKERS: Record<string, string> = {
-    "housecallpro": "Housecall Pro", "jobber.com": "Jobber", "workiz": "Workiz",
-    "servicetitan": "ServiceTitan", "gorilladesk": "GorillaDesh", "thryv": "Thryv",
-    "fieldpulse": "FieldPulse", "markate": "Markate",
+    "housecallpro": "Housecall Pro", "booking.housecallpro": "Housecall Pro", "data-hcp": "Housecall Pro",
+    "jobber.com": "Jobber", "getjobber": "Jobber", "jobber-online-booking": "Jobber",
+    "workiz": "Workiz", "servicetitan": "ServiceTitan", "gorilladesk": "GorillaDesk",
+    "thryv": "Thryv", "fieldpulse": "FieldPulse", "markate": "Markate",
+    "vonigo": "Vonigo", "responsibid": "ResponsiBid",
 };
 
 const CTA_PATTERNS = /(get\s+a?\s*quote|free\s+estimate|book\s+(now|online|today)|schedule|call\s+now|request\s+a?\s*quote)/i;
