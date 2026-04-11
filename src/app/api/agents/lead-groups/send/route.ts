@@ -10,6 +10,30 @@ import { getSession } from "@/lib/auth";
 
 export const maxDuration = 300;
 
+// Pain points to include in outreach messages (filtered from full list)
+const OUTREACH_PAIN_POINTS = [
+    "No online booking capability",
+    "No new reviews in 90 days (dormant)",
+    "No structured data (JSON-LD)",
+    "No sitemap reference",
+];
+// These are prefix-matched (e.g. "Low review response rate (0%)" matches "Low review response rate")
+const OUTREACH_PAIN_POINT_PREFIXES = [
+    "Low review response rate",
+];
+
+function formatPainPoints(painPoints: unknown): string {
+    if (!Array.isArray(painPoints) || painPoints.length === 0) return "";
+    const filtered = painPoints.filter((p: unknown) => {
+        if (typeof p !== "string") return false;
+        if (OUTREACH_PAIN_POINTS.includes(p)) return true;
+        if (OUTREACH_PAIN_POINT_PREFIXES.some(prefix => p.startsWith(prefix))) return true;
+        return false;
+    });
+    if (filtered.length === 0) return "";
+    return filtered.map((p: string) => `• ${p}`).join("\n") + "\n... and more";
+}
+
 const VARIABLE_MAP: Record<string, (lead: Record<string, unknown>) => string> = {
     "[company_name]": (l) => String(l.name || ""),
     "[owner_name]": (l) => String(l.ownerName || l.name || "").split(" ")[0],
@@ -19,6 +43,7 @@ const VARIABLE_MAP: Record<string, (lead: Record<string, unknown>) => string> = 
     "[website]": (l) => String(l.website || ""),
     "[grade]": (l) => String(l.grade || ""),
     "[email]": (l) => String(l.email || ""),
+    "[pain_points]": (l) => formatPainPoints(l.painPoints),
 };
 
 function replaceVariables(template: string, lead: Record<string, unknown>): string {
@@ -47,7 +72,7 @@ export async function POST(req: NextRequest) {
                             select: {
                                 id: true, name: true, phone: true, email: true, website: true,
                                 city: true, market: true, grade: true, ownerName: true,
-                                outreachStatus: true, smsOptOut: true,
+                                outreachStatus: true, smsOptOut: true, painPoints: true,
                             },
                         },
                     },
