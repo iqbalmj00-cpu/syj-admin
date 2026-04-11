@@ -84,11 +84,22 @@ export async function POST(req: NextRequest) {
         if (!group.templateBody?.trim()) return NextResponse.json({ error: "Group has no message template. Set a template before sending." }, { status: 400 });
         if (group.members.length === 0) return NextResponse.json({ error: "Group has no members" }, { status: 400 });
 
-        const bbUrl = process.env.BLUEBUBBLES_URL;
-        const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
+        const isEmail = group.channel === "email";
 
-        if (!bbUrl || !bbPassword) {
-            return NextResponse.json({ error: "BlueBubbles not configured. Set BLUEBUBBLES_URL and BLUEBUBBLES_PASSWORD env vars." }, { status: 500 });
+        // Validate channel-specific config
+        if (!isEmail) {
+            const bbUrl = process.env.BLUEBUBBLES_URL;
+            const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
+            if (!bbUrl || !bbPassword) {
+                return NextResponse.json({ error: "BlueBubbles not configured. Set BLUEBUBBLES_URL and BLUEBUBBLES_PASSWORD env vars." }, { status: 500 });
+            }
+        } else {
+            if (!process.env.INSTANTLY_API_KEY) {
+                return NextResponse.json({ error: "INSTANTLY_API_KEY not configured." }, { status: 500 });
+            }
+            if (!process.env.INSTANTLY_CAMPAIGN_ID) {
+                return NextResponse.json({ error: "INSTANTLY_CAMPAIGN_ID not configured. Create a campaign in Instantly.ai and set the env var." }, { status: 500 });
+            }
         }
 
         let sent = 0;
@@ -114,14 +125,19 @@ export async function POST(req: NextRequest) {
                 continue;
             }
 
-            // Skip leads without phone (SMS only)
-            if (!lead.phone) {
+            // Skip leads without the required contact info
+            if (isEmail && !lead.email) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: "No email address" });
+                continue;
+            }
+            if (!isEmail && !lead.phone) {
                 skipped++;
                 skippedLeads.push({ name: lead.name, reason: "No phone number" });
                 continue;
             }
 
-            // Duplicate protection — check if this lead already received a message from this group recently (24h)
+            // Duplicate protection — check if this lead already received a message recently (24h)
             const recentSend = await prisma.outreachLog.findFirst({
                 where: {
                     leadId: lead.id,
@@ -138,44 +154,95 @@ export async function POST(req: NextRequest) {
             }
 
             const personalizedBody = replaceVariables(group.templateBody, lead as unknown as Record<string, unknown>);
+            const personalizedSubject = group.templateSubject ? replaceVariables(group.templateSubject, lead as unknown as Record<string, unknown>) : "";
 
-            // Normalize phone
-            let phone = lead.phone.replace(/[^+\d]/g, "");
-            if (phone.length === 10) phone = "+1" + phone;
-            if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
-
-            try {
-                const tempGuid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        chatGuid: `iMessage;-;${phone}`,
-                        tempGuid,
-                        message: personalizedBody,
-                        method: "apple-script",
-                    }),
-                });
-
-                if (bbRes.ok) {
-                    sent++;
-                    await prisma.outreachLog.create({
-                        data: { leadId: lead.id, channel: "sms", direction: "outbound", sender: "user", content: personalizedBody.slice(0, 2000), status: "sent" },
+            if (isEmail) {
+                // ── EMAIL via Instantly.ai ──
+                try {
+                    const ownerName = String(lead.ownerName || "");
+                    const instantlyRes = await fetch("https://api.instantly.ai/api/v1/lead/add", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            api_key: process.env.INSTANTLY_API_KEY,
+                            campaign_id: process.env.INSTANTLY_CAMPAIGN_ID,
+                            skip_if_in_workspace: true,
+                            leads: [{
+                                email: lead.email,
+                                first_name: ownerName.split(" ")[0] || "",
+                                last_name: ownerName.split(" ").length > 1 ? ownerName.split(" ").slice(-1)[0] : "",
+                                company_name: lead.name,
+                                phone: lead.phone || "",
+                                website: lead.website || "",
+                                custom_variables: {
+                                    subject: personalizedSubject,
+                                    body: personalizedBody,
+                                    grade: lead.grade || "",
+                                    market: lead.market || "",
+                                    city: lead.city || "",
+                                },
+                            }],
+                        }),
                     });
-                    await prisma.scrapedLead.update({
-                        where: { id: lead.id },
-                        data: { outreachStatus: "sms_sent", smsSentAt: new Date() },
-                    });
-                } else {
+
+                    if (instantlyRes.ok) {
+                        sent++;
+                        await prisma.outreachLog.create({
+                            data: { leadId: lead.id, channel: "email", direction: "outbound", sender: "user", subject: personalizedSubject, content: personalizedBody.slice(0, 2000), status: "sent" },
+                        });
+                        await prisma.scrapedLead.update({
+                            where: { id: lead.id },
+                            data: { outreachStatus: "emailed", emailedAt: new Date() },
+                        });
+                    } else {
+                        failed++;
+                        const errText = await instantlyRes.text().catch(() => "");
+                        failedLeads.push({ name: lead.name, error: `Instantly ${instantlyRes.status}: ${errText.slice(0, 100)}` });
+                    }
+                } catch (e) {
                     failed++;
-                    const errText = await bbRes.text().catch(() => "");
-                    failedLeads.push({ name: lead.name, error: `BlueBubbles ${bbRes.status}: ${errText.slice(0, 100)}` });
-                    // Continue to next lead — don't kill the batch
+                    failedLeads.push({ name: lead.name, error: String(e).slice(0, 100) });
                 }
-            } catch (e) {
-                failed++;
-                failedLeads.push({ name: lead.name, error: String(e).slice(0, 100) });
-                // Continue to next lead
+            } else {
+                // ── SMS via BlueBubbles ──
+                const bbUrl = process.env.BLUEBUBBLES_URL!;
+                const bbPassword = process.env.BLUEBUBBLES_PASSWORD!;
+
+                let phone = lead.phone!.replace(/[^+\d]/g, "");
+                if (phone.length === 10) phone = "+1" + phone;
+                if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
+
+                try {
+                    const tempGuid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            chatGuid: `iMessage;-;${phone}`,
+                            tempGuid,
+                            message: personalizedBody,
+                            method: "apple-script",
+                        }),
+                    });
+
+                    if (bbRes.ok) {
+                        sent++;
+                        await prisma.outreachLog.create({
+                            data: { leadId: lead.id, channel: "sms", direction: "outbound", sender: "user", content: personalizedBody.slice(0, 2000), status: "sent" },
+                        });
+                        await prisma.scrapedLead.update({
+                            where: { id: lead.id },
+                            data: { outreachStatus: "sms_sent", smsSentAt: new Date() },
+                        });
+                    } else {
+                        failed++;
+                        const errText = await bbRes.text().catch(() => "");
+                        failedLeads.push({ name: lead.name, error: `BlueBubbles ${bbRes.status}: ${errText.slice(0, 100)}` });
+                    }
+                } catch (e) {
+                    failed++;
+                    failedLeads.push({ name: lead.name, error: String(e).slice(0, 100) });
+                }
             }
 
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -194,7 +261,7 @@ export async function POST(req: NextRequest) {
             total: group.members.length,
             skippedLeads: skippedLeads.slice(0, 20),
             failedLeads: failedLeads.slice(0, 20),
-            message: `Sent ${sent}, skipped ${skipped}, failed ${failed} of ${group.members.length} leads`,
+            message: `${isEmail ? "Emailed" : "Sent"} ${sent}, skipped ${skipped}, failed ${failed} of ${group.members.length} leads`,
         });
     } catch (error) {
         console.error("POST /api/agents/lead-groups/send error:", error);
