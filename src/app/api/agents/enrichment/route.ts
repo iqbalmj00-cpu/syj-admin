@@ -337,6 +337,7 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
     employees: number | null; fleetSize: number | null; cities: string[];
     yearsInBusiness: number | null; isVeteranOwned: boolean; isFamilyBusiness: boolean;
     ownerBio: string | null; serviceAreaDescription: string | null; ownerName: string | null;
+    email: string | null;
 }> {
     // First, fetch homepage to discover real about/team page URLs from navigation
     const homepageResult = await fetchHtml(website);
@@ -383,8 +384,15 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
     const homepageFooter = homepageText.length > 500 ? homepageText.slice(-500) : "";
     const combinedText = `Homepage:\n${homepageMain}\n\nFooter/bottom of homepage:\n${homepageFooter}\n\nAbout/Team pages:\n${aboutText}\n\n${reviewsText ? `Testimonials/Reviews page:\n${reviewsText}` : ""}`.trim();
 
+    // ── Regex-based email extraction from raw HTML (before stripping) ──
+    // Catches mailto: links and plain-text emails. Runs before Claude.
+    const regexEmail = extractBestEmail(
+        (homepageResult.ok ? homepageResult.html : "") + "\n" + aboutHtml,
+        website,
+    );
+
     const cityList = serviceAreaCities.length > 0 ? serviceAreaCities.join(", ") : "";
-    const defaults = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
+    const defaults = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null, email: regexEmail };
 
     if (combinedText.length < 50 && !cityList) return defaults;
 
@@ -397,7 +405,7 @@ async function extractCompanyInfo(website: string, serviceAreaCities: string[], 
                 max_tokens: 400,
                 messages: [{ role: "user", content: `Extract info from this junk removal company's website pages. The company is called "${companyName}". Also generate a natural-language service area description from the city list if provided. Return ONLY valid JSON.
 
-{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_name": "<the PERSON's name who owns this company — NOT the company name itself. Extract the owner's first name or full name. Check ALL of these: (1) 'Owner', 'Founded by', 'Meet the owner' labels, (2) names on team pages, (3) names in testimonial response signatures, (4) copyright/footer text like '© 2023 by Billy Bauer' — the person's name after 'by' is the owner, (5) email addresses like 'bill@company.com' — the prefix is likely the owner's first name, (6) the company name itself may contain a person's name (e.g. 'Steve Loves Junk' — owner is 'Steve', 'Mike's Hauling' — owner is 'Mike'), (7) first-person language ('I can help you') combined with a name elsewhere on the page. Return the PERSON's name only, never the business name. null ONLY if no person's name found anywhere>", "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
+{"employees": <number or null>, "fleet_size": <number of trucks or null>, "cities": [<city names they serve>], "years_in_business": <number or null>, "is_veteran_owned": <true/false>, "is_family_business": <true/false>, "owner_name": "<the PERSON's name who owns this company — NOT the company name itself. Extract the owner's first name or full name. Check ALL of these: (1) 'Owner', 'Founded by', 'Meet the owner' labels, (2) names on team pages, (3) names in testimonial response signatures, (4) copyright/footer text like '© 2023 by Billy Bauer' — the person's name after 'by' is the owner, (5) email addresses like 'bill@company.com' — the prefix is likely the owner's first name, (6) the company name itself may contain a person's name (e.g. 'Steve Loves Junk' — owner is 'Steve', 'Mike's Hauling' — owner is 'Mike'), (7) first-person language ('I can help you') combined with a name elsewhere on the page. Return the PERSON's name only, never the business name. null ONLY if no person's name found anywhere>", "owner_bio": "<1-2 sentence summary of owner — name, background, how they started. null if not found>", "email": "<the primary business email found anywhere on the pages — look for mailto: links, 'Contact us', footer, 'Email us', or plain text like 'info@company.com' or 'owner@company.com'. Prefer the business-domain email (e.g. bob@companyname.com) over personal emails (gmail, yahoo). Prefer info@/contact@/hello@ emails over named aliases. Skip placeholders like example@example.com, you@domain.com, info@yoursite.com. Return the email as-is (lowercase ok). null if no real email found.>", "service_area_description": "<natural language like 'Serving the greater Houston metro including Katy, Spring, and Cypress' — generate from city list below. null if no cities>"}
 
 ${combinedText.length >= 50 ? `Website pages text:\n${combinedText}` : "No relevant pages found."}
 ${cityList ? `\nCities served: ${cityList}` : ""}` }],
@@ -408,6 +416,11 @@ ${cityList ? `\nCities served: ${cityList}` : ""}` }],
         const content = data.content?.[0]?.text || "";
         const jsonStr = content.includes("{") ? content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1) : content;
         const p = JSON.parse(jsonStr);
+        // Prefer regex-extracted email (more reliable for raw HTML parsing),
+        // fall back to Claude's extraction only if regex found nothing
+        const claudeEmail = typeof p.email === "string" && p.email.trim() ? sanitizeEmail(p.email.trim()) : null;
+        const finalEmail = regexEmail || claudeEmail;
+
         return {
             employees: typeof p.employees === "number" ? p.employees : null,
             fleetSize: typeof p.fleet_size === "number" ? p.fleet_size : null,
@@ -418,8 +431,121 @@ ${cityList ? `\nCities served: ${cityList}` : ""}` }],
             ownerName: typeof p.owner_name === "string" && p.owner_name.trim() ? p.owner_name.trim() : null,
             ownerBio: typeof p.owner_bio === "string" && p.owner_bio.trim() ? p.owner_bio.trim() : null,
             serviceAreaDescription: typeof p.service_area_description === "string" ? p.service_area_description : null,
+            email: finalEmail,
         };
     } catch { return defaults; }
+}
+
+/* ── Email extraction helpers ─────────────────────────────────────── */
+
+const BAD_EMAIL_PATTERNS: RegExp[] = [
+    /@example\.(com|org|net)$/i,
+    /@yourdomain\./i,
+    /@domain\.(com|org|net)$/i,
+    /@email\.com$/i,
+    /@yourcompany\./i,
+    /@yoursite\./i,
+    /@website\./i,
+    /@sample\./i,
+    /@test\.(com|org|net)$/i,
+    /@placeholder\./i,
+    /^sample@/i,
+    /^test@/i,
+    /^noreply@/i,
+    /^no-reply@/i,
+    /^donotreply@/i,
+    /^name@/i,
+    /^user@/i,
+    /^you@/i,
+    /^your@/i,
+    /^email@/i,
+    /^someone@/i,
+    /@sentry\.io$/i,
+    /@wixpress\.com$/i,
+    /@wix\.com$/i,
+    /@godaddy\.com$/i,
+    /@squarespace\.com$/i,
+    /@u\.nabstudios\.com$/i,
+    // Filename noise (email regex can match image URLs like foo@2x.png)
+    /\.(png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|eot|mp4|pdf)$/i,
+    /@\d+x$/i,
+    /^@/,
+];
+
+function sanitizeEmail(raw: string): string | null {
+    const email = raw.toLowerCase().replace(/^mailto:/i, "").replace(/\?.*$/, "").trim();
+    if (!/^[a-z0-9._+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(email)) return null;
+    if (BAD_EMAIL_PATTERNS.some((p) => p.test(email))) return null;
+    return email;
+}
+
+/**
+ * Extract the best email from raw HTML (homepage + about pages).
+ * Prefers: mailto: links > business-domain-matching > info@/contact@/hello@ > first valid
+ */
+function extractBestEmail(html: string, websiteUrl: string): string | null {
+    if (!html) return null;
+
+    // Extract website hostname for domain matching
+    let siteDomain = "";
+    try {
+        const url = new URL(websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`);
+        siteDomain = url.hostname.replace(/^www\./, "").toLowerCase();
+    } catch { /* ignore */ }
+
+    // Collect all emails (both from mailto: and plain text)
+    const candidates: Array<{ email: string; score: number }> = [];
+    const seen = new Set<string>();
+
+    // mailto: links first (highest priority)
+    const mailtoRe = /mailto:([a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)/gi;
+    let m: RegExpExecArray | null;
+    while ((m = mailtoRe.exec(html)) !== null) {
+        const email = sanitizeEmail(m[1]);
+        if (email && !seen.has(email)) {
+            seen.add(email);
+            candidates.push({ email, score: scoreEmail(email, siteDomain, true) });
+        }
+    }
+
+    // Plain text email patterns anywhere in the HTML
+    const plainRe = /([a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)/gi;
+    while ((m = plainRe.exec(html)) !== null) {
+        const email = sanitizeEmail(m[1]);
+        if (email && !seen.has(email)) {
+            seen.add(email);
+            candidates.push({ email, score: scoreEmail(email, siteDomain, false) });
+        }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0].email;
+}
+
+function scoreEmail(email: string, siteDomain: string, fromMailto: boolean): number {
+    let score = 0;
+    const [alias, domain] = email.split("@");
+
+    if (fromMailto) score += 20;
+
+    // Business domain matching — strongest signal this is the actual business email
+    if (siteDomain && domain === siteDomain) score += 30;
+    else if (siteDomain && domain.endsWith(`.${siteDomain}`)) score += 20;
+    else if (siteDomain && siteDomain.endsWith(`.${domain}`)) score += 10;
+
+    // Prefer role-based business emails
+    if (/^(info|contact|hello|sales|support|team|admin|office)$/i.test(alias)) score += 10;
+    else if (/^(booking|quotes|quote|estimate|service)$/i.test(alias)) score += 8;
+
+    // Penalize free-email providers slightly (likely personal, not business)
+    if (/@(gmail|yahoo|hotmail|outlook|aol|icloud|live|msn)\.(com|net)$/i.test(email)) score -= 5;
+
+    // Penalize very long/weird aliases (more likely spam-tier emails)
+    if (alias.length > 30) score -= 3;
+
+    return score;
 }
 
 /* ── Claude extraction: review analysis ─────────────────────────────── */
@@ -672,7 +798,7 @@ export async function POST(req: Request) {
                 let serviceAreaCities = extractServiceAreaCities(html);
 
                 // ── Company info via Claude (bio + team + service area NLP) ──
-                let companyInfo = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null };
+                let companyInfo = { employees: null as number | null, fleetSize: null as number | null, cities: [] as string[], yearsInBusiness: null as number | null, isVeteranOwned: false, isFamilyBusiness: false, ownerName: null as string | null, ownerBio: null as string | null, serviceAreaDescription: null as string | null, email: null as string | null };
                 if (anthropicKey && (hasActiveWebsite || serviceAreaCities.length > 0) && lead.website) {
                     companyInfo = await extractCompanyInfo(lead.website, serviceAreaCities, anthropicKey, lead.name);
                     if (companyInfo.cities.length > 0 && serviceAreaCities.length === 0) serviceAreaCities = companyInfo.cities;
@@ -839,6 +965,9 @@ export async function POST(req: Request) {
                         serviceTypes, phoneType, hasActiveWebsite,
                         usingCompetitor: competitorResult.using, competitorPlatform: competitorResult.platform,
                         seoScore, uiuxScore,
+                        // Capture email from website extraction — but only if the lead doesn't already have one
+                        // (preserves manually-entered or previously-captured emails)
+                        ...(!lead.email && companyInfo.email ? { email: companyInfo.email } : {}),
                         estimatedEmployees: companyInfo.employees, estimatedFleetSize: companyInfo.fleetSize,
                         serviceAreaCities, serviceAreaSize, enrichedAt: new Date(), isExistingClient: false,
                         // Correct city if we found a real location from the website

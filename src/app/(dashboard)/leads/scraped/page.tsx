@@ -249,6 +249,40 @@ export default function ScrapedLeadsPage() {
         setSendingOutreach(false);
     };
 
+    const copyEmails = async () => {
+        if (selectedIds.size === 0) return;
+        const selected = leads.filter(l => selectedIds.has(l.id));
+        const emails = selected.map(l => l.email).filter((e): e is string => !!e && e.trim().length > 0);
+        const missing = selectedIds.size - emails.length;
+        if (emails.length === 0) {
+            showToast("None of the selected leads have an email", "error");
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(emails.join("\n"));
+            showToast(`Copied ${emails.length} email${emails.length === 1 ? "" : "s"}${missing > 0 ? ` (${missing} lead${missing === 1 ? "" : "s"} had no email)` : ""}`);
+        } catch {
+            showToast("Failed to copy — clipboard access denied", "error");
+        }
+    };
+
+    const copyPhones = async () => {
+        if (selectedIds.size === 0) return;
+        const selected = leads.filter(l => selectedIds.has(l.id));
+        const phones = selected.map(l => l.phone).filter((p): p is string => !!p && p.trim().length > 0);
+        const missing = selectedIds.size - phones.length;
+        if (phones.length === 0) {
+            showToast("None of the selected leads have a phone number", "error");
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(phones.join("\n"));
+            showToast(`Copied ${phones.length} phone number${phones.length === 1 ? "" : "s"}${missing > 0 ? ` (${missing} lead${missing === 1 ? "" : "s"} had no phone)` : ""}`);
+        } catch {
+            showToast("Failed to copy — clipboard access denied", "error");
+        }
+    };
+
     const handleSort = (field: string) => { sortBy === field ? setSortOrder(sortOrder === "asc" ? "desc" : "asc") : (setSortBy(field), setSortOrder(field === "name" || field === "market" ? "asc" : "desc")); };
 
     const SortHeader = ({ label, field, w }: { label: string; field: string; w?: number }) => (
@@ -373,6 +407,8 @@ export default function ScrapedLeadsPage() {
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
                         <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(139,92,246,0.3)", borderRadius: 4, background: "rgba(139,92,246,0.06)", color: "#7C3AED", cursor: "pointer" }}>{enriching ? "Enriching..." : "🧪 Enrich Selected"}</button>
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "📧 Trigger Campaign"}</button>
+                        <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(37,99,235,0.3)", borderRadius: 4, background: "rgba(37,99,235,0.06)", color: "#2563EB", cursor: "pointer" }}>📋 Copy Emails</button>
+                        <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(0,168,58,0.3)", borderRadius: 4, background: "rgba(0,168,58,0.06)", color: "#00A83A", cursor: "pointer" }}>📋 Copy Phones</button>
                         <div style={{ position: "relative" }}>
                             <button onClick={() => setShowGroupSelect(!showGroupSelect)} disabled={addingToGroup}
                                 style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: showGroupSelect ? "rgba(255,107,0,0.08)" : "var(--white)", color: showGroupSelect ? "var(--orange)" : "var(--text)", cursor: "pointer" }}>
@@ -499,6 +535,12 @@ export default function ScrapedLeadsPage() {
                                 <td style={{ fontFamily: "monospace", color: "var(--text-light)", fontSize: 11 }}>
                                     {l.phone || "—"}
                                     {l.phoneType && l.phoneType !== "none" && <span style={{ fontSize: 9, marginLeft: 4, color: l.phoneType === "toll_free" ? "var(--info)" : "var(--text-faint)" }}>{l.phoneType === "toll_free" ? "TF" : "L"}</span>}
+                                    <span
+                                        title={l.email ? `Has email: ${l.email}` : "No email on file"}
+                                        style={{ fontSize: 11, marginLeft: 6, color: l.email ? "#00A83A" : "var(--text-faint)", opacity: l.email ? 1 : 0.4 }}
+                                    >
+                                        ✉
+                                    </span>
                                 </td>
                                 <td style={{ fontSize: 12, fontWeight: 600, color: l.seoScore != null ? (l.seoScore >= 60 ? "var(--success)" : l.seoScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.seoScore ?? "—"}</td>
                                 <td style={{ fontSize: 12, fontWeight: 600, color: l.uiuxScore != null ? (l.uiuxScore >= 60 ? "var(--success)" : l.uiuxScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.uiuxScore ?? "—"}</td>
