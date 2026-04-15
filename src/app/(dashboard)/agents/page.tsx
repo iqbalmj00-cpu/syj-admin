@@ -35,6 +35,17 @@ interface BlogPostPreview {
     target?: string;
 }
 
+interface ResearchReportPreview {
+    id: string; slug: string; title: string; subtitle: string;
+    category: string; categoryIcon: string; excerpt: string;
+    topic: string; reportType: string; author: string;
+    sourceCount: number; pageCount: number; pdfSizeMb: number;
+    draftPdfUrl: string | null; publishedPdfUrl: string | null;
+    status: string; warnings: unknown;
+    publishedAt: string | null; archivedAt: string | null;
+    createdAt: string; updatedAt: string;
+}
+
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
 
 /* ─── Helpers ───────────────────────────────────────────────────────── */
@@ -61,6 +72,22 @@ const BLOG_STATUS_MAP: Record<string, { bg: string; color: string; label: string
     rejected: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Rejected" },
 };
 
+const REPORT_STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
+    draft: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Draft" },
+    approved: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Approved" },
+    published: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Published" },
+    archived: { bg: "rgba(148,163,184,0.12)", color: "#64748B", label: "Archived" },
+    rejected: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Rejected" },
+};
+
+const REPORT_TYPE_LABELS: Record<string, string> = {
+    market_analysis: "Market Analysis",
+    competitor_study: "Competitor Study",
+    trend_report: "Trend Report",
+    operational_benchmark: "Operational Benchmark",
+    custom: "Custom",
+};
+
 const OUTREACH_MAP: Record<string, { bg: string; color: string; label: string }> = {
     new: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "New" },
     emailed: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Emailed" },
@@ -77,6 +104,7 @@ const AGENT_ICONS: Record<string, string> = {
     content_generator: "📸",
     facebook_scraper: "📘",
     blog_writer: "📝",
+    research_writer: "📊",
 };
 
 function relTime(d: string | null) {
@@ -117,7 +145,7 @@ function Badge({ bg, color, label }: { bg: string; color: string; label: string 
 
 /* ─── Tabs ──────────────────────────────────────────────────────────── */
 
-type TabId = "agents" | "leads" | "groups" | "messages" | "syj_blogs" | "client_blogs" | "content" | "history";
+type TabId = "agents" | "leads" | "groups" | "messages" | "syj_blogs" | "client_blogs" | "content" | "research_reports" | "history";
 
 interface GeneratedVideo {
     id: string; title: string; videoUrl: string | null; thumbnailUrl: string | null;
@@ -132,6 +160,7 @@ const TABS: { id: TabId; label: string }[] = [
     { id: "content", label: "Content" },
     { id: "syj_blogs", label: "SYJ Blogs" },
     { id: "client_blogs", label: "Client Blogs" },
+    { id: "research_reports", label: "Research Reports" },
     { id: "history", label: "Run History" },
 ];
 
@@ -143,11 +172,14 @@ export default function AgentsPage() {
     const [blogs, setBlogs] = useState<BlogPostPreview[]>([]);
     const [blogCounts, setBlogCounts] = useState<Record<string, number>>({ draft: 0, approved: 0, published: 0, rejected: 0 });
     const [contentVideos, setContentVideos] = useState<GeneratedVideo[]>([]);
+    const [reports, setReports] = useState<ResearchReportPreview[]>([]);
+    const [reportCounts, setReportCounts] = useState<Record<string, number>>({ draft: 0, approved: 0, published: 0, archived: 0, rejected: 0 });
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
 
     // Filters
     const [blogStatusFilter, setBlogStatusFilter] = useState<string>("all");
+    const [reportStatusFilter, setReportStatusFilter] = useState<string>("all");
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -178,9 +210,24 @@ export default function AgentsPage() {
         } catch { /* ignore */ }
     }, []);
 
+    const fetchReports = useCallback(async () => {
+        try {
+            const params = new URLSearchParams();
+            if (reportStatusFilter !== "all") params.set("status", reportStatusFilter);
+            const res = await fetch(`/api/agents/research-reports?${params}`);
+            if (res.ok) {
+                const data = await res.json();
+                setReports(data.reports);
+                setReportCounts(data.counts);
+            }
+        } catch { /* ignore */ }
+    }, [reportStatusFilter]);
+
     useEffect(() => {
-        Promise.all([fetchAgents(), fetchBlogs(), fetchContent()]).finally(() => setLoading(false));
-    }, [fetchAgents, fetchBlogs, fetchContent]);
+        Promise.all([fetchAgents(), fetchBlogs(), fetchContent(), fetchReports()]).finally(() => setLoading(false));
+    }, [fetchAgents, fetchBlogs, fetchContent, fetchReports]);
+
+    useEffect(() => { if (!loading) fetchReports(); }, [reportStatusFilter, fetchReports, loading]);
 
     // Auto-poll every 5s when any agent is running
     useEffect(() => {
@@ -222,6 +269,28 @@ export default function AgentsPage() {
                     showToast(data.error || "Content generation failed", "error");
                 }
                 fetchAgents();
+                return;
+            }
+
+            // Blog writer — runs synchronously (~60-90s), returns when draft is saved
+            if (agent.slug === "blog_writer") {
+                showToast("Researching and writing blog (60-90s)...");
+                const res = await fetch(`/api/agents/${agent.id}`, { method: "POST" });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    showToast("Blog draft created — review in Blogs tab");
+                    fetchBlogs();
+                } else {
+                    showToast(data.error || "Blog generation failed", "error");
+                }
+                fetchAgents();
+                return;
+            }
+
+            // Research writer — needs a topic input, direct user to the Reports tab
+            if (agent.slug === "research_writer") {
+                setTab("research_reports");
+                showToast("Enter a topic in the Research Reports tab to generate");
                 return;
             }
 
@@ -328,6 +397,16 @@ export default function AgentsPage() {
                     onRefresh={fetchBlogs} showToast={showToast} title="Client Blogs (End Customers)" />
             )}
             {tab === "content" && <ContentTab videos={contentVideos} onRefresh={fetchContent} showToast={showToast} />}
+            {tab === "research_reports" && (
+                <ResearchReportsTab
+                    reports={reports}
+                    counts={reportCounts}
+                    statusFilter={reportStatusFilter}
+                    setStatusFilter={setReportStatusFilter}
+                    onRefresh={fetchReports}
+                    showToast={showToast}
+                />
+            )}
             {tab === "history" && <HistoryTab agents={agents} />}
 
             {toast && <div className="toast" style={{ background: toast.type === "error" ? "var(--danger)" : "var(--success)" }}>{toast.msg}</div>}
@@ -1049,11 +1128,21 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
         const sections = (content.sections || content.body || []) as Array<Record<string, any>>;
         const intro = String(content.introduction || content.intro || content.description || "");
 
+        const warnings = Array.isArray(content.warnings) ? (content.warnings as string[]) : [];
+
         return (
             <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
                 {/* Meta */}
                 {content.title && <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)", marginBottom: 12 }}>{String(content.title)}</h2>}
                 {content.description && <p style={{ fontSize: 13, color: "var(--text-light)", lineHeight: 1.6, marginBottom: 16, fontStyle: "italic" }}>{String(content.description)}</p>}
+                {warnings.length > 0 && (
+                    <div style={{ marginBottom: 16, padding: "12px 14px", background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.25)", borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#B45309", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>⚠️ Review warnings ({warnings.length})</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#78350F", lineHeight: 1.6 }}>
+                            {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                        </ul>
+                    </div>
+                )}
                 {typeof intro === "string" && intro && <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 20 }}>{intro}</p>}
                 {Array.isArray(sections) && sections.map((section, i) => (
                     <div key={i} style={{ marginBottom: 24 }}>
@@ -2058,6 +2147,413 @@ function MessagesTab() {
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+/* ─── Research Reports Tab ──────────────────────────────────────────── */
+
+function ResearchReportsTab({
+    reports, counts, statusFilter, setStatusFilter, onRefresh, showToast,
+}: {
+    reports: ResearchReportPreview[];
+    counts: Record<string, number>;
+    statusFilter: string;
+    setStatusFilter: (v: string) => void;
+    onRefresh: () => void;
+    showToast: (msg: string, type?: string) => void;
+}) {
+    const [topic, setTopic] = useState("");
+    const [reportType, setReportType] = useState("custom");
+    const [generating, setGenerating] = useState(false);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [expandedContent, setExpandedContent] = useState<Record<string, unknown> | null>(null);
+    const [loadingContent, setLoadingContent] = useState(false);
+    const [actionBusy, setActionBusy] = useState<string | null>(null);
+
+    const generateReport = async () => {
+        const trimmed = topic.trim();
+        if (!trimmed) { showToast("Enter a research topic first", "error"); return; }
+        setGenerating(true);
+        showToast("Researching and writing report (60-120s)...");
+        try {
+            const res = await fetch("/api/agents/research-reports", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ topic: trimmed, reportType }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const warnings = Array.isArray(data.warnings) ? data.warnings.length : 0;
+                showToast(
+                    warnings > 0
+                        ? `Draft created with ${warnings} warning(s) — review below`
+                        : "Draft report created — review below",
+                );
+                setTopic("");
+                onRefresh();
+            } else {
+                showToast(data.error || "Report generation failed", "error");
+            }
+        } catch {
+            showToast("Report generation failed", "error");
+        }
+        setGenerating(false);
+    };
+
+    const toggleExpand = async (id: string) => {
+        if (expandedId === id) { setExpandedId(null); setExpandedContent(null); return; }
+        setExpandedId(id);
+        setLoadingContent(true);
+        try {
+            const res = await fetch(`/api/agents/research-reports/${id}`);
+            if (res.ok) setExpandedContent(await res.json());
+        } catch { /* ignore */ }
+        setLoadingContent(false);
+    };
+
+    const runAction = async (id: string, action: string, label: string) => {
+        setActionBusy(id + action);
+        try {
+            const res = await fetch(`/api/agents/research-reports/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showToast(`Report ${label}`);
+                onRefresh();
+                if (expandedId === id) setExpandedContent(data);
+            } else {
+                showToast(data.error || `${label} failed`, "error");
+            }
+        } catch {
+            showToast(`${label} failed`, "error");
+        }
+        setActionBusy(null);
+    };
+
+    const deleteReport = async (id: string) => {
+        if (!confirm("Delete this draft report? This cannot be undone.")) return;
+        setActionBusy(id + "delete");
+        try {
+            const res = await fetch(`/api/agents/research-reports/${id}`, { method: "DELETE" });
+            if (res.ok) {
+                showToast("Report deleted");
+                onRefresh();
+                setExpandedId(null);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                showToast(data.error || "Delete failed", "error");
+            }
+        } catch {
+            showToast("Delete failed", "error");
+        }
+        setActionBusy(null);
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* KPIs */}
+            <div className="grid-4">
+                <Kpi label="Total Reports" value={Object.values(counts).reduce((s, v) => s + v, 0)} />
+                <Kpi label="Drafts Pending" value={counts.draft || 0} sub={counts.draft > 0 ? "Need review" : ""} />
+                <Kpi label="Published" value={counts.published || 0} />
+                <Kpi label="Approved" value={counts.approved || 0} sub="Ready to publish" />
+            </div>
+
+            {/* New Report Form */}
+            <div className="card" style={{ padding: "20px 24px" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, fontFamily: "var(--font-heading)", color: "var(--text)" }}>
+                    📊 Generate New Research Report
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "flex-end" }}>
+                    <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", display: "block", marginBottom: 6 }}>
+                            Research Topic
+                        </label>
+                        <input
+                            value={topic}
+                            onChange={e => setTopic(e.target.value)}
+                            placeholder="e.g. The true cost of missed calls for junk removal operators"
+                            disabled={generating}
+                            style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", color: "var(--text)", outline: "none" }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", display: "block", marginBottom: 6 }}>
+                            Report Type
+                        </label>
+                        <select
+                            value={reportType}
+                            onChange={e => setReportType(e.target.value)}
+                            disabled={generating}
+                            style={{ padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", color: "var(--text)", cursor: "pointer", minWidth: 180 }}
+                        >
+                            {Object.entries(REPORT_TYPE_LABELS).map(([k, v]) => (
+                                <option key={k} value={k}>{v}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <button
+                        className="btn btn-primary"
+                        onClick={generateReport}
+                        disabled={generating || !topic.trim()}
+                        style={{ padding: "10px 24px", opacity: generating || !topic.trim() ? 0.5 : 1 }}
+                    >
+                        {generating ? "Generating..." : "Generate Report"}
+                    </button>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 10, lineHeight: 1.5 }}>
+                    Research takes ~60-120 seconds. Perplexity sonar-pro researches 4-5 sub-questions in parallel, Claude writes a 3000-word structured report with strict citation rules, then a branded PDF is generated and saved as a draft for review.
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Status:</span>
+                {["all", "draft", "approved", "published", "archived", "rejected"].map(s => (
+                    <FilterChip
+                        key={s}
+                        label={s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                        active={statusFilter === s}
+                        onClick={() => setStatusFilter(s)}
+                    />
+                ))}
+            </div>
+
+            {/* Reports List */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {reports.length === 0 && (
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
+                        No reports yet. Enter a topic above to generate your first research report.
+                    </div>
+                )}
+                {reports.map(r => {
+                    const st = REPORT_STATUS_MAP[r.status] || REPORT_STATUS_MAP.draft;
+                    const isExpanded = expandedId === r.id;
+                    const warnings = Array.isArray(r.warnings) ? (r.warnings as string[]) : [];
+                    return (
+                        <div key={r.id} className="card" style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "16px 20px" }}>
+                                <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => toggleExpand(r.id)}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                                        <span style={{ fontWeight: 700, fontSize: 15, fontFamily: "var(--font-heading)", color: "var(--primary)" }}>
+                                            {r.title}
+                                        </span>
+                                        <Badge {...st} />
+                                        {warnings.length > 0 && (
+                                            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(234,179,8,0.1)", color: "#B45309", fontWeight: 600 }}>
+                                                ⚠️ {warnings.length} warning{warnings.length > 1 ? "s" : ""}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {r.subtitle && (
+                                        <div style={{ fontSize: 13, color: "var(--text-light)", lineHeight: 1.5, marginBottom: 6 }}>
+                                            {r.subtitle}
+                                        </div>
+                                    )}
+                                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-faint)", flexWrap: "wrap" }}>
+                                        <span>📂 {r.category}</span>
+                                        <span>• {r.pageCount}-page PDF ({r.pdfSizeMb} MB)</span>
+                                        <span>• {r.sourceCount} sources</span>
+                                        <span>• {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                                        {r.publishedPdfUrl && <span style={{ color: "var(--success)" }}>• ✓ Published</span>}
+                                        <span style={{ color: "var(--primary)", fontWeight: 500 }}>{isExpanded ? "▲ Close" : "▼ Preview"}</span>
+                                    </div>
+                                </div>
+                                <div style={{ display: "flex", gap: 6, marginLeft: 16, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                    {r.draftPdfUrl && (
+                                        <a
+                                            href={r.draftPdfUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-xs btn-ghost"
+                                            style={{ fontSize: 10, color: "var(--info)", textDecoration: "none" }}
+                                        >
+                                            ↗ Download PDF
+                                        </a>
+                                    )}
+                                    {r.status === "draft" && (
+                                        <>
+                                            <button
+                                                className="btn btn-xs btn-primary"
+                                                onClick={() => runAction(r.id, "approve", "approved")}
+                                                disabled={actionBusy === r.id + "approve"}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                className="btn btn-xs btn-ghost"
+                                                onClick={() => deleteReport(r.id)}
+                                                disabled={actionBusy === r.id + "delete"}
+                                                style={{ color: "var(--danger)" }}
+                                            >
+                                                Reject
+                                            </button>
+                                        </>
+                                    )}
+                                    {r.status === "approved" && (
+                                        <>
+                                            <button
+                                                className="btn btn-xs btn-primary"
+                                                onClick={() => runAction(r.id, "publish", "published")}
+                                                disabled={actionBusy === r.id + "publish"}
+                                            >
+                                                Publish
+                                            </button>
+                                            <button
+                                                className="btn btn-xs btn-ghost"
+                                                onClick={() => runAction(r.id, "revert-to-draft", "reverted to draft")}
+                                                disabled={actionBusy === r.id + "revert-to-draft"}
+                                            >
+                                                Revert
+                                            </button>
+                                        </>
+                                    )}
+                                    {r.status === "published" && (
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => runAction(r.id, "archive", "archived")}
+                                            disabled={actionBusy === r.id + "archive"}
+                                            style={{ color: "var(--text-faint)" }}
+                                        >
+                                            Archive
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            {isExpanded && (
+                                <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
+                                    {loadingContent && (
+                                        <div style={{ padding: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
+                                            Loading report...
+                                        </div>
+                                    )}
+                                    {!loadingContent && expandedContent && (
+                                        <ReportPreview content={expandedContent} warnings={warnings} />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function ReportPreview({ content, warnings }: { content: Record<string, unknown>; warnings: string[] }) {
+    const execSummary = String(content.execSummary || "");
+    const keyFindings = Array.isArray(content.keyFindings) ? (content.keyFindings as string[]) : [];
+    const sources = Array.isArray(content.sources) ? (content.sources as Array<{ title: string; url: string }>) : [];
+    const body = (content.fullReportContent as Record<string, unknown>) || {};
+    const sections = Array.isArray(body.sections) ? (body.sections as Array<Record<string, unknown>>) : [];
+    const conclusion = String(body.conclusion || "");
+    const methodology = String(content.methodology || "");
+    const dataRange = String(content.dataRange || "");
+    const sourceCount = Number(content.sourceCount || sources.length);
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Warnings */}
+            {warnings.length > 0 && (
+                <div style={{ padding: "12px 14px", background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.25)", borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#B45309", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+                        ⚠️ Review warnings ({warnings.length})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#78350F", lineHeight: 1.6 }}>
+                        {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                </div>
+            )}
+
+            {/* About */}
+            <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-faint)", flexWrap: "wrap", paddingBottom: 12, borderBottom: "1px solid var(--border-light)" }}>
+                <span><strong style={{ color: "var(--text)" }}>{sourceCount}</strong> sources cited</span>
+                <span>• Data range: <strong style={{ color: "var(--text)" }}>{dataRange}</strong></span>
+            </div>
+
+            {/* Executive Summary */}
+            <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                    Executive Summary
+                </div>
+                <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7 }}>{execSummary}</div>
+            </div>
+
+            {/* Key Findings */}
+            {keyFindings.length > 0 && (
+                <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                        Key Findings
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>
+                        {keyFindings.map((f, i) => <li key={i} style={{ marginBottom: 6 }}>{f}</li>)}
+                    </ul>
+                </div>
+            )}
+
+            {/* Sections */}
+            {sections.map((section, i) => (
+                <div key={i}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8, fontFamily: "var(--font-heading)" }}>
+                        {String(section.heading || "")}
+                    </div>
+                    {Array.isArray(section.paragraphs) && (section.paragraphs as string[]).map((p, j) => (
+                        <p key={j} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7, marginBottom: 8 }}>{p}</p>
+                    ))}
+                    {Array.isArray(section.bullets) && (section.bullets as string[]).length > 0 && (
+                        <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>
+                            {(section.bullets as string[]).map((b, j) => <li key={j} style={{ marginBottom: 4 }}>{b}</li>)}
+                        </ul>
+                    )}
+                </div>
+            ))}
+
+            {/* Conclusion */}
+            {conclusion && (
+                <div style={{ padding: "14px 16px", background: "rgba(37,99,235,0.06)", borderRadius: 8, borderLeft: "3px solid var(--primary)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                        Conclusion
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>{conclusion}</div>
+                </div>
+            )}
+
+            {/* Sources */}
+            {sources.length > 0 && (
+                <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                        Sources ({sources.length})
+                    </div>
+                    <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: "var(--text-light)", lineHeight: 1.6 }}>
+                        {sources.map((s, i) => (
+                            <li key={i} style={{ marginBottom: 6 }}>
+                                <a
+                                    href={s.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: "var(--primary)", textDecoration: "none" }}
+                                >
+                                    {s.title || s.url}
+                                </a>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            )}
+
+            {/* Methodology footer */}
+            {methodology && (
+                <div style={{ paddingTop: 12, borderTop: "1px solid var(--border-light)" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                        Methodology
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-faint)", lineHeight: 1.5 }}>{methodology}</div>
+                </div>
+            )}
         </div>
     );
 }

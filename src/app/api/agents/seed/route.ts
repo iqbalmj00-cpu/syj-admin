@@ -95,6 +95,31 @@ export async function POST() {
                     ],
                 },
             },
+            {
+                slug: "research_writer",
+                name: "Research Report Writer",
+                description: "Generates professional research PDFs via multi-query Perplexity research + Claude writing. Drafts saved for review; publishing commits JSON to scaleyourjunk.com reports page and uploads the PDF to Vercel Blob.",
+                schedule: null, // on-demand only
+                config: {
+                    target_word_count: 3000,
+                    default_report_type: "custom",
+                    allowed_report_types: [
+                        "market_analysis",
+                        "competitor_study",
+                        "trend_report",
+                        "operational_benchmark",
+                        "custom",
+                    ],
+                    allowed_categories: [
+                        "Missed Call Economics",
+                        "Speed-to-Lead",
+                        "SMS vs Email",
+                        "Star Ratings & Revenue",
+                        "Self-Booking Conversion",
+                        "Platform Consolidation",
+                    ],
+                },
+            },
         ];
 
         const results = [];

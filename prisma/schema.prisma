@@ -1571,6 +1571,7 @@ model SyjAgentRun {
   leads       ScrapedLead[]
   blogPosts   BlogPost[]
   generatedContent GeneratedContent[]
+  researchReports  ResearchReport[]
 
   @@index([agentId, startedAt])
 }
@@ -2316,4 +2317,76 @@ model TwilioSubAccount {
 
   @@index([smsEnabled])
   @@index([a2pStarted])
+}
+
+model ContentAsset {
+  id               String   @id @default(cuid())
+  type             String   @default("screenshot")  // "screenshot" | "before_image"
+  surface          String?                          // "admin_dashboard" | "driver_app" | "customer_portal" | "customer_website"
+  feature          String?                          // free text — e.g. "dispatch", "revenue", "booking"
+  state            String?  @db.Text                // human description of what's shown
+  storyTags        String[]                         // e.g. ["automation", "time_saved", "night_bookings"]
+  orientation      String                           // "desktop" | "desktop-lifestyle" | "mobile-portrait" | "tablet-landscape"
+  blobUrl          String                           // public Vercel Blob URL of the screenshot
+  annotationZones  Json?                            // optional {top-left: {x,y}, top-right: {x,y}, ...} for Feature Callout template
+  active           Boolean  @default(true)          // admin can toggle off without deleting
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([type])
+  @@index([orientation])
+  @@index([active])
+}
+
+model ResearchReport {
+  id                String       @id @default(cuid())
+  agentRunId        String?
+  agentRun          SyjAgentRun? @relation(fields: [agentRunId], references: [id])
+
+  // Report identity
+  slug              String       @unique
+  title             String
+  subtitle          String       @db.Text
+  category          String
+  categoryIcon      String
+  author            String       @default("Jamal Iqbal")
+
+  // Content
+  topic             String       @db.Text        // the research topic the user entered
+  reportType        String       @default("custom")  // market_analysis | competitor_study | trend_report | operational_benchmark | custom
+  excerpt           String       @db.Text        // 1-2 sentence card preview
+  execSummary       String       @db.Text        // 3-5 sentence paragraph for detail page
+  keyFindings       String[]                     // 4-6 bullets
+  fullReportContent Json                         // { sections: [{heading, paragraphs, bullets}], conclusion }
+
+  // About this report
+  sourceCount       Int          @default(0)
+  dataRange         String                       // e.g. "2024-2026"
+  methodology       String       @db.Text        // 1 paragraph
+  sources           Json                         // [{title, url, snippet}]
+
+  // SEO
+  keywords          String[]
+  metaDescription   String       @db.Text        // ≤160 chars
+
+  // PDF
+  pageCount         Int          @default(0)
+  pdfSizeMb         Float        @default(0)
+  draftPdfUrl       String?                      // URL of the PDF on Vercel Blob
+  publishedPdfUrl   String?                      // same URL once published (kept separate for audit)
+
+  // Workflow
+  status            String       @default("draft") // draft | approved | published | archived | rejected
+  warnings          Json?                        // validation warnings from generator
+  publishedAt       DateTime?
+  archivedAt        DateTime?
+  githubSha         String?                      // SHA of GitHub commit when published
+  rejectedReason    String?                      // optional note when user rejects a draft
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([agentRunId])
 }
