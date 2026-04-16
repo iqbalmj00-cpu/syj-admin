@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 /**
- * GET /api/agents/enrichment-data?secret=xxx&limit=200
+ * GET /api/agents/enrichment-data?secret=xxx&limit=500
  * Returns everything the standalone enrichment agent needs in one call:
  * - Un-enriched leads (or specific IDs)
  * - Existing client names/emails (for filtering)
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const limit = Math.min(parseInt(searchParams.get("limit") || "200"), 500);
+        const limit = Math.min(parseInt(searchParams.get("limit") || "500"), 1000);
         const leadIdsParam = searchParams.get("leadIds");
         const specificLeadIds = leadIdsParam ? leadIdsParam.split(",").filter(Boolean) : undefined;
 

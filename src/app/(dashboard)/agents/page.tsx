@@ -419,6 +419,7 @@ export default function AgentsPage() {
 function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void; onRefresh: () => void }) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
+    const [editSchedule, setEditSchedule] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [refreshingBlog, setRefreshingBlog] = useState(false);
 
@@ -426,6 +427,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
         if (expandedId === a.id) { setExpandedId(null); return; }
         setExpandedId(a.id);
         setEditConfig(a.config ? { ...a.config } : {});
+        setEditSchedule(a.schedule);
     };
 
     const saveConfig = async (agentId: string) => {
@@ -434,7 +436,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
             const res = await fetch(`/api/agents/${agentId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ config: editConfig }),
+                body: JSON.stringify({ config: editConfig, schedule: editSchedule }),
             });
             if (res.ok) { setExpandedId(null); window.location.reload(); }
         } catch { /* ignore */ }
@@ -518,6 +520,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                             <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>Configuration</div>
                                 <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} onRefreshBlog={a.slug === "blog_writer" ? refreshBlogConfig : undefined} refreshingBlog={refreshingBlog} />
+                                <ScheduleEditor schedule={editSchedule} onChange={setEditSchedule} />
                                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                                     <button className="btn btn-xs btn-primary" onClick={() => saveConfig(a.id)} disabled={saving}
                                         style={{ flex: 1 }}>{saving ? "Saving..." : "Save Config"}</button>
@@ -587,6 +590,99 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
     );
 }
 
+/* ─── Schedule Editor ───────────────────────────────────────────────── */
+
+function ScheduleEditor({ schedule, onChange }: { schedule: string | null; onChange: (v: string | null) => void }) {
+    const DAYS = [
+        { value: "1", label: "Mon" }, { value: "2", label: "Tue" }, { value: "3", label: "Wed" },
+        { value: "4", label: "Thu" }, { value: "5", label: "Fri" }, { value: "6", label: "Sat" }, { value: "0", label: "Sun" },
+    ];
+
+    // Parse current cron into UI state
+    const parsed = (() => {
+        if (!schedule) return { mode: "manual" as const, hour: 8, minute: 0, days: [] as string[] };
+        const parts = schedule.split(" ");
+        if (parts.length !== 5) return { mode: "manual" as const, hour: 8, minute: 0, days: [] as string[] };
+        const [min, hr, , , dow] = parts;
+        const hour = parseInt(hr) || 8;
+        const minute = parseInt(min) || 0;
+        if (dow === "*") return { mode: "daily" as const, hour, minute, days: [] as string[] };
+        return { mode: "specific" as const, hour, minute, days: dow.split(",") };
+    })();
+
+    const [mode, setMode] = useState<"manual" | "daily" | "specific">(parsed.mode);
+    const [hour, setHour] = useState(parsed.hour);
+    const [minute, setMinute] = useState(parsed.minute);
+    const [days, setDays] = useState<string[]>(parsed.days);
+
+    const buildCron = (m: string, h: number, min: number, d: string[]) => {
+        if (m === "manual") return null;
+        if (m === "daily") return `${min} ${h} * * *`;
+        if (d.length === 0) return null;
+        return `${min} ${h} * * ${d.join(",")}`;
+    };
+
+    const handleModeChange = (newMode: string) => {
+        const m = newMode as "manual" | "daily" | "specific";
+        setMode(m);
+        onChange(buildCron(m, hour, minute, days));
+    };
+
+    const handleHourChange = (h: number) => { setHour(h); onChange(buildCron(mode, h, minute, days)); };
+    const handleMinuteChange = (min: number) => { setMinute(min); onChange(buildCron(mode, hour, min, days)); };
+    const handleDayToggle = (day: string) => {
+        const next = days.includes(day) ? days.filter(d => d !== day) : [...days, day].sort();
+        setDays(next);
+        onChange(buildCron(mode, hour, minute, next));
+    };
+
+    const selectStyle = { padding: "5px 8px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
+
+    return (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border-light)" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", marginBottom: 8 }}>Schedule</div>
+            <select value={mode} onChange={e => handleModeChange(e.target.value)}
+                style={{ ...selectStyle, width: "100%", marginBottom: 8, cursor: "pointer" }}>
+                <option value="manual">Manual only (no schedule)</option>
+                <option value="daily">Every day</option>
+                <option value="specific">Specific days</option>
+            </select>
+
+            {mode === "specific" && (
+                <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
+                    {DAYS.map(d => (
+                        <button key={d.value} onClick={() => handleDayToggle(d.value)}
+                            style={{
+                                padding: "4px 10px", fontSize: 11, fontWeight: days.includes(d.value) ? 700 : 400,
+                                border: "1px solid", cursor: "pointer", borderRadius: 14,
+                                borderColor: days.includes(d.value) ? "var(--orange)" : "var(--border)",
+                                background: days.includes(d.value) ? "rgba(255,107,0,0.1)" : "transparent",
+                                color: days.includes(d.value) ? "var(--orange)" : "var(--text-light)",
+                            }}>{d.label}</button>
+                    ))}
+                </div>
+            )}
+
+            {mode !== "manual" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-light)" }}>
+                    <span>Run at</span>
+                    <select value={hour} onChange={e => handleHourChange(parseInt(e.target.value))} style={{ ...selectStyle, cursor: "pointer" }}>
+                        {Array.from({ length: 24 }, (_, i) => {
+                            const h12 = i === 0 ? 12 : i > 12 ? i - 12 : i;
+                            const ampm = i >= 12 ? "PM" : "AM";
+                            return <option key={i} value={i}>{h12} {ampm}</option>;
+                        })}
+                    </select>
+                    <span>:</span>
+                    <select value={minute} onChange={e => handleMinuteChange(parseInt(e.target.value))} style={{ ...selectStyle, width: 56, cursor: "pointer" }}>
+                        {[0, 15, 30, 45].map(m => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
+                    </select>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /* ─── Per-Agent Config Fields ───────────────────────────────────────── */
 
 function ConfigField({ label, children }: { label: string; children: React.ReactNode }) {
@@ -598,9 +694,9 @@ function ConfigField({ label, children }: { label: string; children: React.React
     );
 }
 
-function ConfigInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+function ConfigInput({ value, onChange, placeholder, type }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
     return (
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type || "text"}
             style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }} />
     );
 }
@@ -614,9 +710,18 @@ function ConfigToggle({ label, checked, onChange }: { label: string; checked: bo
     );
 }
 
+function ConfigNote({ children }: { children: React.ReactNode }) {
+    return (
+        <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8, padding: "8px 10px", background: "var(--surface)", borderRadius: 6, lineHeight: 1.5 }}>
+            {children}
+        </div>
+    );
+}
+
 function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBlog }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void; onRefreshBlog?: () => void; refreshingBlog?: boolean }) {
     const inputStyle = { width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
 
+    /* ── Lead Scraper ── */
     if (slug === "lead_scraper") {
         const markets = (config.markets as string[]) || ["Philadelphia", "Phoenix", "Jacksonville"];
         const [marketsText, setMarketsText] = useState(markets.join(", "));
@@ -624,48 +729,109 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
             <>
                 <ConfigField label="Search Keyword">
                     <select value={String(config.keyword || "junk removal")} onChange={e => onChange("keyword", e.target.value)}
-                        style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }}>
+                        style={{ ...inputStyle, cursor: "pointer" }}>
                         <option value="junk removal">Junk Removal</option>
                         <option value="dumpster rental">Dumpster Rental</option>
                     </select>
                 </ConfigField>
-                <ConfigField label="Markets (comma-separated)">
+                <ConfigField label="Markets (comma-separated city names)">
                     <input value={marketsText} onChange={e => setMarketsText(e.target.value)}
                         onBlur={() => onChange("markets", marketsText.split(",").map(s => s.trim()).filter(Boolean))}
                         placeholder="Philadelphia, San Antonio, Las Vegas"
-                        style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }} />
+                        style={inputStyle} />
                 </ConfigField>
                 <ConfigField label="Max Results Per Market">
                     <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
                 </ConfigField>
-                <ConfigToggle label="Use Grid Search (off = nationwide)" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
+                <ConfigToggle label="Use grid search (searches zip codes for deeper coverage)" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
+                <ConfigNote>
+                    Searches Google Maps for junk removal companies in each market. Results are deduplicated by Google Place ID so the same company is never added twice.
+                </ConfigNote>
             </>
         );
     }
 
+    /* ── Cold Outreach ── */
     if (slug === "cold_outreach") {
+        const emailSeq = (config.email_sequence as Array<{ day: number }>) || [{ day: 0 }, { day: 3 }, { day: 7 }];
         return (
             <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>Outreach Settings</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>Email Settings</div>
+                <ConfigField label="Daily Email Limit">
+                    <ConfigInput value={String(config.daily_email_limit || 200)} onChange={v => onChange("daily_email_limit", parseInt(v) || 200)} />
+                </ConfigField>
+                <ConfigField label="Email Sequence (days between emails)">
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {emailSeq.map((step, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                {i > 0 && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>→</span>}
+                                <div style={{ textAlign: "center" }}>
+                                    <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 2 }}>
+                                        {i === 0 ? "Intro" : i === 1 ? "Follow-up" : "Breakup"}
+                                    </div>
+                                    <input type="number" min={0} max={30} value={step.day}
+                                        onChange={e => {
+                                            const newSeq = [...emailSeq];
+                                            newSeq[i] = { ...newSeq[i], day: parseInt(e.target.value) || 0 };
+                                            onChange("email_sequence", newSeq);
+                                        }}
+                                        style={{ width: 44, padding: "4px 6px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" }} />
+                                    <div style={{ fontSize: 9, color: "var(--text-faint)", marginTop: 1 }}>day</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </ConfigField>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "14px 0 8px" }}>SMS Settings</div>
+                <ConfigField label="Daily SMS Limit">
+                    <ConfigInput value={String(config.daily_sms_limit || 30)} onChange={v => onChange("daily_sms_limit", parseInt(v) || 30)} />
+                </ConfigField>
+                <ConfigField label="SMS Follow-up After (days since first email)">
+                    <ConfigInput value={String(config.sms_followup_after_days || 5)} onChange={v => onChange("sms_followup_after_days", parseInt(v) || 5)} />
+                </ConfigField>
                 <ConfigField label="SMS Delay Between Messages (seconds)">
                     <ConfigInput value={String(config.sms_delay_seconds || 1)} onChange={v => onChange("sms_delay_seconds", parseInt(v) || 1)} />
                 </ConfigField>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", margin: "14px 0 8px" }}>Targeting</div>
                 <ConfigField label="Target Grades">
                     <ConfigInput value={String((config.target_grades as string[])?.join(", ") || "A, B")} onChange={v => onChange("target_grades", v.split(",").map((s: string) => s.trim()).filter(Boolean))} placeholder="A, B" />
                 </ConfigField>
-                <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--surface)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+
+                <ConfigNote>
                     <strong>How to send outreach:</strong><br />
                     1. Go to <strong>Groups tab</strong> → create a group<br />
                     2. Go to <strong>Scraped Leads</strong> → select leads → <strong>Add to Group</strong><br />
                     3. Back to <strong>Groups tab</strong> → click your group → <strong>Edit Template</strong><br />
-                    4. Write your message using variables: <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[company_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[city]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[market]</code><br />
+                    4. Write your message using variables: <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[company_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[city]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[market]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[pain_points]</code><br />
                     5. Click <strong>Send to Group</strong><br /><br />
                     <strong>Auto-replies:</strong> Toggle in the <strong>Messages tab</strong> sidebar. Claude reads the conversation and replies with a 3-5 minute delay.
-                </div>
+                </ConfigNote>
             </>
         );
     }
 
+    /* ── Lead Enrichment ── */
+    if (slug === "lead_enrichment") {
+        return (
+            <>
+                <ConfigField label="Leads Per Batch">
+                    <ConfigInput value={String(config.batch_size || 500)} onChange={v => onChange("batch_size", parseInt(v) || 500)} />
+                </ConfigField>
+                <ConfigToggle label="Auto-delete irrelevant leads (movers, cleaners, auto salvage, etc.)" checked={config.auto_delete_irrelevant !== false} onChange={v => onChange("auto_delete_irrelevant", v)} />
+                <ConfigToggle label="Skip leads that match existing SYJ clients" checked={config.skip_existing_clients !== false} onChange={v => onChange("skip_existing_clients", v)} />
+                <ConfigToggle label="Fetch Google Reviews (uses Outscraper API credits)" checked={config.fetch_reviews !== false} onChange={v => onChange("fetch_reviews", v)} />
+                <ConfigToggle label="Extract owner name from website" checked={config.extract_owner !== false} onChange={v => onChange("extract_owner", v)} />
+                <ConfigToggle label="Run SEO & UX scoring" checked={config.run_seo_scoring !== false} onChange={v => onChange("run_seo_scoring", v)} />
+                <ConfigNote>
+                    Enriches scraped leads with website analysis, SEO/UX scores, competitor detection, Google review intelligence, owner name extraction, and lead scoring (A/B/C grades). The agent runs locally — no timeout limit. Cancel anytime with the Stop button.
+                </ConfigNote>
+            </>
+        );
+    }
+
+    /* ── Content Generator ── */
     if (slug === "content_generator") {
         return (
             <>
@@ -710,6 +876,7 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
         );
     }
 
+    /* ── Facebook Scraper ── */
     if (slug === "facebook_scraper") {
         const keywords = (config.keywords as string[]) || ["junk removal", "dumpster rental"];
         const markets = (config.markets as string[]) || [];
@@ -735,24 +902,25 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 <ConfigField label="Max Follower Count (skip pages above this)">
                     <ConfigInput value={String(config.maxFollowers || 5000)} onChange={v => onChange("maxFollowers", parseInt(v) || 5000)} />
                 </ConfigField>
-                <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8, padding: "8px 10px", background: "var(--surface)", borderRadius: 6 }}>
+                <ConfigNote>
                     Each keyword is combined with each market (e.g. &quot;junk removal Houston TX&quot;). If no markets are set, keywords are searched without location targeting. Already-scraped pages are automatically skipped.
-                </div>
+                </ConfigNote>
             </>
         );
     }
 
+    /* ── Blog Writer ── */
     if (slug === "blog_writer") {
         const topicFocus = (config.topics as string[]) || [];
         const categories = (config.categories as string[]) || ["Industry Insights"];
         return (
             <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>📝 Blog Configuration</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>Blog Configuration</div>
                     {onRefreshBlog && (
                         <button className="btn btn-xs btn-ghost" onClick={onRefreshBlog} disabled={refreshingBlog}
                             style={{ fontSize: 11, padding: "4px 10px", color: "var(--orange)", border: "1px solid var(--orange)", borderRadius: 6 }}>
-                            {refreshingBlog ? "🔄 Generating..." : "🔄 Refresh with AI"}
+                            {refreshingBlog ? "Generating..." : "Refresh with AI"}
                         </button>
                     )}
                 </div>
@@ -764,7 +932,7 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                     </select>
                 </ConfigField>
                 <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 8, padding: "4px 8px", background: "rgba(255,107,0,0.06)", borderRadius: 4 }}>
-                    {config.target === "clients" ? "📌 Blogs will be published to SYJ client websites only" : "📌 Blogs will be published to SYJ website blog page only"}
+                    {config.target === "clients" ? "Blogs will be published to SYJ client websites only" : "Blogs will be published to SYJ website blog page only"}
                 </div>
                 <ConfigField label="Topic Focus Areas (comma-separated)">
                     <ConfigInput value={topicFocus.join(", ")} onChange={v => onChange("topics", v.split(",").map(s => s.trim()).filter(Boolean))}
@@ -791,13 +959,67 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
         );
     }
 
-    // Fallback: raw JSON editor
+    /* ── Research Report Writer ── */
+    if (slug === "research_writer") {
+        const ALL_CATEGORIES = [
+            "Missed Call Economics", "Speed-to-Lead", "SMS vs Email",
+            "Star Ratings & Revenue", "Self-Booking Conversion", "Platform Consolidation",
+        ];
+        const ALL_REPORT_TYPES = [
+            { value: "market_analysis", label: "Market Analysis" },
+            { value: "competitor_study", label: "Competitor Study" },
+            { value: "trend_report", label: "Trend Report" },
+            { value: "operational_benchmark", label: "Operational Benchmark" },
+            { value: "custom", label: "Custom" },
+        ];
+        const allowedCategories = (config.allowed_categories as string[]) || ALL_CATEGORIES;
+        const allowedTypes = (config.allowed_report_types as string[]) || ALL_REPORT_TYPES.map(t => t.value);
+
+        return (
+            <>
+                <ConfigField label="Target Word Count">
+                    <ConfigInput value={String(config.target_word_count || 3000)} onChange={v => onChange("target_word_count", parseInt(v) || 3000)} />
+                </ConfigField>
+                <ConfigField label="Default Report Type">
+                    <select value={String(config.default_report_type || "custom")} onChange={e => onChange("default_report_type", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}>
+                        {ALL_REPORT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                </ConfigField>
+                <ConfigField label="Author Name">
+                    <ConfigInput value={String(config.author || "ScaleYourJunk Research")} onChange={v => onChange("author", v)} placeholder="ScaleYourJunk Research" />
+                </ConfigField>
+
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", marginBottom: 6, marginTop: 14 }}>Allowed Report Types</div>
+                {ALL_REPORT_TYPES.map(t => (
+                    <ConfigToggle key={t.value} label={t.label} checked={allowedTypes.includes(t.value)}
+                        onChange={checked => {
+                            const next = checked ? [...allowedTypes, t.value] : allowedTypes.filter(v => v !== t.value);
+                            onChange("allowed_report_types", next);
+                        }} />
+                ))}
+
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", marginBottom: 6, marginTop: 14 }}>Allowed Categories</div>
+                {ALL_CATEGORIES.map(cat => (
+                    <ConfigToggle key={cat} label={cat} checked={allowedCategories.includes(cat)}
+                        onChange={checked => {
+                            const next = checked ? [...allowedCategories, cat] : allowedCategories.filter(c => c !== cat);
+                            onChange("allowed_categories", next);
+                        }} />
+                ))}
+
+                <ConfigNote>
+                    Generates research reports using Perplexity for web research and Claude for writing. Reports are saved as drafts — review and approve before publishing to the SYJ website.
+                </ConfigNote>
+            </>
+        );
+    }
+
+    // Fallback: show a simple message for any unknown agent type
     return (
-        <ConfigField label="Config (JSON)">
-            <textarea value={JSON.stringify(config, null, 2)} onChange={e => {
-                try { onChange("__raw__", JSON.parse(e.target.value)); } catch { /* ignore invalid json */ }
-            }} style={{ ...inputStyle, height: 120, fontFamily: "monospace", resize: "vertical" }} />
-        </ConfigField>
+        <ConfigNote>
+            This agent has no configurable settings. Use the Run Now button to trigger it manually, or set a schedule below.
+        </ConfigNote>
     );
 }
 
