@@ -87,12 +87,8 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const topic = String(body.topic || "").trim();
+        let topic = String(body.topic || "").trim();
         const reportType = String(body.reportType || "custom");
-
-        if (!topic) {
-            return NextResponse.json({ error: "topic is required" }, { status: 400 });
-        }
 
         // Look up the research_writer agent
         const agent = await prisma.syjAgent.findUnique({
@@ -103,6 +99,55 @@ export async function POST(req: NextRequest) {
                 { error: "research_writer agent not found — run the seed endpoint first" },
                 { status: 500 },
             );
+        }
+
+        // Auto-generate a topic if none provided
+        if (!topic) {
+            const anthropicKey = process.env.ANTHROPIC_API_KEY;
+            if (!anthropicKey) {
+                return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
+            }
+
+            // Get existing report topics to avoid duplicates
+            const existingReports = await prisma.researchReport.findMany({
+                select: { topic: true },
+                orderBy: { createdAt: "desc" },
+                take: 20,
+            });
+            const existingTopics = existingReports.map(r => r.topic).filter(Boolean);
+
+            const agentConfig = (agent.config || {}) as Record<string, unknown>;
+            const allowedCategories = (agentConfig.allowed_categories as string[]) || [
+                "Missed Call Economics", "Speed-to-Lead", "SMS vs Email",
+                "Star Ratings & Revenue", "Self-Booking Conversion", "Platform Consolidation",
+            ];
+
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 200,
+                    messages: [{
+                        role: "user",
+                        content: `You are a research topic planner for ScaleYourJunk, a SaaS platform for junk removal businesses. Pick ONE fresh, specific research topic that would be valuable for junk removal business owners.
+
+The report categories are: ${allowedCategories.join(", ")}
+
+${existingTopics.length > 0 ? `Avoid these topics that already have reports:\n${existingTopics.map(t => `- ${t}`).join("\n")}\n` : ""}
+Return ONLY the topic string, nothing else. Make it specific and data-driven, e.g. "How missed calls cost junk removal businesses $1,200/month in lost revenue" not just "missed calls".`,
+                    }],
+                }),
+            });
+
+            if (!res.ok) {
+                return NextResponse.json({ error: "Failed to auto-generate topic" }, { status: 500 });
+            }
+            const data = await res.json();
+            topic = (data.content?.[0]?.text || "").trim().replace(/^["']|["']$/g, "");
+            if (!topic) {
+                return NextResponse.json({ error: "Failed to auto-generate topic" }, { status: 500 });
+            }
         }
 
         // Create run record
@@ -119,10 +164,11 @@ export async function POST(req: NextRequest) {
         });
 
         // Run the generator synchronously (~60-90s typical)
+        const agentCfg = (agent.config || {}) as Record<string, unknown>;
         const config: ResearchReportConfig = {
             topic,
             reportType,
-            targetWordCount: 3000,
+            targetWordCount: (agentCfg.target_word_count as number) || 3000,
         };
 
         try {

@@ -287,10 +287,10 @@ export default function AgentsPage() {
                 return;
             }
 
-            // Research writer — needs a topic input, direct user to the Reports tab
+            // Research writer — direct user to the Reports tab where they can enter a topic or auto-generate
             if (agent.slug === "research_writer") {
                 setTab("research_reports");
-                showToast("Enter a topic in the Research Reports tab to generate");
+                showToast("Enter a topic or click Auto-Generate in the Research Reports tab");
                 return;
             }
 
@@ -2395,14 +2395,13 @@ function ResearchReportsTab({
 
     const generateReport = async () => {
         const trimmed = topic.trim();
-        if (!trimmed) { showToast("Enter a research topic first", "error"); return; }
         setGenerating(true);
-        showToast("Researching and writing report (60-120s)...");
+        showToast(trimmed ? "Researching and writing report (60-120s)..." : "Auto-picking topic and generating report (60-120s)...");
         try {
             const res = await fetch("/api/agents/research-reports", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ topic: trimmed, reportType }),
+                body: JSON.stringify({ topic: trimmed || "", reportType }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -2493,7 +2492,7 @@ function ResearchReportsTab({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "flex-end" }}>
                     <div>
                         <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", display: "block", marginBottom: 6 }}>
-                            Research Topic
+                            Research Topic <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>(optional — leave empty to auto-pick)</span>
                         </label>
                         <input
                             value={topic}
@@ -2521,14 +2520,16 @@ function ResearchReportsTab({
                     <button
                         className="btn btn-primary"
                         onClick={generateReport}
-                        disabled={generating || !topic.trim()}
-                        style={{ padding: "10px 24px", opacity: generating || !topic.trim() ? 0.5 : 1 }}
+                        disabled={generating}
+                        style={{ padding: "10px 24px", opacity: generating ? 0.5 : 1 }}
                     >
-                        {generating ? "Generating..." : "Generate Report"}
+                        {generating ? "Generating..." : topic.trim() ? "Generate Report" : "Auto-Generate Report"}
                     </button>
                 </div>
                 <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 10, lineHeight: 1.5 }}>
-                    Research takes ~60-120 seconds. Perplexity sonar-pro researches 4-5 sub-questions in parallel, Claude writes a 3000-word structured report with strict citation rules, then a branded PDF is generated and saved as a draft for review.
+                    {topic.trim()
+                        ? "Research takes ~60-120 seconds. Perplexity researches 4-5 sub-questions in parallel, Claude writes a structured report with strict citation rules, then a branded PDF is saved as a draft for review."
+                        : "Leave the topic empty and Claude will auto-pick a fresh topic based on your allowed categories, avoiding duplicates of existing reports. Research takes ~60-120 seconds."}
                 </div>
             </div>
 
