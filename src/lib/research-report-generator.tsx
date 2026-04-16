@@ -162,7 +162,7 @@ export async function generateResearchReport(
             `reports/${slug}.pdf`,
             pdfBuffer,
             {
-                access: "public",
+                access: "private",
                 contentType: "application/pdf",
                 allowOverwrite: true,
             },

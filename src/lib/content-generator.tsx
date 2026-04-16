@@ -114,7 +114,7 @@ export async function generateContent(
         // 5. Upload to Vercel Blob
         const filename = `content/generated/${platform}-${Date.now()}.png`;
         const blob = await put(filename, pngBuffer, {
-            access: "public",
+            access: "private",
             contentType: "image/png",
             allowOverwrite: false,
         });

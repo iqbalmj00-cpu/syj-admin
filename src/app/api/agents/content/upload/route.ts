@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(bytes);
         const filename = `content/${platform}-${Date.now()}.${imageFile.name.split(".").pop() || "png"}`;
         const blob = await put(filename, buffer, {
-            access: "public",
+            access: "private",
             contentType: imageFile.type || "image/png",
             allowOverwrite: true,
         });

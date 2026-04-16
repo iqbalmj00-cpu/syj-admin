@@ -132,7 +132,7 @@ export async function uploadToBlob(userId: string, filename: string, base64Data:
     const buffer = Buffer.from(base64Data, "base64");
     const path = `clients/${userId}/${filename}`;
     const blob = await put(path, buffer, {
-        access: "public",
+        access: "private",
         contentType: "image/png",
         allowOverwrite: true,
     });
