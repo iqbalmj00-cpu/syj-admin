@@ -880,19 +880,23 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
     if (slug === "facebook_scraper") {
         const keywords = (config.keywords as string[]) || ["junk removal", "dumpster rental"];
         const markets = (config.markets as string[]) || [];
+        const [keywordsText, setKeywordsText] = useState(keywords.join("\n"));
+        const [marketsText, setMarketsText] = useState(markets.join("\n"));
         return (
             <>
                 <ConfigField label="Search Keywords (one per line)">
                     <textarea
-                        value={keywords.join("\n")}
-                        onChange={e => onChange("keywords", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+                        value={keywordsText}
+                        onChange={e => setKeywordsText(e.target.value)}
+                        onBlur={() => onChange("keywords", keywordsText.split("\n").map(s => s.trim()).filter(Boolean))}
                         placeholder={"junk removal\ndumpster rental\nhauling service"}
                         style={{ ...inputStyle, height: 80, resize: "vertical", fontFamily: "monospace" }} />
                 </ConfigField>
                 <ConfigField label="Markets (one per line — e.g. &quot;Houston TX&quot;)">
                     <textarea
-                        value={markets.join("\n")}
-                        onChange={e => onChange("markets", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+                        value={marketsText}
+                        onChange={e => setMarketsText(e.target.value)}
+                        onBlur={() => onChange("markets", marketsText.split("\n").map(s => s.trim()).filter(Boolean))}
                         placeholder={"Houston TX\nDallas TX\nAtlanta GA\nPhoenix AZ"}
                         style={{ ...inputStyle, height: 100, resize: "vertical", fontFamily: "monospace" }} />
                 </ConfigField>
