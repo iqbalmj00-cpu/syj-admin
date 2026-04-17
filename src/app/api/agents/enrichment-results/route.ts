@@ -12,13 +12,16 @@ import { prisma } from "@/lib/prisma";
 const ALLOWED_FIELDS = new Set([
     "serviceTypes", "phoneType", "hasActiveWebsite",
     "usingCompetitor", "competitorPlatform",
-    "seoScore", "uiuxScore",
     "estimatedEmployees", "estimatedFleetSize",
     "serviceAreaCities", "serviceAreaSize", "enrichedAt", "isExistingClient",
     "city", "websiteScore", "leadScore", "grade", "qualification", "reasons", "painPoints",
-    "hasCta", "hasOnlineBooking", "hasQuoteForm", "mobileFriendly", "sslValid",
+    "hasCta", "hasOnlineBooking", "hasTrueOnlineBooking", "hasBookingCta",
+    "bookingPlatform", "bookingType", "bookingCtaTargetsPhone",
+    "bookingHasPhotoUpload", "bookingHasTimeslotSelection", "bookingFlowType",
+    "hasQuoteForm", "mobileFriendly", "sslValid",
     "loadTimeSeconds", "companyType",
-    "reviewsData", "lastReviewDate", "reviewVelocity90d",
+    "reviewsData", "reviewsAnalyzedCount", "positiveReviewCount", "negativeReviewCount",
+    "lastReviewDate", "reviewVelocity90d",
     "ownerResponseRate", "lastOwnerResponseDate",
     "ownerNameFromReviews", "reviewComplaints", "reviewPraise", "mentionedStaffNames",
     "hasGoogleAds", "hasFacebookPixel", "hasCallTracking", "callTrackingProvider",
@@ -26,8 +29,9 @@ const ALLOWED_FIELDS = new Set([
     "cmsDetected", "pageBuilder", "isDiyBuilder", "websiteBuiltBy",
     "hasFacebook", "facebookPageUrl", "hasYouTube", "youtubeChannelUrl",
     "marketCompetitorCount", "marketCompetitionLevel", "marketRankByReviews", "marketRankPercentile",
-    "yearsInBusiness", "isVeteranOwned", "isFamilyBusiness", "ownerBio",
-    "ownerName", "notesFlags", "serviceAreaDescription",
+    "yearsInBusiness", "foundedYear", "isVeteranOwned", "isFamilyBusiness", "ownerBio",
+    "ownerName", "ownerNameSource", "ownerNameSourceUrl",
+    "notesFlags", "serviceAreaDescription",
 ]);
 
 export async function POST(req: NextRequest) {

@@ -22,7 +22,6 @@ interface Lead {
     // Enrichment fields
     serviceTypes?: string[]; phoneType?: string | null; hasActiveWebsite?: boolean;
     usingCompetitor?: boolean; competitorPlatform?: string | null;
-    seoScore?: number | null; uiuxScore?: number | null;
     estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
     serviceAreaCities?: string[]; serviceAreaSize?: string | null;
     enrichedAt?: string | null; isExistingClient?: boolean;
@@ -1771,14 +1770,43 @@ interface GroupMember {
 }
 
 const TEMPLATE_VARS = [
+    // Identity
     { label: "Company", variable: "[company_name]" },
     { label: "Owner", variable: "[owner_name]" },
+    { label: "Owner First Name", variable: "[owner_first_name]" },
+    // Location + contact
     { label: "City", variable: "[city]" },
     { label: "Market", variable: "[market]" },
     { label: "Phone", variable: "[phone]" },
     { label: "Website", variable: "[website]" },
-    { label: "Grade", variable: "[grade]" },
     { label: "Email", variable: "[email]" },
+    { label: "Grade", variable: "[grade]" },
+    // Business profile
+    { label: "Founded", variable: "[founded_year]" },
+    { label: "Years in Business", variable: "[years_in_business]" },
+    // Reviews (raw)
+    { label: "Rating", variable: "[rating]" },
+    { label: "Review Count", variable: "[review_count]" },
+    { label: "Top Complaint", variable: "[top_complaint]" },
+    { label: "Top 3 Complaints", variable: "[top_complaints]" },
+    { label: "Owner Response Rate", variable: "[owner_response_rate]" },
+    { label: "Days Since Last Review", variable: "[days_since_last_review]" },
+    { label: "Days Since Last Owner Response", variable: "[days_since_last_owner_response]" },
+    // Review pains (only render when pain exists)
+    { label: "Dormant Reviews Pain", variable: "[dormant_reviews_pain]" },
+    { label: "Low Response Rate Pain", variable: "[low_response_rate_pain]" },
+    { label: "Negative Reviews Pain", variable: "[negative_reviews_pain]" },
+    { label: "Stale Owner Response Pain", variable: "[stale_owner_response_pain]" },
+    { label: "Complaint Themes Pain", variable: "[complaint_themes_pain]" },
+    { label: "Last Review Pain", variable: "[last_review_pain]" },
+    { label: "All Review Pain Points", variable: "[review_pain_points]" },
+    // Competitive
+    { label: "Competitor Platform", variable: "[competitor_platform]" },
+    { label: "Booking Platform", variable: "[booking_platform]" },
+    { label: "Booking Flow Type", variable: "[booking_flow_type]" },
+    { label: "CMS", variable: "[cms]" },
+    // Aggregate
+    { label: "All Pain Points", variable: "[pain_points]" },
 ];
 
 function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => void }) {

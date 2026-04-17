@@ -4,22 +4,51 @@ import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/lead-groups/send
- * Send the group's template message to all members via SMS.
- * Replaces variables: [company_name], [owner_name], [city], [market], [phone], [website], [grade], [email]
+ * Send the group's template message to all members via SMS or email.
+ *
+ * Supported template variables (see VARIABLE_MAP for full list):
+ *   Identity:   [company_name], [owner_name], [owner_first_name]
+ *   Location:   [city], [market]
+ *   Contact:    [phone], [website], [email]
+ *   Grading:    [grade]
+ *   Business:   [founded_year], [years_in_business]
+ *   Reviews:    [rating], [review_count], [top_complaint], [top_complaints],
+ *               [owner_response_rate], [days_since_last_review], [days_since_last_owner_response]
+ *   Review pain (empty when not applicable):
+ *               [dormant_reviews_pain], [low_response_rate_pain], [negative_reviews_pain],
+ *               [stale_owner_response_pain], [complaint_themes_pain], [last_review_pain],
+ *               [review_pain_points]
+ *   Competitive: [competitor_platform], [booking_platform], [booking_flow_type], [cms]
+ *   Aggregate:   [pain_points]
  */
 
 export const maxDuration = 300;
 
-// Pain points to include in outreach messages (filtered from full list)
+// ── Pain points filter — matches the current enrichment output ──
+// (SEO-specific pain points removed from the enrichment agent — don't include them here either)
 const OUTREACH_PAIN_POINTS = [
     "No online booking capability",
-    "No new reviews in 90 days (dormant)",
-    "No structured data (JSON-LD)",
-    "No sitemap reference",
+    "No clear call-to-action on website",
+    "No quote request form",
+    "No active website",
+    "Website not using HTTPS",
+    "Website not mobile-friendly",
+    "No Facebook business page linked",
+    "Not running Google Ads",
+    "No digital marketing tools detected",
+    "No Google Analytics tracking",
+    "'Book Now' button just dials a phone number (no real online booking)",
+    "'Book Now' CTA exists but no actual booking system",
 ];
-// These are prefix-matched (e.g. "Low review response rate (0%)" matches "Low review response rate")
+// Prefix-matched — matches "Low review response rate (34%)" / "Using Jobber for booking..." etc.
 const OUTREACH_PAIN_POINT_PREFIXES = [
     "Low review response rate",
+    "DIY website built on",
+    "Slow website",
+    "Customer complaints:",
+    "Currently using ",         // competitor CRM
+    "Using ",                   // booking platform displacement
+    "No new reviews",
 ];
 
 function formatPainPoints(painPoints: unknown): string {
@@ -31,18 +60,144 @@ function formatPainPoints(painPoints: unknown): string {
         return false;
     });
     if (filtered.length === 0) return "";
-    return filtered.map((p: string) => `• ${p}`).join("\n") + "\n... and more";
+    return filtered.map((p: string) => `• ${p}`).join("\n");
+}
+
+// ── Helpers for composing review pain sentences ──
+
+function daysSince(dateValue: unknown): number | null {
+    if (!dateValue) return null;
+    const dt = dateValue instanceof Date ? dateValue : new Date(String(dateValue));
+    if (isNaN(dt.getTime())) return null;
+    return Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function firstName(fullName: unknown): string {
+    const str = String(fullName || "").trim();
+    if (!str) return "";
+    return str.split(/\s+/)[0];
+}
+
+function composeDormantReviewsPain(l: Record<string, unknown>): string {
+    const velocity = Number(l.reviewVelocity90d);
+    const total = Number(l.reviewCount);
+    if (total > 0 && velocity === 0) {
+        return `You haven't received a new Google review in 90+ days despite having ${total} total.`;
+    }
+    return "";
+}
+
+function composeLowResponseRatePain(l: Record<string, unknown>): string {
+    const rate = typeof l.ownerResponseRate === "number" ? l.ownerResponseRate : null;
+    if (rate === null || rate >= 0.3) return "";
+    return `Only ${Math.round(rate * 100)}% of your reviews get a response from you.`;
+}
+
+function composeNegativeReviewsPain(l: Record<string, unknown>): string {
+    const negative = Number(l.negativeReviewCount);
+    const analyzed = Number(l.reviewsAnalyzedCount);
+    const complaints = Array.isArray(l.reviewComplaints) ? (l.reviewComplaints as string[]) : [];
+    if (!negative || negative <= 0) return "";
+    const topComplaints = complaints.slice(0, 3).join(", ");
+    const complaintsText = topComplaints ? ` Customers mention: ${topComplaints}.` : "";
+    const analyzedText = analyzed > 0 ? ` of your last ${analyzed} reviews` : "";
+    return `${negative} 1-3 star reviews${analyzedText}.${complaintsText}`;
+}
+
+function composeStaleOwnerResponsePain(l: Record<string, unknown>): string {
+    const days = daysSince(l.lastOwnerResponseDate);
+    if (days === null || days < 60) return "";
+    return `Your last Google review response was ${days} days ago.`;
+}
+
+function composeComplaintThemesPain(l: Record<string, unknown>): string {
+    const complaints = Array.isArray(l.reviewComplaints) ? (l.reviewComplaints as string[]) : [];
+    if (complaints.length === 0) return "";
+    const top = complaints.slice(0, 3).join(", ");
+    return `Your recent Google reviews mention recurring complaints: ${top}.`;
+}
+
+function composeLastReviewPain(l: Record<string, unknown>): string {
+    const days = daysSince(l.lastReviewDate);
+    if (days === null || days < 60) return "";
+    return `Your last Google review was ${days} days ago.`;
+}
+
+function composeReviewPainPoints(l: Record<string, unknown>): string {
+    const parts: string[] = [];
+    const dormant = composeDormantReviewsPain(l);
+    if (dormant) parts.push(dormant);
+    const negative = composeNegativeReviewsPain(l);
+    if (negative) parts.push(negative);
+    const lowResponse = composeLowResponseRatePain(l);
+    if (lowResponse) parts.push(lowResponse);
+    const stale = composeStaleOwnerResponsePain(l);
+    if (stale) parts.push(stale);
+    const lastReview = composeLastReviewPain(l);
+    // Only include last-review pain if dormant isn't already saying it
+    if (lastReview && !dormant) parts.push(lastReview);
+    if (parts.length === 0) return "";
+    return parts.map(p => `• ${p}`).join("\n");
+}
+
+function formatBookingFlowType(type: unknown): string {
+    const map: Record<string, string> = {
+        photo_upload: "photo upload only",
+        timeslot_selection: "timeslot selection only",
+        photo_and_timeslot: "photo upload + timeslot selection",
+        other: "a basic booking form",
+    };
+    const key = String(type || "").trim();
+    return map[key] || "";
 }
 
 const VARIABLE_MAP: Record<string, (lead: Record<string, unknown>) => string> = {
+    // ── Identity ──
     "[company_name]": (l) => String(l.name || ""),
-    "[owner_name]": (l) => String(l.ownerName || l.name || "").split(" ")[0],
-    "[city]": (l) => String(l.city || ""),
+    "[owner_name]": (l) => String(l.ownerName || "").trim() || "there",
+    "[owner_first_name]": (l) => firstName(l.ownerName) || "there",
+
+    // ── Location ──
+    "[city]": (l) => String(l.city || l.market || ""),
     "[market]": (l) => String(l.market || ""),
+
+    // ── Contact ──
     "[phone]": (l) => String(l.phone || ""),
     "[website]": (l) => String(l.website || ""),
-    "[grade]": (l) => String(l.grade || ""),
     "[email]": (l) => String(l.email || ""),
+
+    // ── Grading ──
+    "[grade]": (l) => String(l.grade || ""),
+
+    // ── Business profile ──
+    "[founded_year]": (l) => l.foundedYear ? String(l.foundedYear) : "",
+    "[years_in_business]": (l) => l.yearsInBusiness ? `${l.yearsInBusiness} years` : "",
+
+    // ── Review raw data ──
+    "[rating]": (l) => l.rating != null ? String(l.rating) : "",
+    "[review_count]": (l) => l.reviewCount != null ? String(l.reviewCount) : "",
+    "[top_complaint]": (l) => Array.isArray(l.reviewComplaints) && (l.reviewComplaints as string[])[0] ? String((l.reviewComplaints as string[])[0]) : "",
+    "[top_complaints]": (l) => Array.isArray(l.reviewComplaints) ? (l.reviewComplaints as string[]).slice(0, 3).join(", ") : "",
+    "[owner_response_rate]": (l) => typeof l.ownerResponseRate === "number" ? `${Math.round(l.ownerResponseRate * 100)}%` : "",
+    "[days_since_last_review]": (l) => { const d = daysSince(l.lastReviewDate); return d !== null ? String(d) : ""; },
+    "[days_since_last_owner_response]": (l) => { const d = daysSince(l.lastOwnerResponseDate); return d !== null ? String(d) : ""; },
+
+    // ── Review pre-composed pain sentences (empty when not applicable) ──
+    "[dormant_reviews_pain]": composeDormantReviewsPain,
+    "[low_response_rate_pain]": composeLowResponseRatePain,
+    "[negative_reviews_pain]": composeNegativeReviewsPain,
+    "[stale_owner_response_pain]": composeStaleOwnerResponsePain,
+    "[complaint_themes_pain]": composeComplaintThemesPain,
+    "[last_review_pain]": composeLastReviewPain,
+    "[review_pain_points]": composeReviewPainPoints,
+
+    // ── Competitive intelligence ──
+    "[competitor_platform]": (l) => String(l.competitorPlatform || ""),
+    "[booking_platform]": (l) => { const p = String(l.bookingPlatform || ""); return p && p !== "Custom (native form)" ? p : ""; },
+    "[booking_flow_type]": (l) => formatBookingFlowType(l.bookingFlowType),
+    "[cms]": (l) => String(l.cmsDetected || ""),
+
+    // ── Aggregate pain points ──
     "[pain_points]": (l) => formatPainPoints(l.painPoints),
 };
 
@@ -70,9 +225,24 @@ export async function POST(req: NextRequest) {
                     include: {
                         lead: {
                             select: {
+                                // Identity + contact
                                 id: true, name: true, phone: true, email: true, website: true,
                                 city: true, market: true, grade: true, ownerName: true,
-                                outreachStatus: true, smsOptOut: true, painPoints: true,
+                                // Outreach status
+                                outreachStatus: true, smsOptOut: true,
+                                // Aggregate
+                                painPoints: true,
+                                // Business profile
+                                foundedYear: true, yearsInBusiness: true,
+                                // Reviews
+                                rating: true, reviewCount: true, reviewsAnalyzedCount: true,
+                                positiveReviewCount: true, negativeReviewCount: true,
+                                reviewVelocity90d: true, lastReviewDate: true,
+                                ownerResponseRate: true, lastOwnerResponseDate: true,
+                                reviewComplaints: true,
+                                // Competitive intelligence
+                                competitorPlatform: true, bookingPlatform: true, bookingFlowType: true,
+                                cmsDetected: true,
                             },
                         },
                     },

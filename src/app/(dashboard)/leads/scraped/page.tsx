@@ -12,7 +12,6 @@ interface Lead {
     // Enrichment fields
     serviceTypes?: string[]; phoneType?: string | null; hasActiveWebsite?: boolean;
     usingCompetitor?: boolean; competitorPlatform?: string | null;
-    seoScore?: number | null; uiuxScore?: number | null;
     estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
     serviceAreaCities?: string[]; serviceAreaSize?: string | null;
     enrichedAt?: string | null; isExistingClient?: boolean;
@@ -61,6 +60,15 @@ export default function ScrapedLeadsPage() {
     const [sourceFilter, setSourceFilter] = useState("all");
     const [diyFilter, setDiyFilter] = useState("all");
     const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
+    // Segmentation filters — review / business age / booking
+    const [reviewPainFilter, setReviewPainFilter] = useState("all");
+    const [reviewCountRangeFilter, setReviewCountRangeFilter] = useState("all");
+    const [ownerResponseRateFilter, setOwnerResponseRateFilter] = useState("all");
+    const [lastReviewWithinDays, setLastReviewWithinDays] = useState("all");
+    const [yearsInBusinessRangeFilter, setYearsInBusinessRangeFilter] = useState("all");
+    const [hasTrueBookingFilter, setHasTrueBookingFilter] = useState("all");
+    const [bookingFlowTypeFilter, setBookingFlowTypeFilter] = useState("all");
+    const [showSegmentFilters, setShowSegmentFilters] = useState(false);
     const LEADS_PER_PAGE = 50;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -97,6 +105,14 @@ export default function ScrapedLeadsPage() {
             if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
             if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
             if (serviceTypeFilter !== "all") params.set("serviceType", serviceTypeFilter);
+            // Segmentation filters
+            if (reviewPainFilter !== "all") params.set("reviewPain", reviewPainFilter);
+            if (reviewCountRangeFilter !== "all") params.set("reviewCountRange", reviewCountRangeFilter);
+            if (ownerResponseRateFilter !== "all") params.set("ownerResponseRateBucket", ownerResponseRateFilter);
+            if (lastReviewWithinDays !== "all") params.set("lastReviewWithinDays", lastReviewWithinDays);
+            if (yearsInBusinessRangeFilter !== "all") params.set("yearsInBusinessRange", yearsInBusinessRangeFilter);
+            if (hasTrueBookingFilter !== "all") params.set("hasTrueOnlineBooking", hasTrueBookingFilter);
+            if (bookingFlowTypeFilter !== "all") params.set("bookingFlowType", bookingFlowTypeFilter);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -113,7 +129,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -195,11 +211,16 @@ export default function ScrapedLeadsPage() {
             });
             const data = await res.json();
             if (res.ok) {
-                showToast(`Enriched ${data.enriched} lead(s), ${data.skippedExistingClients} existing clients filtered`);
+                showToast(data.message || `Enrichment queued for ${data.queued || selectedIds.size} lead(s). Watch the Agents tab for progress.`);
                 setSelectedIds(new Set());
-                fetchLeads();
-            } else showToast(data.error || "Enrichment failed", "error");
-        } catch { showToast("Enrichment failed", "error"); }
+                // Refresh leads after a short delay so the enriched state starts showing
+                setTimeout(() => fetchLeads(), 2000);
+            } else {
+                showToast(data.error || "Enrichment failed to queue", "error");
+            }
+        } catch {
+            showToast("Enrichment failed — is the local agent running?", "error");
+        }
         setEnriching(false);
     };
 
@@ -399,6 +420,141 @@ export default function ScrapedLeadsPage() {
                 </select>
             </div>
 
+            {/* Segment Filters — collapsible */}
+            <div style={{ background: "var(--white)", border: "1px solid var(--border-light)", borderRadius: 8 }}>
+                <button
+                    onClick={() => setShowSegmentFilters(s => !s)}
+                    style={{
+                        width: "100%", padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        background: "transparent", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--text-light)",
+                    }}>
+                    <span>🎯 Segment Filters (Reviews · Business Age · Booking)
+                        {(() => {
+                            const active = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter].filter(f => f !== "all").length;
+                            return active > 0 ? <span style={{ marginLeft: 6, padding: "1px 6px", fontSize: 10, background: "var(--orange)", color: "#fff", borderRadius: 10, fontWeight: 700 }}>{active}</span> : null;
+                        })()}
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{showSegmentFilters ? "▲ Hide" : "▼ Show"}</span>
+                </button>
+
+                {showSegmentFilters && (
+                    <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 10 }}>
+                        {/* Review pains — toggle chips */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Review Pain:</span>
+                            {[
+                                { value: "dormant_reviews", label: "📉 Dormant (no reviews 90d)" },
+                                { value: "low_response_rate", label: "💬 Low Response Rate (<30%)" },
+                                { value: "negative_reviews", label: "⚠️ Has Negative Reviews" },
+                                { value: "has_complaints", label: "😠 Has Recurring Complaints" },
+                                { value: "stale_owner_response", label: "🕒 Stale Owner Response (60d+)" },
+                                { value: "stale_last_review", label: "📅 Stale Last Review (60d+)" },
+                            ].map(p => (
+                                <button key={p.value}
+                                    onClick={() => setReviewPainFilter(reviewPainFilter === p.value ? "all" : p.value)}
+                                    style={{
+                                        padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 14, cursor: "pointer",
+                                        border: `1px solid ${reviewPainFilter === p.value ? "var(--orange)" : "var(--border)"}`,
+                                        background: reviewPainFilter === p.value ? "rgba(255,107,0,0.08)" : "transparent",
+                                        color: reviewPainFilter === p.value ? "var(--orange)" : "var(--text-light)",
+                                    }}>
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Dropdowns row — review count, response rate, last review, years in business, booking, flow type */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Review count:</span>
+                                <select value={reviewCountRangeFilter} onChange={e => setReviewCountRangeFilter(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="0-10">0–10</option>
+                                    <option value="11-50">11–50</option>
+                                    <option value="51-200">51–200</option>
+                                    <option value="200+">200+</option>
+                                </select>
+                            </label>
+
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Response rate:</span>
+                                <select value={ownerResponseRateFilter} onChange={e => setOwnerResponseRateFilter(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="low">Low (&lt;30%)</option>
+                                    <option value="medium">Medium (30–60%)</option>
+                                    <option value="high">High (60%+)</option>
+                                </select>
+                            </label>
+
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Last review within:</span>
+                                <select value={lastReviewWithinDays} onChange={e => setLastReviewWithinDays(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="15">15 days</option>
+                                    <option value="30">30 days</option>
+                                    <option value="45">45 days</option>
+                                    <option value="60">60 days</option>
+                                    <option value="90">90 days</option>
+                                </select>
+                            </label>
+
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Years in business:</span>
+                                <select value={yearsInBusinessRangeFilter} onChange={e => setYearsInBusinessRangeFilter(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="<1">Less than 1 year</option>
+                                    <option value="1-5">1–5 years</option>
+                                    <option value="5-10">5–10 years</option>
+                                    <option value="10+">10+ years</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                            </label>
+
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Has booking:</span>
+                                <select value={hasTrueBookingFilter} onChange={e => setHasTrueBookingFilter(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="true">Yes (true booking)</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </label>
+
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Booking flow:</span>
+                                <select value={bookingFlowTypeFilter} onChange={e => setBookingFlowTypeFilter(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="photo_upload">📷 Photo upload only</option>
+                                    <option value="timeslot_selection">🗓️ Timeslot only</option>
+                                    <option value="photo_and_timeslot">📷🗓️ Photo + Timeslot</option>
+                                    <option value="other">Other / Basic form</option>
+                                    <option value="none">No booking at all</option>
+                                </select>
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    setReviewPainFilter("all");
+                                    setReviewCountRangeFilter("all");
+                                    setOwnerResponseRateFilter("all");
+                                    setLastReviewWithinDays("all");
+                                    setYearsInBusinessRangeFilter("all");
+                                    setHasTrueBookingFilter("all");
+                                    setBookingFlowTypeFilter("all");
+                                }}
+                                style={{ padding: "3px 10px", fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>
+                                Clear segment filters
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Bulk Actions Bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, minHeight: 44 }}>
                 {selectedIds.size > 0 ? (
@@ -489,8 +645,6 @@ export default function ScrapedLeadsPage() {
                             <th style={{ width: 70 }}>Services</th>
                             <th>Website</th>
                             <th style={{ width: 55 }}>Phone</th>
-                            <SortHeader label="SEO" field="seoScore" w={40} />
-                            <SortHeader label="UX" field="uiuxScore" w={40} />
                             <th style={{ width: 40 }}>Mkt</th>
                             <th style={{ width: 65 }}>CMS</th>
                             <th style={{ width: 70 }}>Competitor</th>
@@ -542,8 +696,6 @@ export default function ScrapedLeadsPage() {
                                         ✉
                                     </span>
                                 </td>
-                                <td style={{ fontSize: 12, fontWeight: 600, color: l.seoScore != null ? (l.seoScore >= 60 ? "var(--success)" : l.seoScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.seoScore ?? "—"}</td>
-                                <td style={{ fontSize: 12, fontWeight: 600, color: l.uiuxScore != null ? (l.uiuxScore >= 60 ? "var(--success)" : l.uiuxScore >= 30 ? "var(--warn-dark)" : "var(--danger)") : "var(--text-faint)" }}>{l.uiuxScore ?? "—"}</td>
                                 <td style={{ fontSize: 11, fontWeight: 600, color: (l as any).marketingMaturityScore != null ? ((l as any).marketingMaturityScore >= 50 ? "var(--success)" : (l as any).marketingMaturityScore >= 20 ? "var(--warn-dark)" : "var(--text-faint)") : "var(--text-faint)" }}>{(l as any).marketingMaturityScore ?? "—"}</td>
                                 <td style={{ fontSize: 10, color: "var(--text-light)" }}>
                                     {(l as any).cmsDetected ? <span>{(l as any).cmsDetected}{(l as any).isDiyBuilder ? <span style={{ color: "var(--orange)", marginLeft: 2 }}>DIY</span> : ""}</span> : "—"}
@@ -585,8 +737,11 @@ export default function ScrapedLeadsPage() {
                                                 ["Email", l.email],
                                                 ["Website", l.website],
                                                 ["Owner", (l as any).ownerName || (l as any).ownerNameFromReviews],
+                                                ["Owner Source", (l as any).ownerNameSource ? ({ website: "Website", reviews: "Google Reviews", web_search: "Web Search", facebook: "Facebook" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
+                                                ["Owner Source URL", (l as any).ownerNameSourceUrl],
                                                 ["Owner Bio", (l as any).ownerBio],
-                                                ["Years in Business", (l as any).yearsInBusiness],
+                                                ["Founded", (l as any).foundedYear],
+                                                ["Years in Business", (l as any).yearsInBusiness ? `${(l as any).yearsInBusiness} years` : null],
                                                 ["Veteran Owned", (l as any).isVeteranOwned ? "Yes" : null],
                                                 ["Family Business", (l as any).isFamilyBusiness ? "Yes" : null],
                                                 ["Employees", (l as any).estimatedEmployees],
@@ -608,12 +763,17 @@ export default function ScrapedLeadsPage() {
                                         <div>
                                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Website & Tech</div>
                                             {[
-                                                ["SEO Score", l.seoScore != null ? `${l.seoScore}/100` : null],
-                                                ["UX Score", l.uiuxScore != null ? `${l.uiuxScore}/100` : null],
                                                 ["CMS", (l as any).cmsDetected],
                                                 ["Page Builder", (l as any).pageBuilder],
                                                 ["Built By", (l as any).websiteBuiltBy],
-                                                ["Online Booking", (l as any).hasOnlineBooking ? "Yes" : "No"],
+                                                ["True Online Booking", (l as any).hasTrueOnlineBooking ? "Yes" : ((l as any).hasOnlineBooking !== undefined ? "No" : null)],
+                                                ["Booking Platform", (l as any).bookingPlatform],
+                                                ["Booking Type", (l as any).bookingType && (l as any).bookingType !== "none" ? ({ embed: "Embedded widget", external_link: "External link", native_form: "Native date/time form", cta_only: "CTA text only (no real booking)" } as Record<string, string>)[(l as any).bookingType] || (l as any).bookingType : null],
+                                                ["Booking Flow", (l as any).bookingFlowType ? ({ photo_upload: "📷 Photo upload only", timeslot_selection: "🗓️ Timeslot only", photo_and_timeslot: "📷🗓️ Photo + Timeslot", other: "Other" } as Record<string, string>)[(l as any).bookingFlowType] || (l as any).bookingFlowType : null],
+                                                ["  ↳ Has Photo Upload", (l as any).bookingHasPhotoUpload ? "Yes" : null],
+                                                ["  ↳ Has Timeslot Picker", (l as any).bookingHasTimeslotSelection ? "Yes" : null],
+                                                ["'Book Now' CTA", (l as any).hasBookingCta ? "Yes" : null],
+                                                ["Misleading CTA (dials phone)", (l as any).bookingCtaTargetsPhone ? "⚠️ Yes — 'Book Now' dials phone" : null],
                                                 ["Quote Form", (l as any).hasQuoteForm ? "Yes" : "No"],
                                                 ["CTA", (l as any).hasCta ? "Yes" : "No"],
                                                 ["Mobile Friendly", (l as any).mobileFriendly ? "Yes" : "No"],
@@ -640,8 +800,15 @@ export default function ScrapedLeadsPage() {
                                                 ["Chat Widget", (l as any).chatWidgetName || ((l as any).hasChatWidget ? "Yes" : null)],
                                                 ["Facebook Page", (l as any).hasFacebook ? "Linked" : null],
                                                 ["YouTube", (l as any).hasYouTube ? "Linked" : null],
-                                                ["Reviews (90d)", (l as any).reviewVelocity90d != null ? String((l as any).reviewVelocity90d) : null],
-                                                ["Owner Response", (l as any).ownerResponseRate != null ? `${Math.round((l as any).ownerResponseRate * 100)}%` : null],
+                                                ["Total Reviews on Google", (l as any).reviewCount != null ? String((l as any).reviewCount) : null],
+                                                ["Google Rating", (l as any).rating != null ? `${(l as any).rating}★` : null],
+                                                ["Reviews Analyzed", (l as any).reviewsAnalyzedCount != null ? `${(l as any).reviewsAnalyzedCount} most recent` : null],
+                                                ["  ↳ Positive (4-5★)", (l as any).positiveReviewCount != null ? String((l as any).positiveReviewCount) : null],
+                                                ["  ↳ Negative (1-3★)", (l as any).negativeReviewCount != null ? String((l as any).negativeReviewCount) : null],
+                                                ["Reviews (last 90d)", (l as any).reviewVelocity90d != null ? String((l as any).reviewVelocity90d) : null],
+                                                ["Last Review Date", (l as any).lastReviewDate ? new Date((l as any).lastReviewDate).toLocaleDateString() : null],
+                                                ["Owner Response Rate", (l as any).ownerResponseRate != null ? `${Math.round((l as any).ownerResponseRate * 100)}% of ${(l as any).reviewsAnalyzedCount || "analyzed"}` : null],
+                                                ["Last Owner Response", (l as any).lastOwnerResponseDate ? new Date((l as any).lastOwnerResponseDate).toLocaleDateString() : null],
                                                 ["Competitors Nearby", (l as any).marketCompetitorCount != null ? `${(l as any).marketCompetitorCount} (${(l as any).marketCompetitionLevel})` : null],
                                                 ["Market Rank", (l as any).marketRankByReviews != null ? `#${(l as any).marketRankByReviews}` : null],
                                             ].filter(([, v]) => v != null).map(([label, value]) => (

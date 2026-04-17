@@ -38,7 +38,24 @@ export async function GET(req: NextRequest) {
     const discoveredVia = searchParams.get("discoveredVia");
     const isDiyBuilder = searchParams.get("isDiyBuilder");
 
-    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "seoScore", "uiuxScore", "enrichedAt"];
+    // ── New segmentation filters ──
+    // Review pain filters (single value — each targets one specific pain)
+    // Values: "dormant_reviews" | "low_response_rate" | "negative_reviews" | "stale_owner_response" | "has_complaints" | "stale_last_review"
+    const reviewPain = searchParams.get("reviewPain");
+    // Review count bucket — "0-10" | "11-50" | "51-200" | "200+"
+    const reviewCountRange = searchParams.get("reviewCountRange");
+    // Owner response rate bucket — "low" (<30%) | "medium" (30-60%) | "high" (60%+)
+    const ownerResponseRateBucket = searchParams.get("ownerResponseRateBucket");
+    // Last review recency
+    const lastReviewWithinDays = searchParams.get("lastReviewWithinDays");
+    const lastReviewOlderThanDays = searchParams.get("lastReviewOlderThanDays");
+    // Years in business bucket — "<1" | "1-5" | "5-10" | "10+" | "unknown"
+    const yearsInBusinessRange = searchParams.get("yearsInBusinessRange");
+    // Booking filters
+    const hasTrueOnlineBooking = searchParams.get("hasTrueOnlineBooking"); // "true" | "false"
+    const bookingFlowType = searchParams.get("bookingFlowType"); // "photo_upload" | "timeslot_selection" | "photo_and_timeslot" | "other" | "none"
+
+    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
 
     try {
@@ -70,6 +87,93 @@ export async function GET(req: NextRequest) {
         if (discoveredVia) where.discoveredVia = discoveredVia;
         if (isDiyBuilder === "true") where.isDiyBuilder = true;
         if (isDiyBuilder === "false") where.isDiyBuilder = false;
+
+        // ── Segment filters — combined via where.AND so multiple filters can stack correctly ──
+        // Each filter pushes one or more AND clauses. Prisma combines them all with AND semantics,
+        // so e.g. "dormant_reviews pain" + "reviewCountRange 11-50" correctly requires BOTH
+        // (velocity=0 AND reviewCount > 0) AND (reviewCount 11-50), rather than overwriting.
+        const andClauses: Array<Record<string, unknown>> = Array.isArray(where.AND)
+            ? (where.AND as Array<Record<string, unknown>>)
+            : [];
+
+        // ── Review pain ──
+        if (reviewPain === "dormant_reviews") {
+            andClauses.push({ reviewVelocity90d: 0 });
+            andClauses.push({ reviewCount: { gt: 0 } });
+        } else if (reviewPain === "low_response_rate") {
+            andClauses.push({ ownerResponseRate: { lt: 0.3, not: null } });
+        } else if (reviewPain === "negative_reviews") {
+            andClauses.push({ negativeReviewCount: { gt: 0 } });
+        } else if (reviewPain === "stale_owner_response") {
+            const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+            andClauses.push({ lastOwnerResponseDate: { lt: sixtyDaysAgo } });
+        } else if (reviewPain === "has_complaints") {
+            andClauses.push({ reviewComplaints: { isEmpty: false } });
+        } else if (reviewPain === "stale_last_review") {
+            const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+            andClauses.push({ lastReviewDate: { lt: sixtyDaysAgo } });
+        }
+
+        // ── Review count bucket ──
+        if (reviewCountRange === "0-10") {
+            andClauses.push({ reviewCount: { gte: 0, lte: 10 } });
+        } else if (reviewCountRange === "11-50") {
+            andClauses.push({ reviewCount: { gte: 11, lte: 50 } });
+        } else if (reviewCountRange === "51-200") {
+            andClauses.push({ reviewCount: { gte: 51, lte: 200 } });
+        } else if (reviewCountRange === "200+") {
+            andClauses.push({ reviewCount: { gt: 200 } });
+        }
+
+        // ── Owner response rate bucket ──
+        if (ownerResponseRateBucket === "low") {
+            andClauses.push({ ownerResponseRate: { lt: 0.3, not: null } });
+        } else if (ownerResponseRateBucket === "medium") {
+            andClauses.push({ ownerResponseRate: { gte: 0.3, lt: 0.6 } });
+        } else if (ownerResponseRateBucket === "high") {
+            andClauses.push({ ownerResponseRate: { gte: 0.6 } });
+        }
+
+        // ── Last review recency ──
+        if (lastReviewWithinDays) {
+            const days = parseInt(lastReviewWithinDays);
+            if (!isNaN(days) && days > 0) {
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                andClauses.push({ lastReviewDate: { gte: cutoff } });
+            }
+        }
+        if (lastReviewOlderThanDays) {
+            const days = parseInt(lastReviewOlderThanDays);
+            if (!isNaN(days) && days > 0) {
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                andClauses.push({ lastReviewDate: { lt: cutoff } });
+            }
+        }
+
+        // ── Years in business bucket ──
+        if (yearsInBusinessRange === "<1") {
+            andClauses.push({ yearsInBusiness: { lt: 1 } });
+        } else if (yearsInBusinessRange === "1-5") {
+            andClauses.push({ yearsInBusiness: { gte: 1, lte: 5 } });
+        } else if (yearsInBusinessRange === "5-10") {
+            andClauses.push({ yearsInBusiness: { gt: 5, lte: 10 } });
+        } else if (yearsInBusinessRange === "10+") {
+            andClauses.push({ yearsInBusiness: { gt: 10 } });
+        } else if (yearsInBusinessRange === "unknown") {
+            andClauses.push({ yearsInBusiness: null });
+        }
+
+        // ── Booking filters ──
+        if (hasTrueOnlineBooking === "true") andClauses.push({ hasTrueOnlineBooking: true });
+        if (hasTrueOnlineBooking === "false") andClauses.push({ hasTrueOnlineBooking: false });
+        if (bookingFlowType === "none") {
+            andClauses.push({ bookingFlowType: null });
+        } else if (bookingFlowType) {
+            andClauses.push({ bookingFlowType });
+        }
+
+        if (andClauses.length > 0) where.AND = andClauses;
+
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },

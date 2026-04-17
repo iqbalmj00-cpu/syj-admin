@@ -1597,7 +1597,15 @@ model ScrapedLead {
   googleMapsUrl   String?
   yelpUrl         String?
   // ── Enrichment ──
-  hasOnlineBooking Boolean     @default(false)
+  hasOnlineBooking Boolean     @default(false)           // LEGACY / backward-compat: mirrors hasTrueOnlineBooking
+  hasTrueOnlineBooking Boolean @default(false)           // Tier 1-3 — real self-service booking (embed, external link, or native form)
+  hasBookingCta   Boolean      @default(false)           // Page has "Book Now" text/button (may be marketing-only)
+  bookingPlatform String?                                // "Calendly" | "Jobber" | "Housecall Pro" | "Custom (native form)" | etc.
+  bookingType     String?                                // "embed" | "external_link" | "native_form" | "cta_only" | "none"
+  bookingCtaTargetsPhone Boolean @default(false)         // "Book Now" button href is a tel: link (misleading CTA)
+  bookingHasPhotoUpload Boolean @default(false)          // Booking flow accepts photo uploads (customer sends pics of junk)
+  bookingHasTimeslotSelection Boolean @default(false)    // Booking flow has date/time slot picker
+  bookingFlowType String?                                // "photo_upload" | "timeslot_selection" | "photo_and_timeslot" | "other" | null
   hasQuoteForm    Boolean      @default(false)
   hasCta          Boolean      @default(false)
   mobileFriendly  Boolean      @default(true)
@@ -1629,10 +1637,13 @@ model ScrapedLead {
   latitude             Float?
   longitude            Float?
   // ── Review Intelligence ──
-  reviewsData          Json?                     // raw review data from Outscraper
+  reviewsData          Json?                     // raw review data from Outscraper (up to 50 reviews)
+  reviewsAnalyzedCount Int?                      // how many reviews we actually fetched (up to 50)
+  positiveReviewCount  Int?                      // count of 4-5 star reviews in the analyzed sample
+  negativeReviewCount  Int?                      // count of 1-3 star reviews in the analyzed sample
   lastReviewDate       DateTime?
-  reviewVelocity90d    Int?                      // reviews in last 90 days
-  ownerResponseRate    Float?                    // 0.0-1.0
+  reviewVelocity90d    Int?                      // reviews in last 90 days (within analyzed sample)
+  ownerResponseRate    Float?                    // 0.0-1.0 (within analyzed sample)
   lastOwnerResponseDate DateTime?
   ownerNameFromReviews String?                   // extracted from review response signatures
   reviewComplaints     String[]                  // recurring complaints from reviews
@@ -1665,9 +1676,13 @@ model ScrapedLead {
   marketRankPercentile Float?                    // 0.0-1.0
   // ── Owner Bio ──
   yearsInBusiness      Int?
+  foundedYear          Int?                      // e.g., 2015 — year the business was founded
   isVeteranOwned       Boolean   @default(false)
   isFamilyBusiness     Boolean   @default(false)
   ownerBio             String?   @db.Text
+  // ── Owner name source tracking (for traceability) ──
+  ownerNameSource      String?                   // "website" | "reviews" | "web_search" | "facebook"
+  ownerNameSourceUrl   String?                   // URL where the owner name was verified (especially for web_search)
   // ── Service Area NLP ──
   serviceAreaDescription String? @db.Text        // natural language description
   // ── Facebook Group Source ──
