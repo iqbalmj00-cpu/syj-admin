@@ -33,17 +33,13 @@ export default function FacebookLeadsPage() {
         try {
             const params = new URLSearchParams({
                 page: String(page), limit: "50", sortBy: "createdAt", sortOrder: "desc",
+                discoveredVia: "facebook_group",
             });
-            // Filter for Facebook-discovered leads only
-            // The API doesn't have a discoveredVia filter yet, so we fetch all and filter client-side
-            // TODO: Add discoveredVia filter to API
             const res = await fetch(`/api/agents/leads?${params}`);
             if (res.ok) {
                 const data = await res.json();
-                // Filter for Facebook leads
-                const fbLeads = (data.leads || []).filter((l: any) => l.discoveredVia === "facebook_group" || l.facebookPostUrl);
-                setLeads(fbLeads);
-                setTotal(fbLeads.length);
+                setLeads(data.leads || []);
+                setTotal(data.total || 0);
             }
         } catch { /* ignore */ }
         setLoading(false);

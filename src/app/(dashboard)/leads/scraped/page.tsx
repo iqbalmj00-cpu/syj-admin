@@ -170,7 +170,11 @@ export default function ScrapedLeadsPage() {
     const totalPages = Math.max(1, Math.ceil(total / LEADS_PER_PAGE));
     const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
 
-    const toggleSelect = (id: string) => setSelectedIds(prev => new Set(prev).has(id) ? (prev.delete(id), new Set(prev)) : new Set(prev).add(id));
+    const toggleSelect = (id: string) => setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
     const toggleSelectAll = () => setSelectedIds(allOnPageSelected ? new Set() : new Set(leads.map(l => l.id)));
 
     // Drag-to-select: hold mouse down and drag across checkboxes to SELECT multiple

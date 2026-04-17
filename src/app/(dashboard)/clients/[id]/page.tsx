@@ -713,6 +713,26 @@ function SmsTab({ client }: { client: any }) {
    ═══════════════════════════════════════════════════════════════════════ */
 function BillingTab({ client, showToast }: { client: any; showToast: (m: string, t?: string) => void }) {
     const cancellationRecords = client.cancellationRecords || [];
+    const [subscription, setSubscription] = useState<any>(null);
+    const [loadingSub, setLoadingSub] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoadingSub(true);
+        fetch(`/api/billing/${client.id}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (!cancelled) { setSubscription(d?.subscription || null); setLoadingSub(false); } })
+            .catch(() => { if (!cancelled) setLoadingSub(false); });
+        return () => { cancelled = true; };
+    }, [client.id]);
+
+    // Pull card and invoice info from live Stripe data
+    const pm = subscription?.default_payment_method;
+    const card = pm?.card;
+    const latestInvoice = subscription?.latest_invoice;
+    const currentPeriodEnd = subscription?.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : null;
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -726,6 +746,30 @@ function BillingTab({ client, showToast }: { client: any; showToast: (m: string,
                         <InfoRow label="Stripe Customer" value={<CopyId value={client.saasStripeCustomerId} showToast={showToast} />} />
                         <InfoRow label="Stripe Subscription" value={<CopyId value={client.stripeSubscriptionId} showToast={showToast} />} />
                         <InfoRow label="Stripe Price" value={<CopyId value={client.stripePriceId} showToast={showToast} />} />
+                    </div>
+                </div>
+
+                {/* Live Stripe subscription details */}
+                <div className="card">
+                    <div className="card-header"><h3>Payment & Billing Cycle</h3></div>
+                    <div className="card-body">
+                        {loadingSub ? (
+                            <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: "var(--text-faint)" }}>Loading from Stripe...</div>
+                        ) : !client.stripeSubscriptionId ? (
+                            <div style={{ fontSize: 12, color: "var(--text-faint)" }}>No active subscription.</div>
+                        ) : !subscription ? (
+                            <div style={{ fontSize: 12, color: "var(--text-faint)" }}>Subscription not reachable — Stripe may not be configured.</div>
+                        ) : (
+                            <>
+                                <InfoRow label="Card on file" value={card ? `${card.brand.charAt(0).toUpperCase()+card.brand.slice(1)} •••• ${card.last4}` : "—"} />
+                                <InfoRow label="Card expires" value={card ? `${String(card.exp_month).padStart(2,"0")}/${String(card.exp_year).slice(-2)}` : "—"} />
+                                <InfoRow label="Next billing date" value={currentPeriodEnd ? fmtDate(currentPeriodEnd.toISOString()) : "—"} />
+                                <InfoRow label="Latest invoice" value={latestInvoice ? `$${(latestInvoice.amount_paid/100).toFixed(2)} · ${latestInvoice.status}` : "—"} />
+                                <InfoRow label="Invoice receipt" value={latestInvoice?.hosted_invoice_url
+                                    ? <a href={latestInvoice.hosted_invoice_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--info)", fontSize: 12 }}>View on Stripe ↗</a>
+                                    : "—"} />
+                            </>
+                        )}
                     </div>
                 </div>
                 <div className="card">

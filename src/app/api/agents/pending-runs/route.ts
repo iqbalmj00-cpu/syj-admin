@@ -5,7 +5,7 @@ const STUCK_THRESHOLD_MS = 150 * 60 * 1000; // 150 minutes (2.5 hours — allows
 
 // GET /api/agents/pending-runs?slug=lead_scraper&secret=xxx
 // Returns the oldest unclaimed run for polling-based agents.
-// Also auto-fails runs stuck for > 45 minutes.
+// Also auto-fails runs stuck for > 150 minutes (2.5 hours).
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const slug = searchParams.get("slug");
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Agent not found" }, { status: 404 });
         }
 
-        // Auto-fail stuck runs (running for > 45 minutes with trigger still "manual")
+        // Auto-fail stuck runs (running for > 150 minutes with trigger still "manual")
         const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
         const stuckRuns = await prisma.syjAgentRun.findMany({
             where: {
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
                 where: { id: agent.id },
                 data: {
                     status: "error",
-                    lastError: "Last run auto-failed: exceeded 45-minute timeout",
+                    lastError: "Last run auto-failed: exceeded 150-minute timeout",
                 },
             });
         }
