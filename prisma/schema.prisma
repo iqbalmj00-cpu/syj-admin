@@ -2405,3 +2405,67 @@ model ResearchReport {
   @@index([category])
   @@index([agentRunId])
 }
+
+// ── Demo Scheduler — Google Calendar OAuth ──────────────────────────────────
+// Stores the admin's Google OAuth tokens for the demo booking flow.
+// Singleton — only one row ever exists (provider is unique).
+// Mirrored from the SYJ website schema. Shared DB (already db-pushed by SYJ dev).
+
+model AdminIntegration {
+  id           String    @id @default(cuid())
+  provider     String    @unique // "google_calendar" for the demo scheduler
+  status       String    @default("disconnected") // connected | disconnected | error
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  email        String?   // Google account used (e.g., jamal@scaleyourjunk.com)
+  config       Json?     // provider-specific extras
+  connectedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ── Demo Scheduler Config (singleton) ────────────────────────────────────────
+// Drives the /book-a-demo visitor calendar: which calendar to write to,
+// business hours, duration, buffer, and booking window.
+// Only one row ever exists. Edit via admin dashboard.
+model DemoSchedulerConfig {
+  id              String   @id @default(cuid())
+  calendarId      String   @default("primary")
+  timezone        String   @default("America/Chicago")
+  demoDurationMin Int      @default(30)
+  bufferMin       Int      @default(15)
+  minNoticeHours  Int      @default(12)
+  maxDaysAhead    Int      @default(30)
+  businessHours   Json // { mon: {start:"09:00",end:"17:00"}, ..., sun: null }
+  lunchBreak      Json? // { start:"12:00", end:"13:00" } or null
+  enabled         Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+// ── Demo Bookings ────────────────────────────────────────────────────────────
+// Each visitor-booked demo call. Created by /api/book-demo/create (on SYJ website)
+// after the Meet space + Calendar event are successfully provisioned.
+// Admin dashboard reads these for the Demo Scheduler UI.
+model DemoBooking {
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  phone           String?
+  company         String?
+  fleetSize       String?
+  message         String?  @db.Text
+  startsAt        DateTime
+  endsAt          DateTime
+  visitorTimezone String
+  meetUrl         String
+  meetSpaceId     String? // Google Meet REST API space name (spaces/xxx)
+  calendarEventId String // Google Calendar event id
+  status          String   @default("scheduled") // scheduled | cancelled | completed | no_show
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([startsAt])
+  @@index([email])
+  @@index([status])
+}
