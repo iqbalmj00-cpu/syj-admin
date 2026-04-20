@@ -54,6 +54,70 @@ export async function GET(req: NextRequest) {
     // Booking filters
     const hasTrueOnlineBooking = searchParams.get("hasTrueOnlineBooking"); // "true" | "false"
     const bookingFlowType = searchParams.get("bookingFlowType"); // "photo_upload" | "timeslot_selection" | "photo_and_timeslot" | "other" | "none"
+    // Canonical pain/praise tag filters (see src/lib/pain-taxonomy.ts)
+    const painTagsParam = searchParams.get("painTags"); // comma-separated canonical IDs — AND semantics
+    const praiseTagsParam = searchParams.get("praiseTags"); // comma-separated canonical IDs — AND semantics
+    const painTagCountMin = searchParams.get("painTagCountMin"); // "1" | "2" | "3" — breadth filter
+    const negativeReviewPercentMin = searchParams.get("negativeReviewPercentMin"); // "0.1" | "0.25" | "0.5" (floats)
+    const mostRecentNegativeWithinDays = searchParams.get("mostRecentNegativeWithinDays"); // "7" | "30" | "90"
+    // GBP filters (Phase 2)
+    const starRatingBucket = searchParams.get("starRatingBucket"); // "<3" | "3-3.9" | "4-4.4" | "4.5-4.7" | "4.8+"
+    const profileCompletenessBucket = searchParams.get("profileCompletenessBucket"); // "low" | "medium" | "high"
+    const respondsToNegatives = searchParams.get("respondsToNegatives"); // "true" | "false"
+    const hasRecentGbpPosts = searchParams.get("hasRecentGbpPosts"); // "true" | "false"
+    const hasBusinessDescription = searchParams.get("hasBusinessDescription"); // "true" | "false"
+    // Booking sophistication (Phase 2.5)
+    const bookingSophistication = searchParams.get("bookingSophistication"); // comma-separated canonical IDs
+    const bookingHasInstantQuote = searchParams.get("bookingHasInstantQuote"); // "true" | "false"
+    const bookingHasJobSizeInput = searchParams.get("bookingHasJobSizeInput"); // "true" | "false"
+    const bookingHasItemSelector = searchParams.get("bookingHasItemSelector"); // "true" | "false"
+    const bookingCollectsPayment = searchParams.get("bookingCollectsPayment"); // "true" | "false"
+    const bookingIsQuoteRequestOnly = searchParams.get("bookingIsQuoteRequestOnly"); // "true" | "false"
+    // Competitor stack multi-select (Phase 3) — comma-separated "Jobber,Workiz,..."
+    const competitorStack = searchParams.get("competitorStack");
+    // Payment stack filters (Phase 3)
+    const paymentStack = searchParams.get("paymentStack"); // comma-separated "Stripe,Square"
+    const mentionsCashOnly = searchParams.get("mentionsCashOnly"); // "true" | "false"
+    const hasOnlinePayment = searchParams.get("hasOnlinePayment"); // "true" | "false"
+    // Phase 4 — captured-but-dark filters (no scraping added)
+    const cmsDetected = searchParams.get("cmsDetected"); // comma-separated: "WordPress,Wix,Squarespace,..."
+    const bookingPlatform = searchParams.get("bookingPlatform"); // comma-separated: "Calendly,Jobber,..."
+    const bookingCtaTargetsPhone = searchParams.get("bookingCtaTargetsPhone"); // "true" | "false"
+    const marketingMaturityBucket = searchParams.get("marketingMaturityBucket"); // "low" | "medium" | "high"
+    const loadTimeBucket = searchParams.get("loadTimeBucket"); // "fast" | "medium" | "slow"
+    const mobileFriendly = searchParams.get("mobileFriendly"); // "true" | "false"
+    const sslValid = searchParams.get("sslValid"); // "true" | "false"
+    const hasGoogleAds = searchParams.get("hasGoogleAds"); // "true" | "false"
+    const hasCallTracking = searchParams.get("hasCallTracking"); // "true" | "false"
+    const hasChatWidget = searchParams.get("hasChatWidget"); // "true" | "false"
+    const hasGTM = searchParams.get("hasGTM"); // "true" | "false"
+    const hasFacebookPixel = searchParams.get("hasFacebookPixel"); // "true" | "false"
+    const hasGoogleAnalytics = searchParams.get("hasGoogleAnalytics"); // "true" | "false"
+    const employeeBucket = searchParams.get("employeeBucket"); // "1" | "2-3" | "4-10" | "11+" | "unknown"
+    const fleetBucket = searchParams.get("fleetBucket"); // "1" | "2-5" | "6+" | "unknown"
+    const websiteBuiltBy = searchParams.get("websiteBuiltBy"); // comma-separated: "diy,likely_diy,likely_agency,unknown"
+    const marketCompetitionLevel = searchParams.get("marketCompetitionLevel"); // comma-separated: "low,medium,high"
+    const marketRankPercentileMin = searchParams.get("marketRankPercentileMin"); // "0.9" (top 10%) | "0.75" | "0.5"
+    const hasFacebook = searchParams.get("hasFacebook"); // "true" | "false"
+    const hasYouTube = searchParams.get("hasYouTube"); // "true" | "false"
+    const isVeteranOwned = searchParams.get("isVeteranOwned"); // "true" | "false"
+    const isFamilyBusiness = searchParams.get("isFamilyBusiness"); // "true" | "false"
+    const reviewVelocityBucket = searchParams.get("reviewVelocityBucket"); // "dormant" (0) | "low" (1-5) | "moderate" (6-20) | "high" (21+)
+    // Phase 5 — contact quality
+    const emailDomainType = searchParams.get("emailDomainType"); // comma-separated: "personal,business_custom,unknown"
+    const emailDomainMatchesWebsite = searchParams.get("emailDomainMatchesWebsite"); // "true" | "false"
+    const emailDeliverable = searchParams.get("emailDeliverable"); // "true" | "false"
+    const phoneLineType = searchParams.get("phoneLineType"); // comma-separated: "mobile,landline,voip,unknown"
+    const phoneDeliverable = searchParams.get("phoneDeliverable"); // "true" | "false"
+    const hasOwnerFullName = searchParams.get("hasOwnerFullName"); // "true" | "false" — both first + last present
+    const hasOwnerLinkedIn = searchParams.get("hasOwnerLinkedIn"); // "true" | "false"
+    const isDirectContact = searchParams.get("isDirectContact"); // "true" | "false"
+    // Phase 6 — website crawl depth
+    const lastUpdatedYearBucket = searchParams.get("lastUpdatedYearBucket"); // "stale" (<=2020) | "aging" (2021-2022) | "fresh" (2023+) | "unknown"
+    const hasPricingPage = searchParams.get("hasPricingPage"); // "true" | "false"
+    const hasBlog = searchParams.get("hasBlog"); // "true" | "false"
+    const hasServiceAreaPublishedOnSite = searchParams.get("hasServiceAreaPublishedOnSite"); // "true" | "false"
+    const totalPageCountBucket = searchParams.get("totalPageCountBucket"); // "tiny" (1-5) | "small" (6-20) | "medium" (21-100) | "large" (100+)
 
     const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
@@ -121,7 +185,11 @@ export async function GET(req: NextRequest) {
             andClauses.push({ reviewCount: { gte: 11, lte: 50 } });
         } else if (reviewCountRange === "51-200") {
             andClauses.push({ reviewCount: { gte: 51, lte: 200 } });
-        } else if (reviewCountRange === "200+") {
+        } else if (reviewCountRange === "201-500") {
+            andClauses.push({ reviewCount: { gte: 201, lte: 500 } });
+        } else if (reviewCountRange === "500+") {
+            andClauses.push({ reviewCount: { gt: 500 } });
+        } else if (reviewCountRange === "200+") { // legacy value — kept for backward-compat
             andClauses.push({ reviewCount: { gt: 200 } });
         }
 
@@ -171,6 +239,232 @@ export async function GET(req: NextRequest) {
         } else if (bookingFlowType) {
             andClauses.push({ bookingFlowType });
         }
+
+        // ── Canonical pain / praise multi-select (AND semantics — lead must have ALL selected tags) ──
+        if (painTagsParam) {
+            for (const tag of painTagsParam.split(",").filter(Boolean)) {
+                andClauses.push({ painTags: { has: tag } });
+            }
+        }
+        if (praiseTagsParam) {
+            for (const tag of praiseTagsParam.split(",").filter(Boolean)) {
+                andClauses.push({ praiseTags: { has: tag } });
+            }
+        }
+
+        // ── Pain intensity (distinct tag count) ──
+        if (painTagCountMin) {
+            const n = parseInt(painTagCountMin);
+            if (!isNaN(n) && n > 0) andClauses.push({ painTagCount: { gte: n } });
+        }
+
+        // ── Severity: % negative reviews ──
+        if (negativeReviewPercentMin) {
+            const v = parseFloat(negativeReviewPercentMin);
+            if (!isNaN(v) && v > 0) andClauses.push({ negativeReviewPercent: { gte: v } });
+        }
+
+        // ── Recent negative review window ──
+        if (mostRecentNegativeWithinDays) {
+            const days = parseInt(mostRecentNegativeWithinDays);
+            if (!isNaN(days) && days > 0) {
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                andClauses.push({ mostRecentNegativeReviewDate: { gte: cutoff } });
+            }
+        }
+
+        // ── Star rating bucket ──
+        if (starRatingBucket === "<3") {
+            andClauses.push({ rating: { lt: 3, not: null } });
+        } else if (starRatingBucket === "3-3.9") {
+            andClauses.push({ rating: { gte: 3, lt: 4 } });
+        } else if (starRatingBucket === "4-4.4") {
+            andClauses.push({ rating: { gte: 4, lt: 4.5 } });
+        } else if (starRatingBucket === "4.5-4.7") {
+            andClauses.push({ rating: { gte: 4.5, lt: 4.8 } });
+        } else if (starRatingBucket === "4.8+") {
+            andClauses.push({ rating: { gte: 4.8 } });
+        }
+
+        // ── Profile completeness bucket ──
+        if (profileCompletenessBucket === "low") {
+            andClauses.push({ profileCompletenessScore: { lt: 40, not: null } });
+        } else if (profileCompletenessBucket === "medium") {
+            andClauses.push({ profileCompletenessScore: { gte: 40, lt: 70 } });
+        } else if (profileCompletenessBucket === "high") {
+            andClauses.push({ profileCompletenessScore: { gte: 70 } });
+        }
+
+        // ── GBP engagement ──
+        if (respondsToNegatives === "true") andClauses.push({ respondsToNegativeReviews: true });
+        if (respondsToNegatives === "false") andClauses.push({ respondsToNegativeReviews: false });
+        if (hasRecentGbpPosts === "true") andClauses.push({ hasRecentGbpPosts: true });
+        if (hasRecentGbpPosts === "false") andClauses.push({ hasRecentGbpPosts: false });
+        if (hasBusinessDescription === "true") andClauses.push({ hasBusinessDescription: true });
+        if (hasBusinessDescription === "false") andClauses.push({ hasBusinessDescription: false });
+
+        // ── Booking sophistication multi-select ──
+        if (bookingSophistication) {
+            const tiers = bookingSophistication.split(",").filter(Boolean);
+            if (tiers.length > 0) andClauses.push({ bookingSophistication: { in: tiers } });
+        }
+        // Booking component toggles
+        if (bookingHasInstantQuote === "true") andClauses.push({ bookingHasInstantQuote: true });
+        if (bookingHasInstantQuote === "false") andClauses.push({ bookingHasInstantQuote: false });
+        if (bookingHasJobSizeInput === "true") andClauses.push({ bookingHasJobSizeInput: true });
+        if (bookingHasJobSizeInput === "false") andClauses.push({ bookingHasJobSizeInput: false });
+        if (bookingHasItemSelector === "true") andClauses.push({ bookingHasItemSelector: true });
+        if (bookingHasItemSelector === "false") andClauses.push({ bookingHasItemSelector: false });
+        if (bookingCollectsPayment === "true") andClauses.push({ bookingCollectsPayment: true });
+        if (bookingCollectsPayment === "false") andClauses.push({ bookingCollectsPayment: false });
+        if (bookingIsQuoteRequestOnly === "true") andClauses.push({ bookingIsQuoteRequestOnly: true });
+        if (bookingIsQuoteRequestOnly === "false") andClauses.push({ bookingIsQuoteRequestOnly: false });
+
+        // ── Competitor stack multi-select (Phase 3) — OR semantics across selected platforms (lead uses ANY of them) ──
+        if (competitorStack) {
+            const platforms = competitorStack.split(",").filter(Boolean);
+            const platformToField: Record<string, string> = {
+                Jobber: "usesJobber", Workiz: "usesWorkiz", HousecallPro: "usesHousecallPro",
+                ServiceTitan: "usesServiceTitan", Thryv: "usesThryv", GorillaDesk: "usesGorillaDesk",
+                FieldPulse: "usesFieldPulse", QuoteIQ: "usesQuoteIQ", Docket: "usesDocket",
+                DumpstersCom: "usesDumpstersCom",
+            };
+            const orClauses = platforms
+                .map(p => platformToField[p])
+                .filter(Boolean)
+                .map(field => ({ [field]: true }));
+            if (orClauses.length > 0) andClauses.push({ OR: orClauses });
+        }
+
+        // ── Payment stack filters (Phase 3) ──
+        if (paymentStack) {
+            const providers = paymentStack.split(",").filter(Boolean);
+            const orClauses: Array<Record<string, unknown>> = [];
+            if (providers.includes("Stripe")) orClauses.push({ usesStripe: true });
+            if (providers.includes("Square")) orClauses.push({ usesSquare: true });
+            if (orClauses.length > 0) andClauses.push({ OR: orClauses });
+        }
+        if (mentionsCashOnly === "true") andClauses.push({ mentionsCashOnly: true });
+        if (mentionsCashOnly === "false") andClauses.push({ mentionsCashOnly: false });
+        if (hasOnlinePayment === "true") andClauses.push({ hasOnlinePayment: true });
+        if (hasOnlinePayment === "false") andClauses.push({ hasOnlinePayment: false });
+
+        // ── Phase 4: captured-but-dark field filters ──
+        if (cmsDetected) {
+            const values = cmsDetected.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ cmsDetected: { in: values } });
+        }
+        if (bookingPlatform) {
+            const values = bookingPlatform.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ bookingPlatform: { in: values } });
+        }
+        if (bookingCtaTargetsPhone === "true") andClauses.push({ bookingCtaTargetsPhone: true });
+        if (bookingCtaTargetsPhone === "false") andClauses.push({ bookingCtaTargetsPhone: false });
+
+        if (marketingMaturityBucket === "low") andClauses.push({ marketingMaturityScore: { lt: 20, not: null } });
+        else if (marketingMaturityBucket === "medium") andClauses.push({ marketingMaturityScore: { gte: 20, lt: 50 } });
+        else if (marketingMaturityBucket === "high") andClauses.push({ marketingMaturityScore: { gte: 50 } });
+
+        if (loadTimeBucket === "fast") andClauses.push({ loadTimeSeconds: { lt: 2, not: null } });
+        else if (loadTimeBucket === "medium") andClauses.push({ loadTimeSeconds: { gte: 2, lt: 5 } });
+        else if (loadTimeBucket === "slow") andClauses.push({ loadTimeSeconds: { gte: 5 } });
+
+        if (mobileFriendly === "true") andClauses.push({ mobileFriendly: true });
+        if (mobileFriendly === "false") andClauses.push({ mobileFriendly: false });
+        if (sslValid === "true") andClauses.push({ sslValid: true });
+        if (sslValid === "false") andClauses.push({ sslValid: false });
+
+        if (hasGoogleAds === "true") andClauses.push({ hasGoogleAds: true });
+        if (hasGoogleAds === "false") andClauses.push({ hasGoogleAds: false });
+        if (hasCallTracking === "true") andClauses.push({ hasCallTracking: true });
+        if (hasCallTracking === "false") andClauses.push({ hasCallTracking: false });
+        if (hasChatWidget === "true") andClauses.push({ hasChatWidget: true });
+        if (hasChatWidget === "false") andClauses.push({ hasChatWidget: false });
+        if (hasGTM === "true") andClauses.push({ hasGTM: true });
+        if (hasGTM === "false") andClauses.push({ hasGTM: false });
+        if (hasFacebookPixel === "true") andClauses.push({ hasFacebookPixel: true });
+        if (hasFacebookPixel === "false") andClauses.push({ hasFacebookPixel: false });
+        if (hasGoogleAnalytics === "true") andClauses.push({ hasGoogleAnalytics: true });
+        if (hasGoogleAnalytics === "false") andClauses.push({ hasGoogleAnalytics: false });
+
+        if (employeeBucket === "1") andClauses.push({ estimatedEmployees: 1 });
+        else if (employeeBucket === "2-3") andClauses.push({ estimatedEmployees: { gte: 2, lte: 3 } });
+        else if (employeeBucket === "4-10") andClauses.push({ estimatedEmployees: { gte: 4, lte: 10 } });
+        else if (employeeBucket === "11+") andClauses.push({ estimatedEmployees: { gt: 10 } });
+        else if (employeeBucket === "unknown") andClauses.push({ estimatedEmployees: null });
+
+        if (fleetBucket === "1") andClauses.push({ estimatedFleetSize: 1 });
+        else if (fleetBucket === "2-5") andClauses.push({ estimatedFleetSize: { gte: 2, lte: 5 } });
+        else if (fleetBucket === "6+") andClauses.push({ estimatedFleetSize: { gt: 5 } });
+        else if (fleetBucket === "unknown") andClauses.push({ estimatedFleetSize: null });
+
+        if (websiteBuiltBy) {
+            const values = websiteBuiltBy.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ websiteBuiltBy: { in: values } });
+        }
+
+        if (marketCompetitionLevel) {
+            const values = marketCompetitionLevel.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ marketCompetitionLevel: { in: values } });
+        }
+        if (marketRankPercentileMin) {
+            const v = parseFloat(marketRankPercentileMin);
+            if (!isNaN(v)) andClauses.push({ marketRankPercentile: { gte: v } });
+        }
+
+        if (hasFacebook === "true") andClauses.push({ hasFacebook: true });
+        if (hasFacebook === "false") andClauses.push({ hasFacebook: false });
+        if (hasYouTube === "true") andClauses.push({ hasYouTube: true });
+        if (hasYouTube === "false") andClauses.push({ hasYouTube: false });
+        if (isVeteranOwned === "true") andClauses.push({ isVeteranOwned: true });
+        if (isVeteranOwned === "false") andClauses.push({ isVeteranOwned: false });
+        if (isFamilyBusiness === "true") andClauses.push({ isFamilyBusiness: true });
+        if (isFamilyBusiness === "false") andClauses.push({ isFamilyBusiness: false });
+
+        if (reviewVelocityBucket === "dormant") andClauses.push({ reviewVelocity90d: 0 });
+        else if (reviewVelocityBucket === "low") andClauses.push({ reviewVelocity90d: { gte: 1, lte: 5 } });
+        else if (reviewVelocityBucket === "moderate") andClauses.push({ reviewVelocity90d: { gte: 6, lte: 20 } });
+        else if (reviewVelocityBucket === "high") andClauses.push({ reviewVelocity90d: { gt: 20 } });
+
+        // ── Phase 5: contact quality filters ──
+        if (emailDomainType) {
+            const values = emailDomainType.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ emailDomainType: { in: values } });
+        }
+        if (emailDomainMatchesWebsite === "true") andClauses.push({ emailDomainMatchesWebsite: true });
+        if (emailDomainMatchesWebsite === "false") andClauses.push({ emailDomainMatchesWebsite: false });
+        if (emailDeliverable === "true") andClauses.push({ emailDeliverable: true });
+        if (emailDeliverable === "false") andClauses.push({ emailDeliverable: false });
+        if (phoneLineType) {
+            const values = phoneLineType.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ phoneLineType: { in: values } });
+        }
+        if (phoneDeliverable === "true") andClauses.push({ phoneDeliverable: true });
+        if (phoneDeliverable === "false") andClauses.push({ phoneDeliverable: false });
+        if (hasOwnerFullName === "true") andClauses.push({ AND: [{ ownerFirstName: { not: null } }, { ownerLastName: { not: null } }] });
+        if (hasOwnerFullName === "false") andClauses.push({ OR: [{ ownerFirstName: null }, { ownerLastName: null }] });
+        if (hasOwnerLinkedIn === "true") andClauses.push({ ownerLinkedInUrl: { not: null } });
+        if (hasOwnerLinkedIn === "false") andClauses.push({ ownerLinkedInUrl: null });
+        if (isDirectContact === "true") andClauses.push({ isDirectContact: true });
+        if (isDirectContact === "false") andClauses.push({ isDirectContact: false });
+
+        // ── Phase 6: website crawl depth ──
+        if (lastUpdatedYearBucket === "stale") andClauses.push({ lastUpdatedYear: { lte: 2020, not: null } });
+        else if (lastUpdatedYearBucket === "aging") andClauses.push({ lastUpdatedYear: { gte: 2021, lte: 2022 } });
+        else if (lastUpdatedYearBucket === "fresh") andClauses.push({ lastUpdatedYear: { gte: 2023 } });
+        else if (lastUpdatedYearBucket === "unknown") andClauses.push({ lastUpdatedYear: null });
+
+        if (hasPricingPage === "true") andClauses.push({ hasPricingPage: true });
+        if (hasPricingPage === "false") andClauses.push({ hasPricingPage: false });
+        if (hasBlog === "true") andClauses.push({ hasBlog: true });
+        if (hasBlog === "false") andClauses.push({ hasBlog: false });
+        if (hasServiceAreaPublishedOnSite === "true") andClauses.push({ hasServiceAreaPublishedOnSite: true });
+        if (hasServiceAreaPublishedOnSite === "false") andClauses.push({ hasServiceAreaPublishedOnSite: false });
+
+        if (totalPageCountBucket === "tiny") andClauses.push({ totalPageCount: { gte: 1, lte: 5 } });
+        else if (totalPageCountBucket === "small") andClauses.push({ totalPageCount: { gte: 6, lte: 20 } });
+        else if (totalPageCountBucket === "medium") andClauses.push({ totalPageCount: { gte: 21, lte: 100 } });
+        else if (totalPageCountBucket === "large") andClauses.push({ totalPageCount: { gt: 100 } });
 
         if (andClauses.length > 0) where.AND = andClauses;
 

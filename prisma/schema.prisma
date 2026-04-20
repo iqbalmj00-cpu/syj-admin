@@ -1606,6 +1606,15 @@ model ScrapedLead {
   bookingHasPhotoUpload Boolean @default(false)          // Booking flow accepts photo uploads (customer sends pics of junk)
   bookingHasTimeslotSelection Boolean @default(false)    // Booking flow has date/time slot picker
   bookingFlowType String?                                // "photo_upload" | "timeslot_selection" | "photo_and_timeslot" | "other" | null
+  // ── Granular booking-flow components (Phase 2.5) ──
+  bookingHasAddressInput     Boolean   @default(false)   // asks customer for service address
+  bookingHasJobSizeInput     Boolean   @default(false)   // volume / truck-size / quantity estimator
+  bookingHasItemSelector     Boolean   @default(false)   // checklist of item types (sofa, fridge, etc.)
+  bookingHasInstantQuote     Boolean   @default(false)   // shows real-time price BEFORE confirming
+  bookingHasPriceEstimate    Boolean   @default(false)   // rough ballpark pricing shown (range)
+  bookingCollectsPayment     Boolean   @default(false)   // asks for card / deposit upfront
+  bookingIsQuoteRequestOnly  Boolean   @default(false)   // form goes to manual quote (no instant anything)
+  bookingSophistication      String?                     // "none" | "cta_only" | "basic_scheduler" | "photo_collector" | "quote_form" | "instant_quote" | "full_booking" | "other"
   hasQuoteForm    Boolean      @default(false)
   hasCta          Boolean      @default(false)
   mobileFriendly  Boolean      @default(true)
@@ -1624,7 +1633,32 @@ model ScrapedLead {
   phoneType            String?                   // "toll_free" | "local" | "none"
   hasActiveWebsite     Boolean   @default(false) // URL responds with 200
   usingCompetitor      Boolean   @default(false) // on competitor platform (Jobber, Workiz, etc.)
-  competitorPlatform   String?                   // "Jobber" | "Workiz" | "Housecall Pro" etc
+  competitorPlatform   String?                   // "Jobber" | "Workiz" | "Housecall Pro" etc (free-text display; prefer per-platform booleans below for filtering)
+  // ── Per-platform booleans (Phase 3) ──
+  usesJobber           Boolean   @default(false)
+  usesWorkiz           Boolean   @default(false)
+  usesHousecallPro     Boolean   @default(false)
+  usesServiceTitan     Boolean   @default(false)
+  usesThryv            Boolean   @default(false)
+  usesGorillaDesk      Boolean   @default(false)
+  usesFieldPulse       Boolean   @default(false)
+  usesQuoteIQ          Boolean   @default(false)
+  usesDocket           Boolean   @default(false)
+  usesDumpstersCom     Boolean   @default(false) // Dumpsters.com partnership / lead-gen referral
+  // ── Payment stack (Phase 3) ──
+  usesStripe           Boolean   @default(false)
+  usesSquare           Boolean   @default(false)
+  mentionsCashOnly     Boolean   @default(false) // "cash only" / "cash or check" mentioned on site
+  hasOnlinePayment     Boolean   @default(false) // derived: usesStripe || usesSquare || hasTrueOnlineBooking
+  paymentPlatform      String?                   // free-text display (e.g. "Stripe", "Square", "Stripe + Square")
+  // ── Website crawl depth (Phase 6) ──
+  lastUpdatedYear              Int?               // from copyright footer (© 20\d{2}) OR latest blog post date
+  hasPricingPage               Boolean   @default(false)
+  pricingSnippet               String?   @db.Text // short sample text found on pricing page
+  hasBlog                      Boolean   @default(false)
+  serviceAreaPagesCount        Int?               // count of /service-area/, /locations/, /areas-we-serve/ pages from sitemap
+  hasServiceAreaPublishedOnSite Boolean  @default(false) // distinct from serviceAreaCities (which comes from Google Places)
+  totalPageCount               Int?               // total URLs in sitemap.xml
   seoScore             Int?                      // 0-100
   uiuxScore            Int?                      // 0-100
   estimatedEmployees   Int?                      // from about/team page
@@ -1646,9 +1680,32 @@ model ScrapedLead {
   ownerResponseRate    Float?                    // 0.0-1.0 (within analyzed sample)
   lastOwnerResponseDate DateTime?
   ownerNameFromReviews String?                   // extracted from review response signatures
-  reviewComplaints     String[]                  // recurring complaints from reviews
-  reviewPraise         String[]                  // recurring praise from reviews
+  reviewComplaints     String[]                  // LEGACY free-text complaints (kept for display; superseded by painTags)
+  reviewPraise         String[]                  // LEGACY free-text praise (kept for display; superseded by praiseTags)
   mentionedStaffNames  String[]                  // staff names mentioned in reviews
+  // ── Canonical pain/praise taxonomy (see src/lib/pain-taxonomy.ts) ──
+  painTags                     String[]          // canonical pain tag IDs (e.g. ["missed_calls", "refuses_damage_claims"])
+  painTagCounts                Json?             // { missed_calls: 3, slow_response: 2, ... }
+  painTagCount                 Int?              // distinct pain tag count — cached for fast filtering (e.g. "2+ pains")
+  praiseTags                   String[]          // canonical praise tag IDs
+  praiseTagCounts              Json?
+  negativeReviewPercent        Float?            // negativeReviewCount / reviewsAnalyzedCount
+  mostRecentNegativeReviewDate DateTime?         // newest 1-3★ review date
+  // ── GBP Profile Completeness (Outscraper Google Maps Data endpoint) ──
+  businessDescription          String?   @db.Text      // GBP short/long description
+  hasBusinessDescription       Boolean   @default(false)
+  hasBusinessHours             Boolean   @default(false)
+  isOpen24_7                   Boolean   @default(false)
+  photoCount                   Int?                     // total photos on GBP profile
+  hasQandAActivity             Boolean   @default(false)// has at least one Q&A
+  gbpPostsLast90d              Int?                     // count of GBP posts in last 90d
+  hasRecentGbpPosts            Boolean   @default(false)// gbpPostsLast90d > 0
+  profileCompletenessScore     Int?                     // 0-100, weighted sum of completeness fields
+  // ── Sentiment-split response rates (derived from reviewsData) ──
+  negativeResponseRate         Float?                   // % of 1-3★ reviews with ownerAnswer
+  positiveResponseRate         Float?                   // % of 4-5★ reviews with ownerAnswer
+  respondsToNegativeReviews    Boolean   @default(false)// negativeResponseRate >= 0.5
+  respondsToPositiveReviews    Boolean   @default(false)// positiveResponseRate >= 0.5
   // ── Marketing Signals ──
   hasGoogleAds         Boolean   @default(false)
   hasFacebookPixel     Boolean   @default(false)
@@ -1683,6 +1740,23 @@ model ScrapedLead {
   // ── Owner name source tracking (for traceability) ──
   ownerNameSource      String?                   // "website" | "reviews" | "web_search" | "facebook"
   ownerNameSourceUrl   String?                   // URL where the owner name was verified (especially for web_search)
+  // ── Owner refinement (Phase 5) ──
+  ownerFirstName       String?                   // derived from ownerName split
+  ownerLastName        String?
+  ownerLinkedInUrl     String?                   // promoted from ownerNameSourceUrl when source==web_search and host==linkedin
+  isDirectContact      Boolean   @default(false) // heuristic: email local-part contains owner first name OR email domain matches website
+  // ── Email verification (Phase 5 — populated at outreach-queue time, not per-lead) ──
+  emailDomain                  String?           // derived at write time from email
+  emailDomainType              String?           // "personal" | "business_custom" | "unknown"
+  emailDomainMatchesWebsite    Boolean   @default(false)
+  emailDeliverable             Boolean?          // from verification service (ZeroBounce / NeverBounce)
+  emailRiskScore               Int?              // 0-100, higher = riskier
+  emailVerifiedAt              DateTime?
+  // ── Phone verification (Phase 5 — Twilio Lookup v2, at outreach time) ──
+  phoneLineType                String?           // "mobile" | "landline" | "voip" | "unknown" — SEPARATE from `phoneType` (toll_free/local/none)
+  phoneCarrier                 String?
+  phoneDeliverable             Boolean?
+  phoneVerifiedAt              DateTime?
   // ── Service Area NLP ──
   serviceAreaDescription String? @db.Text        // natural language description
   // ── Facebook Group Source ──
@@ -1719,6 +1793,10 @@ model ScrapedLead {
   @@index([companyType])
   @@index([enrichedAt])
   @@index([isExistingClient])
+  @@index([painTagCount])
+  @@index([mostRecentNegativeReviewDate])
+  @@index([profileCompletenessScore])
+  @@index([rating])
   groupMemberships LeadGroupMember[]
 }
 

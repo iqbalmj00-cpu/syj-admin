@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Kpi } from "@/components/ui/Kpi";
+import { painTagsByCategory, praiseTagsByCategory } from "@/lib/pain-taxonomy";
 
 interface Lead {
     id: string; name: string; phone: string | null; email: string | null; website: string | null;
@@ -68,6 +69,69 @@ export default function ScrapedLeadsPage() {
     const [yearsInBusinessRangeFilter, setYearsInBusinessRangeFilter] = useState("all");
     const [hasTrueBookingFilter, setHasTrueBookingFilter] = useState("all");
     const [bookingFlowTypeFilter, setBookingFlowTypeFilter] = useState("all");
+    // Canonical pain/praise tag filters (multi-select — AND semantics)
+    const [selectedPainTags, setSelectedPainTags] = useState<Set<string>>(new Set());
+    const [selectedPraiseTags, setSelectedPraiseTags] = useState<Set<string>>(new Set());
+    const [painTagCountMin, setPainTagCountMin] = useState("all");
+    const [negativeReviewPercentMin, setNegativeReviewPercentMin] = useState("all");
+    const [mostRecentNegativeWithinDays, setMostRecentNegativeWithinDays] = useState("all");
+    // GBP filters (Phase 2)
+    const [starRatingBucket, setStarRatingBucket] = useState("all");
+    const [profileCompletenessBucket, setProfileCompletenessBucket] = useState("all");
+    const [respondsToNegatives, setRespondsToNegatives] = useState("all");
+    const [hasRecentGbpPosts, setHasRecentGbpPosts] = useState("all");
+    const [hasBusinessDescription, setHasBusinessDescription] = useState("all");
+    // Booking sophistication (Phase 2.5)
+    const [selectedBookingTiers, setSelectedBookingTiers] = useState<Set<string>>(new Set());
+    const [bookingHasInstantQuote, setBookingHasInstantQuote] = useState("all");
+    const [bookingHasJobSizeInput, setBookingHasJobSizeInput] = useState("all");
+    const [bookingHasItemSelector, setBookingHasItemSelector] = useState("all");
+    const [bookingCollectsPayment, setBookingCollectsPayment] = useState("all");
+    const [bookingIsQuoteRequestOnly, setBookingIsQuoteRequestOnly] = useState("all");
+    // Competitor + payment stack (Phase 3)
+    const [selectedCompetitorStack, setSelectedCompetitorStack] = useState<Set<string>>(new Set());
+    const [selectedPaymentStack, setSelectedPaymentStack] = useState<Set<string>>(new Set());
+    const [mentionsCashOnly, setMentionsCashOnly] = useState("all");
+    const [hasOnlinePayment, setHasOnlinePayment] = useState("all");
+    // Phase 4 — captured-but-dark filters
+    const [selectedCms, setSelectedCms] = useState<Set<string>>(new Set());
+    const [selectedBookingPlatforms, setSelectedBookingPlatforms] = useState<Set<string>>(new Set());
+    const [bookingCtaTargetsPhone, setBookingCtaTargetsPhone] = useState("all");
+    const [marketingMaturityBucket, setMarketingMaturityBucket] = useState("all");
+    const [loadTimeBucket, setLoadTimeBucket] = useState("all");
+    const [mobileFriendly, setMobileFriendly] = useState("all");
+    const [sslValid, setSslValid] = useState("all");
+    const [hasGoogleAds, setHasGoogleAds] = useState("all");
+    const [hasCallTracking, setHasCallTracking] = useState("all");
+    const [hasChatWidget, setHasChatWidget] = useState("all");
+    const [hasGTM, setHasGTM] = useState("all");
+    const [hasFacebookPixel, setHasFacebookPixel] = useState("all");
+    const [hasGoogleAnalytics, setHasGoogleAnalytics] = useState("all");
+    const [employeeBucket, setEmployeeBucket] = useState("all");
+    const [fleetBucket, setFleetBucket] = useState("all");
+    const [selectedWebsiteBuiltBy, setSelectedWebsiteBuiltBy] = useState<Set<string>>(new Set());
+    const [selectedMarketCompetitionLevel, setSelectedMarketCompetitionLevel] = useState<Set<string>>(new Set());
+    const [marketRankPercentileMin, setMarketRankPercentileMin] = useState("all");
+    const [hasFacebook, setHasFacebook] = useState("all");
+    const [hasYouTube, setHasYouTube] = useState("all");
+    const [isVeteranOwned, setIsVeteranOwned] = useState("all");
+    const [isFamilyBusiness, setIsFamilyBusiness] = useState("all");
+    const [reviewVelocityBucket, setReviewVelocityBucket] = useState("all");
+    // Phase 5 — contact quality
+    const [selectedEmailDomainType, setSelectedEmailDomainType] = useState<Set<string>>(new Set());
+    const [emailDomainMatchesWebsite, setEmailDomainMatchesWebsite] = useState("all");
+    const [emailDeliverable, setEmailDeliverable] = useState("all");
+    const [selectedPhoneLineType, setSelectedPhoneLineType] = useState<Set<string>>(new Set());
+    const [phoneDeliverable, setPhoneDeliverable] = useState("all");
+    const [hasOwnerFullName, setHasOwnerFullName] = useState("all");
+    const [hasOwnerLinkedIn, setHasOwnerLinkedIn] = useState("all");
+    const [isDirectContact, setIsDirectContact] = useState("all");
+    // Phase 6 — website crawl depth
+    const [lastUpdatedYearBucket, setLastUpdatedYearBucket] = useState("all");
+    const [hasPricingPage, setHasPricingPage] = useState("all");
+    const [hasBlog, setHasBlog] = useState("all");
+    const [hasServiceAreaPublishedOnSite, setHasServiceAreaPublishedOnSite] = useState("all");
+    const [totalPageCountBucket, setTotalPageCountBucket] = useState("all");
     const [showSegmentFilters, setShowSegmentFilters] = useState(false);
     const LEADS_PER_PAGE = 50;
 
@@ -113,6 +177,62 @@ export default function ScrapedLeadsPage() {
             if (yearsInBusinessRangeFilter !== "all") params.set("yearsInBusinessRange", yearsInBusinessRangeFilter);
             if (hasTrueBookingFilter !== "all") params.set("hasTrueOnlineBooking", hasTrueBookingFilter);
             if (bookingFlowTypeFilter !== "all") params.set("bookingFlowType", bookingFlowTypeFilter);
+            if (selectedPainTags.size > 0) params.set("painTags", Array.from(selectedPainTags).join(","));
+            if (selectedPraiseTags.size > 0) params.set("praiseTags", Array.from(selectedPraiseTags).join(","));
+            if (painTagCountMin !== "all") params.set("painTagCountMin", painTagCountMin);
+            if (negativeReviewPercentMin !== "all") params.set("negativeReviewPercentMin", negativeReviewPercentMin);
+            if (mostRecentNegativeWithinDays !== "all") params.set("mostRecentNegativeWithinDays", mostRecentNegativeWithinDays);
+            if (starRatingBucket !== "all") params.set("starRatingBucket", starRatingBucket);
+            if (profileCompletenessBucket !== "all") params.set("profileCompletenessBucket", profileCompletenessBucket);
+            if (respondsToNegatives !== "all") params.set("respondsToNegatives", respondsToNegatives);
+            if (hasRecentGbpPosts !== "all") params.set("hasRecentGbpPosts", hasRecentGbpPosts);
+            if (hasBusinessDescription !== "all") params.set("hasBusinessDescription", hasBusinessDescription);
+            if (selectedBookingTiers.size > 0) params.set("bookingSophistication", Array.from(selectedBookingTiers).join(","));
+            if (bookingHasInstantQuote !== "all") params.set("bookingHasInstantQuote", bookingHasInstantQuote);
+            if (bookingHasJobSizeInput !== "all") params.set("bookingHasJobSizeInput", bookingHasJobSizeInput);
+            if (bookingHasItemSelector !== "all") params.set("bookingHasItemSelector", bookingHasItemSelector);
+            if (bookingCollectsPayment !== "all") params.set("bookingCollectsPayment", bookingCollectsPayment);
+            if (bookingIsQuoteRequestOnly !== "all") params.set("bookingIsQuoteRequestOnly", bookingIsQuoteRequestOnly);
+            if (selectedCompetitorStack.size > 0) params.set("competitorStack", Array.from(selectedCompetitorStack).join(","));
+            if (selectedPaymentStack.size > 0) params.set("paymentStack", Array.from(selectedPaymentStack).join(","));
+            if (mentionsCashOnly !== "all") params.set("mentionsCashOnly", mentionsCashOnly);
+            if (hasOnlinePayment !== "all") params.set("hasOnlinePayment", hasOnlinePayment);
+            if (selectedCms.size > 0) params.set("cmsDetected", Array.from(selectedCms).join(","));
+            if (selectedBookingPlatforms.size > 0) params.set("bookingPlatform", Array.from(selectedBookingPlatforms).join(","));
+            if (bookingCtaTargetsPhone !== "all") params.set("bookingCtaTargetsPhone", bookingCtaTargetsPhone);
+            if (marketingMaturityBucket !== "all") params.set("marketingMaturityBucket", marketingMaturityBucket);
+            if (loadTimeBucket !== "all") params.set("loadTimeBucket", loadTimeBucket);
+            if (mobileFriendly !== "all") params.set("mobileFriendly", mobileFriendly);
+            if (sslValid !== "all") params.set("sslValid", sslValid);
+            if (hasGoogleAds !== "all") params.set("hasGoogleAds", hasGoogleAds);
+            if (hasCallTracking !== "all") params.set("hasCallTracking", hasCallTracking);
+            if (hasChatWidget !== "all") params.set("hasChatWidget", hasChatWidget);
+            if (hasGTM !== "all") params.set("hasGTM", hasGTM);
+            if (hasFacebookPixel !== "all") params.set("hasFacebookPixel", hasFacebookPixel);
+            if (hasGoogleAnalytics !== "all") params.set("hasGoogleAnalytics", hasGoogleAnalytics);
+            if (employeeBucket !== "all") params.set("employeeBucket", employeeBucket);
+            if (fleetBucket !== "all") params.set("fleetBucket", fleetBucket);
+            if (selectedWebsiteBuiltBy.size > 0) params.set("websiteBuiltBy", Array.from(selectedWebsiteBuiltBy).join(","));
+            if (selectedMarketCompetitionLevel.size > 0) params.set("marketCompetitionLevel", Array.from(selectedMarketCompetitionLevel).join(","));
+            if (marketRankPercentileMin !== "all") params.set("marketRankPercentileMin", marketRankPercentileMin);
+            if (hasFacebook !== "all") params.set("hasFacebook", hasFacebook);
+            if (hasYouTube !== "all") params.set("hasYouTube", hasYouTube);
+            if (isVeteranOwned !== "all") params.set("isVeteranOwned", isVeteranOwned);
+            if (isFamilyBusiness !== "all") params.set("isFamilyBusiness", isFamilyBusiness);
+            if (reviewVelocityBucket !== "all") params.set("reviewVelocityBucket", reviewVelocityBucket);
+            if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
+            if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
+            if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
+            if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
+            if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
+            if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
+            if (hasOwnerLinkedIn !== "all") params.set("hasOwnerLinkedIn", hasOwnerLinkedIn);
+            if (isDirectContact !== "all") params.set("isDirectContact", isDirectContact);
+            if (lastUpdatedYearBucket !== "all") params.set("lastUpdatedYearBucket", lastUpdatedYearBucket);
+            if (hasPricingPage !== "all") params.set("hasPricingPage", hasPricingPage);
+            if (hasBlog !== "all") params.set("hasBlog", hasBlog);
+            if (hasServiceAreaPublishedOnSite !== "all") params.set("hasServiceAreaPublishedOnSite", hasServiceAreaPublishedOnSite);
+            if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -129,7 +249,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -432,9 +552,10 @@ export default function ScrapedLeadsPage() {
                         width: "100%", padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between",
                         background: "transparent", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--text-light)",
                     }}>
-                    <span>🎯 Segment Filters (Reviews · Business Age · Booking)
+                    <span>🎯 Segment Filters (Pain · Praise · GBP · Reviews · Booking · Stack · Tech · Marketing · Team · Market · Contact · Site)
                         {(() => {
-                            const active = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter].filter(f => f !== "all").length;
+                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket].filter(f => f !== "all").length;
+                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size;
                             return active > 0 ? <span style={{ marginLeft: 6, padding: "1px 6px", fontSize: 10, background: "var(--orange)", color: "#fff", borderRadius: 10, fontWeight: 700 }}>{active}</span> : null;
                         })()}
                     </span>
@@ -443,6 +564,644 @@ export default function ScrapedLeadsPage() {
 
                 {showSegmentFilters && (
                     <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 10 }}>
+                        {/* ── Canonical pain tags (multi-select, grouped by category) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Pain Tags (multi-select, AND)</span>
+                                {selectedPainTags.size > 0 && (
+                                    <button onClick={() => setSelectedPainTags(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPainTags.size}</button>
+                                )}
+                            </div>
+                            {Object.entries(painTagsByCategory()).map(([cat, tags]) => (
+                                <div key={cat} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                    <span style={{ fontSize: 9, fontWeight: 600, color: "var(--text-faint)", minWidth: 110 }}>{cat}</span>
+                                    {tags.map(t => {
+                                        const active = selectedPainTags.has(t.id);
+                                        return (
+                                            <button key={t.id} title={t.description}
+                                                onClick={() => setSelectedPainTags(prev => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                                                    return next;
+                                                })}
+                                                style={{
+                                                    padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                    border: `1px solid ${active ? "var(--danger)" : "var(--border)"}`,
+                                                    background: active ? "rgba(239,68,68,0.08)" : "transparent",
+                                                    color: active ? "var(--danger)" : "var(--text-light)",
+                                                }}>
+                                                {t.emoji} {t.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* ── Canonical praise tags (multi-select, grouped by category) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Praise Tags (multi-select, AND)</span>
+                                {selectedPraiseTags.size > 0 && (
+                                    <button onClick={() => setSelectedPraiseTags(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPraiseTags.size}</button>
+                                )}
+                            </div>
+                            {Object.entries(praiseTagsByCategory()).map(([cat, tags]) => (
+                                <div key={cat} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                    <span style={{ fontSize: 9, fontWeight: 600, color: "var(--text-faint)", minWidth: 110 }}>{cat}</span>
+                                    {tags.map(t => {
+                                        const active = selectedPraiseTags.has(t.id);
+                                        return (
+                                            <button key={t.id} title={t.description}
+                                                onClick={() => setSelectedPraiseTags(prev => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                                                    return next;
+                                                })}
+                                                style={{
+                                                    padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                    border: `1px solid ${active ? "var(--success)" : "var(--border)"}`,
+                                                    background: active ? "rgba(0,216,74,0.08)" : "transparent",
+                                                    color: active ? "#00A83A" : "var(--text-light)",
+                                                }}>
+                                                {t.emoji} {t.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* ── Severity dropdowns ── */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Severity:</span>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Pain intensity:</span>
+                                <select value={painTagCountMin} onChange={e => setPainTagCountMin(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="1">1+ pains</option>
+                                    <option value="2">2+ pains</option>
+                                    <option value="3">3+ pains</option>
+                                    <option value="5">5+ pains</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>% negative reviews:</span>
+                                <select value={negativeReviewPercentMin} onChange={e => setNegativeReviewPercentMin(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="0.1">10%+</option>
+                                    <option value="0.25">25%+</option>
+                                    <option value="0.5">50%+</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Most recent negative within:</span>
+                                <select value={mostRecentNegativeWithinDays} onChange={e => setMostRecentNegativeWithinDays(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="7">7 days</option>
+                                    <option value="30">30 days</option>
+                                    <option value="90">90 days</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        {/* ── GBP Profile dropdowns ── */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>GBP Profile:</span>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Star rating:</span>
+                                <select value={starRatingBucket} onChange={e => setStarRatingBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="<3">&lt; 3★</option>
+                                    <option value="3-3.9">3.0 – 3.9★</option>
+                                    <option value="4-4.4">4.0 – 4.4★</option>
+                                    <option value="4.5-4.7">4.5 – 4.7★</option>
+                                    <option value="4.8+">4.8+★</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Profile completeness:</span>
+                                <select value={profileCompletenessBucket} onChange={e => setProfileCompletenessBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="low">Low (&lt; 40)</option>
+                                    <option value="medium">Medium (40–70)</option>
+                                    <option value="high">High (70+)</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Responds to negatives:</span>
+                                <select value={respondsToNegatives} onChange={e => setRespondsToNegatives(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="true">Yes (≥50%)</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Recent GBP posts:</span>
+                                <select value={hasRecentGbpPosts} onChange={e => setHasRecentGbpPosts(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="true">Posted in 90d</option>
+                                    <option value="false">No posts</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Description:</span>
+                                <select value={hasBusinessDescription} onChange={e => setHasBusinessDescription(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="true">Has description</option>
+                                    <option value="false">Missing</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        {/* ── Booking Sophistication (multi-select tiers + component toggles) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Booking Sophistication (multi-select)</span>
+                                {selectedBookingTiers.size > 0 && (
+                                    <button onClick={() => setSelectedBookingTiers(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedBookingTiers.size}</button>
+                                )}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                {[
+                                    { value: "none", label: "⛔ None" },
+                                    { value: "cta_only", label: "🔘 CTA only" },
+                                    { value: "basic_scheduler", label: "🗓️ Basic scheduler" },
+                                    { value: "photo_collector", label: "📷 Photo collector" },
+                                    { value: "quote_form", label: "📝 Quote form" },
+                                    { value: "instant_quote", label: "💵 Instant quote" },
+                                    { value: "full_booking", label: "🏆 Full booking" },
+                                    { value: "other", label: "Other" },
+                                ].map(t => {
+                                    const active = selectedBookingTiers.has(t.value);
+                                    return (
+                                        <button key={t.value}
+                                            onClick={() => setSelectedBookingTiers(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(t.value)) next.delete(t.value); else next.add(t.value);
+                                                return next;
+                                            })}
+                                            style={{
+                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                border: `1px solid ${active ? "var(--info)" : "var(--border)"}`,
+                                                background: active ? "rgba(37,99,235,0.08)" : "transparent",
+                                                color: active ? "var(--info)" : "var(--text-light)",
+                                            }}>
+                                            {t.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Components:</span>
+                                {[
+                                    { label: "Instant quote", state: bookingHasInstantQuote, setter: setBookingHasInstantQuote },
+                                    { label: "Job size input", state: bookingHasJobSizeInput, setter: setBookingHasJobSizeInput },
+                                    { label: "Item selector", state: bookingHasItemSelector, setter: setBookingHasItemSelector },
+                                    { label: "Collects payment", state: bookingCollectsPayment, setter: setBookingCollectsPayment },
+                                    { label: "Quote-only (no instant)", state: bookingIsQuoteRequestOnly, setter: setBookingIsQuoteRequestOnly },
+                                ].map(f => (
+                                    <button key={f.label}
+                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                        style={{
+                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                        }}>
+                                        {f.state === "true" ? "✓ " : ""}{f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Competitor Stack (multi-select, OR semantics) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Competitor Stack (multi-select, OR)</span>
+                                {selectedCompetitorStack.size > 0 && (
+                                    <button onClick={() => setSelectedCompetitorStack(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedCompetitorStack.size}</button>
+                                )}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                {[
+                                    { value: "Jobber", label: "Jobber" },
+                                    { value: "Workiz", label: "Workiz" },
+                                    { value: "HousecallPro", label: "Housecall Pro" },
+                                    { value: "ServiceTitan", label: "ServiceTitan" },
+                                    { value: "Thryv", label: "Thryv" },
+                                    { value: "GorillaDesk", label: "GorillaDesk" },
+                                    { value: "FieldPulse", label: "FieldPulse" },
+                                    { value: "QuoteIQ", label: "QuoteIQ" },
+                                    { value: "Docket", label: "Docket" },
+                                    { value: "DumpstersCom", label: "Dumpsters.com" },
+                                ].map(p => {
+                                    const active = selectedCompetitorStack.has(p.value);
+                                    return (
+                                        <button key={p.value}
+                                            onClick={() => setSelectedCompetitorStack(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(p.value)) next.delete(p.value); else next.add(p.value);
+                                                return next;
+                                            })}
+                                            style={{
+                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                border: `1px solid ${active ? "var(--warn-dark)" : "var(--border)"}`,
+                                                background: active ? "rgba(245,158,11,0.08)" : "transparent",
+                                                color: active ? "var(--warn-dark)" : "var(--text-light)",
+                                            }}>
+                                            {p.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* ── Payment Stack (multi-select + toggles) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Payment Stack</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Uses:</span>
+                                {[
+                                    { value: "Stripe", label: "💳 Stripe" },
+                                    { value: "Square", label: "⬛ Square" },
+                                ].map(p => {
+                                    const active = selectedPaymentStack.has(p.value);
+                                    return (
+                                        <button key={p.value}
+                                            onClick={() => setSelectedPaymentStack(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(p.value)) next.delete(p.value); else next.add(p.value);
+                                                return next;
+                                            })}
+                                            style={{
+                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                border: `1px solid ${active ? "var(--info)" : "var(--border)"}`,
+                                                background: active ? "rgba(37,99,235,0.08)" : "transparent",
+                                                color: active ? "var(--info)" : "var(--text-light)",
+                                            }}>
+                                            {p.label}
+                                        </button>
+                                    );
+                                })}
+                                <div style={{ width: 1, height: 14, background: "var(--border)", margin: "0 4px" }} />
+                                {[
+                                    { label: "Cash/check only", state: mentionsCashOnly, setter: setMentionsCashOnly },
+                                    { label: "Has online payment", state: hasOnlinePayment, setter: setHasOnlinePayment },
+                                ].map(f => (
+                                    <button key={f.label}
+                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                        style={{
+                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                        }}>
+                                        {f.state === "true" ? "✓ " : ""}{f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Tech Stack (CMS, website built-by, booking platform, site quality) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Tech Stack</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>CMS:</span>
+                                {["WordPress", "Wix", "Squarespace", "GoDaddy", "Weebly", "Shopify", "Webflow", "Other"].map(cms => {
+                                    const active = selectedCms.has(cms);
+                                    return (
+                                        <button key={cms}
+                                            onClick={() => setSelectedCms(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(cms)) next.delete(cms); else next.add(cms);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {cms}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Built by:</span>
+                                {[
+                                    { value: "diy", label: "🛠 DIY (confirmed)" },
+                                    { value: "likely_diy", label: "🛠 Likely DIY" },
+                                    { value: "likely_agency", label: "🏢 Likely Agency" },
+                                    { value: "unknown", label: "❓ Unknown" },
+                                ].map(w => {
+                                    const active = selectedWebsiteBuiltBy.has(w.value);
+                                    return (
+                                        <button key={w.value}
+                                            onClick={() => setSelectedWebsiteBuiltBy(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(w.value)) next.delete(w.value); else next.add(w.value);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {w.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Booking platform:</span>
+                                {["Calendly", "Jobber", "Housecall Pro", "ServiceTitan", "Workiz", "Thryv", "GorillaDesk", "FieldPulse", "Custom (native form)"].map(bp => {
+                                    const active = selectedBookingPlatforms.has(bp);
+                                    return (
+                                        <button key={bp}
+                                            onClick={() => setSelectedBookingPlatforms(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(bp)) next.delete(bp); else next.add(bp);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {bp}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Load time:</span>
+                                    <select value={loadTimeBucket} onChange={e => setLoadTimeBucket(e.target.value)}
+                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                        <option value="all">Any</option>
+                                        <option value="fast">Fast (&lt; 2s)</option>
+                                        <option value="medium">Medium (2–5s)</option>
+                                        <option value="slow">Slow (5s+)</option>
+                                    </select>
+                                </label>
+                                {[
+                                    { label: "Mobile-friendly", state: mobileFriendly, setter: setMobileFriendly },
+                                    { label: "SSL valid", state: sslValid, setter: setSslValid },
+                                    { label: "⚠️ Fake booking (CTA dials phone)", state: bookingCtaTargetsPhone, setter: setBookingCtaTargetsPhone },
+                                ].map(f => (
+                                    <button key={f.label}
+                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                        style={{
+                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                        }}>
+                                        {f.state === "true" ? "✓ " : ""}{f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Marketing Signals ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Marketing Signals</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Maturity score:</span>
+                                    <select value={marketingMaturityBucket} onChange={e => setMarketingMaturityBucket(e.target.value)}
+                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                        <option value="all">Any</option>
+                                        <option value="low">Low (&lt; 20)</option>
+                                        <option value="medium">Medium (20–49)</option>
+                                        <option value="high">High (50+)</option>
+                                    </select>
+                                </label>
+                                {[
+                                    { label: "Google Ads", state: hasGoogleAds, setter: setHasGoogleAds },
+                                    { label: "Call tracking", state: hasCallTracking, setter: setHasCallTracking },
+                                    { label: "Chat widget", state: hasChatWidget, setter: setHasChatWidget },
+                                    { label: "GTM", state: hasGTM, setter: setHasGTM },
+                                    { label: "FB Pixel", state: hasFacebookPixel, setter: setHasFacebookPixel },
+                                    { label: "Google Analytics", state: hasGoogleAnalytics, setter: setHasGoogleAnalytics },
+                                ].map(f => (
+                                    <button key={f.label}
+                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                        style={{
+                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                        }}>
+                                        {f.state === "true" ? "✓ " : ""}{f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Team Size & Business Profile ── */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Team &amp; Profile:</span>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Employees:</span>
+                                <select value={employeeBucket} onChange={e => setEmployeeBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="1">Solo (1)</option>
+                                    <option value="2-3">Small (2–3)</option>
+                                    <option value="4-10">Growing (4–10)</option>
+                                    <option value="11+">Established (11+)</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Fleet:</span>
+                                <select value={fleetBucket} onChange={e => setFleetBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="1">1 truck</option>
+                                    <option value="2-5">2–5</option>
+                                    <option value="6+">6+</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                            </label>
+                            {[
+                                { label: "Veteran-owned", state: isVeteranOwned, setter: setIsVeteranOwned },
+                                { label: "Family business", state: isFamilyBusiness, setter: setIsFamilyBusiness },
+                                { label: "Has Facebook", state: hasFacebook, setter: setHasFacebook },
+                                { label: "Has YouTube", state: hasYouTube, setter: setHasYouTube },
+                            ].map(f => (
+                                <button key={f.label}
+                                    onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                    style={{
+                                        padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                        border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                        background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                        color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                    }}>
+                                    {f.state === "true" ? "✓ " : ""}{f.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* ── Market Context ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Market Context</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Competition:</span>
+                                {[
+                                    { value: "low", label: "🟢 Low" },
+                                    { value: "medium", label: "🟡 Medium" },
+                                    { value: "high", label: "🔴 High" },
+                                ].map(c => {
+                                    const active = selectedMarketCompetitionLevel.has(c.value);
+                                    return (
+                                        <button key={c.value}
+                                            onClick={() => setSelectedMarketCompetitionLevel(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(c.value)) next.delete(c.value); else next.add(c.value);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {c.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Market rank:</span>
+                                    <select value={marketRankPercentileMin} onChange={e => setMarketRankPercentileMin(e.target.value)}
+                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                        <option value="all">Any</option>
+                                        <option value="0.9">Top 10%</option>
+                                        <option value="0.75">Top 25%</option>
+                                        <option value="0.5">Top 50%</option>
+                                    </select>
+                                </label>
+                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Review velocity (90d):</span>
+                                    <select value={reviewVelocityBucket} onChange={e => setReviewVelocityBucket(e.target.value)}
+                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                        <option value="all">Any</option>
+                                        <option value="dormant">💤 Dormant (0)</option>
+                                        <option value="low">🐢 Low (1–5)</option>
+                                        <option value="moderate">⚡ Moderate (6–20)</option>
+                                        <option value="high">🚀 High (21+)</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* ── Contact Quality (Phase 5) ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Contact Quality</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Email domain:</span>
+                                {[
+                                    { value: "personal", label: "📧 Personal (gmail, yahoo, …)" },
+                                    { value: "business_custom", label: "🏢 Custom domain" },
+                                    { value: "unknown", label: "❓ Unknown" },
+                                ].map(d => {
+                                    const active = selectedEmailDomainType.has(d.value);
+                                    return (
+                                        <button key={d.value}
+                                            onClick={() => setSelectedEmailDomainType(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(d.value)) next.delete(d.value); else next.add(d.value);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {d.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Phone line type:</span>
+                                {[
+                                    { value: "mobile", label: "📱 Mobile" },
+                                    { value: "landline", label: "☎️ Landline" },
+                                    { value: "voip", label: "🖥 VOIP" },
+                                    { value: "unknown", label: "❓ Unknown" },
+                                ].map(d => {
+                                    const active = selectedPhoneLineType.has(d.value);
+                                    return (
+                                        <button key={d.value}
+                                            onClick={() => setSelectedPhoneLineType(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(d.value)) next.delete(d.value); else next.add(d.value);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
+                                            {d.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                {[
+                                    { label: "Email matches website", state: emailDomainMatchesWebsite, setter: setEmailDomainMatchesWebsite },
+                                    { label: "Email deliverable", state: emailDeliverable, setter: setEmailDeliverable },
+                                    { label: "Phone deliverable", state: phoneDeliverable, setter: setPhoneDeliverable },
+                                    { label: "Has first + last name", state: hasOwnerFullName, setter: setHasOwnerFullName },
+                                    { label: "Has LinkedIn URL", state: hasOwnerLinkedIn, setter: setHasOwnerLinkedIn },
+                                    { label: "🎯 Direct contact", state: isDirectContact, setter: setIsDirectContact },
+                                ].map(f => (
+                                    <button key={f.label}
+                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                        style={{
+                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                        }}>
+                                        {f.state === "true" ? "✓ " : ""}{f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* ── Website Depth (Phase 6) ── */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Website Depth:</span>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Last updated:</span>
+                                <select value={lastUpdatedYearBucket} onChange={e => setLastUpdatedYearBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="stale">💀 Stale (≤2020)</option>
+                                    <option value="aging">🕰 Aging (2021–2022)</option>
+                                    <option value="fresh">✨ Fresh (2023+)</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                            </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Page count:</span>
+                                <select value={totalPageCountBucket} onChange={e => setTotalPageCountBucket(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="tiny">Tiny (1–5)</option>
+                                    <option value="small">Small (6–20)</option>
+                                    <option value="medium">Medium (21–100)</option>
+                                    <option value="large">Large (100+)</option>
+                                </select>
+                            </label>
+                            {[
+                                { label: "Has pricing page", state: hasPricingPage, setter: setHasPricingPage },
+                                { label: "Has blog", state: hasBlog, setter: setHasBlog },
+                                { label: "Service area on site", state: hasServiceAreaPublishedOnSite, setter: setHasServiceAreaPublishedOnSite },
+                            ].map(f => (
+                                <button key={f.label}
+                                    onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                                    style={{
+                                        padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                        border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
+                                        background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
+                                        color: f.state === "true" ? "var(--info)" : "var(--text-light)",
+                                    }}>
+                                    {f.state === "true" ? "✓ " : ""}{f.label}
+                                </button>
+                            ))}
+                        </div>
+
                         {/* Review pains — toggle chips */}
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Review Pain:</span>
@@ -477,7 +1236,8 @@ export default function ScrapedLeadsPage() {
                                     <option value="0-10">0–10</option>
                                     <option value="11-50">11–50</option>
                                     <option value="51-200">51–200</option>
-                                    <option value="200+">200+</option>
+                                    <option value="201-500">201–500</option>
+                                    <option value="500+">500+</option>
                                 </select>
                             </label>
 
@@ -550,6 +1310,62 @@ export default function ScrapedLeadsPage() {
                                     setYearsInBusinessRangeFilter("all");
                                     setHasTrueBookingFilter("all");
                                     setBookingFlowTypeFilter("all");
+                                    setSelectedPainTags(new Set());
+                                    setSelectedPraiseTags(new Set());
+                                    setPainTagCountMin("all");
+                                    setNegativeReviewPercentMin("all");
+                                    setMostRecentNegativeWithinDays("all");
+                                    setStarRatingBucket("all");
+                                    setProfileCompletenessBucket("all");
+                                    setRespondsToNegatives("all");
+                                    setHasRecentGbpPosts("all");
+                                    setHasBusinessDescription("all");
+                                    setSelectedBookingTiers(new Set());
+                                    setBookingHasInstantQuote("all");
+                                    setBookingHasJobSizeInput("all");
+                                    setBookingHasItemSelector("all");
+                                    setBookingCollectsPayment("all");
+                                    setBookingIsQuoteRequestOnly("all");
+                                    setSelectedCompetitorStack(new Set());
+                                    setSelectedPaymentStack(new Set());
+                                    setMentionsCashOnly("all");
+                                    setHasOnlinePayment("all");
+                                    setSelectedCms(new Set());
+                                    setSelectedBookingPlatforms(new Set());
+                                    setBookingCtaTargetsPhone("all");
+                                    setMarketingMaturityBucket("all");
+                                    setLoadTimeBucket("all");
+                                    setMobileFriendly("all");
+                                    setSslValid("all");
+                                    setHasGoogleAds("all");
+                                    setHasCallTracking("all");
+                                    setHasChatWidget("all");
+                                    setHasGTM("all");
+                                    setHasFacebookPixel("all");
+                                    setHasGoogleAnalytics("all");
+                                    setEmployeeBucket("all");
+                                    setFleetBucket("all");
+                                    setSelectedWebsiteBuiltBy(new Set());
+                                    setSelectedMarketCompetitionLevel(new Set());
+                                    setMarketRankPercentileMin("all");
+                                    setHasFacebook("all");
+                                    setHasYouTube("all");
+                                    setIsVeteranOwned("all");
+                                    setIsFamilyBusiness("all");
+                                    setReviewVelocityBucket("all");
+                                    setSelectedEmailDomainType(new Set());
+                                    setEmailDomainMatchesWebsite("all");
+                                    setEmailDeliverable("all");
+                                    setSelectedPhoneLineType(new Set());
+                                    setPhoneDeliverable("all");
+                                    setHasOwnerFullName("all");
+                                    setHasOwnerLinkedIn("all");
+                                    setIsDirectContact("all");
+                                    setLastUpdatedYearBucket("all");
+                                    setHasPricingPage("all");
+                                    setHasBlog("all");
+                                    setHasServiceAreaPublishedOnSite("all");
+                                    setTotalPageCountBucket("all");
                                 }}
                                 style={{ padding: "3px 10px", fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>
                                 Clear segment filters
@@ -738,9 +1554,20 @@ export default function ScrapedLeadsPage() {
                                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Company</div>
                                             {[
                                                 ["Phone", l.phone],
+                                                ["  ↳ Line Type", (l as any).phoneLineType ? ({ mobile: "📱 Mobile", landline: "☎️ Landline", voip: "🖥 VOIP", unknown: "Unknown" } as Record<string, string>)[(l as any).phoneLineType] || (l as any).phoneLineType : null],
+                                                ["  ↳ Carrier", (l as any).phoneCarrier],
+                                                ["  ↳ Deliverable", (l as any).phoneDeliverable === true ? "✓ Yes" : (l as any).phoneDeliverable === false ? "✗ No" : null],
                                                 ["Email", l.email],
+                                                ["  ↳ Domain Type", (l as any).emailDomainType ? ({ personal: "Personal", business_custom: "Business (custom domain)", unknown: "Unknown" } as Record<string, string>)[(l as any).emailDomainType] || (l as any).emailDomainType : null],
+                                                ["  ↳ Matches Website", (l as any).emailDomainMatchesWebsite ? "✓ Yes" : null],
+                                                ["  ↳ Deliverable", (l as any).emailDeliverable === true ? "✓ Yes" : (l as any).emailDeliverable === false ? "✗ No" : null],
+                                                ["  ↳ Risk Score", (l as any).emailRiskScore != null ? `${(l as any).emailRiskScore}/100` : null],
                                                 ["Website", l.website],
                                                 ["Owner", (l as any).ownerName || (l as any).ownerNameFromReviews],
+                                                ["  ↳ First Name", (l as any).ownerFirstName],
+                                                ["  ↳ Last Name", (l as any).ownerLastName],
+                                                ["  ↳ LinkedIn", (l as any).ownerLinkedInUrl],
+                                                ["  ↳ Direct Contact", (l as any).isDirectContact ? "🎯 Yes" : null],
                                                 ["Owner Source", (l as any).ownerNameSource ? ({ website: "Website", reviews: "Google Reviews", web_search: "Web Search", facebook: "Facebook" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
                                                 ["Owner Source URL", (l as any).ownerNameSourceUrl],
                                                 ["Owner Bio", (l as any).ownerBio],
@@ -774,8 +1601,16 @@ export default function ScrapedLeadsPage() {
                                                 ["Booking Platform", (l as any).bookingPlatform],
                                                 ["Booking Type", (l as any).bookingType && (l as any).bookingType !== "none" ? ({ embed: "Embedded widget", external_link: "External link", native_form: "Native date/time form", cta_only: "CTA text only (no real booking)" } as Record<string, string>)[(l as any).bookingType] || (l as any).bookingType : null],
                                                 ["Booking Flow", (l as any).bookingFlowType ? ({ photo_upload: "📷 Photo upload only", timeslot_selection: "🗓️ Timeslot only", photo_and_timeslot: "📷🗓️ Photo + Timeslot", other: "Other" } as Record<string, string>)[(l as any).bookingFlowType] || (l as any).bookingFlowType : null],
-                                                ["  ↳ Has Photo Upload", (l as any).bookingHasPhotoUpload ? "Yes" : null],
-                                                ["  ↳ Has Timeslot Picker", (l as any).bookingHasTimeslotSelection ? "Yes" : null],
+                                                ["Booking Tier", (l as any).bookingSophistication ? ({ none: "None", cta_only: "🔘 CTA only", basic_scheduler: "🗓️ Basic scheduler", photo_collector: "📷 Photo collector", quote_form: "📝 Quote form", instant_quote: "💵 Instant quote", full_booking: "🏆 Full booking", other: "Other" } as Record<string, string>)[(l as any).bookingSophistication] || (l as any).bookingSophistication : null],
+                                                ["  ↳ Photo Upload", (l as any).bookingHasPhotoUpload ? "Yes" : null],
+                                                ["  ↳ Timeslot Picker", (l as any).bookingHasTimeslotSelection ? "Yes" : null],
+                                                ["  ↳ Address Input", (l as any).bookingHasAddressInput ? "Yes" : null],
+                                                ["  ↳ Job Size Input", (l as any).bookingHasJobSizeInput ? "Yes" : null],
+                                                ["  ↳ Item Selector", (l as any).bookingHasItemSelector ? "Yes" : null],
+                                                ["  ↳ Instant Quote", (l as any).bookingHasInstantQuote ? "Yes" : null],
+                                                ["  ↳ Price Estimate", (l as any).bookingHasPriceEstimate ? "Yes" : null],
+                                                ["  ↳ Collects Payment", (l as any).bookingCollectsPayment ? "Yes" : null],
+                                                ["  ↳ Quote Request Only", (l as any).bookingIsQuoteRequestOnly ? "Yes" : null],
                                                 ["'Book Now' CTA", (l as any).hasBookingCta ? "Yes" : null],
                                                 ["Misleading CTA (dials phone)", (l as any).bookingCtaTargetsPhone ? "⚠️ Yes — 'Book Now' dials phone" : null],
                                                 ["Quote Form", (l as any).hasQuoteForm ? "Yes" : "No"],
@@ -783,7 +1618,27 @@ export default function ScrapedLeadsPage() {
                                                 ["Mobile Friendly", (l as any).mobileFriendly ? "Yes" : "No"],
                                                 ["SSL", (l as any).sslValid ? "Yes" : "No"],
                                                 ["Load Time", (l as any).loadTimeSeconds ? `${(l as any).loadTimeSeconds.toFixed(1)}s` : null],
-                                                ["Competitor", (l as any).competitorPlatform],
+                                                ["Last Updated (Copyright)", (l as any).lastUpdatedYear],
+                                                ["Total Pages (Sitemap)", (l as any).totalPageCount],
+                                                ["Has Pricing Page", (l as any).hasPricingPage ? "Yes" : null],
+                                                ["Has Blog", (l as any).hasBlog ? "Yes" : null],
+                                                ["Service Area on Site", (l as any).hasServiceAreaPublishedOnSite ? `Yes (${(l as any).serviceAreaPagesCount || 0} pages)` : null],
+                                                ["Competitor Platform", (l as any).competitorPlatform],
+                                                ["  ↳ Jobber", (l as any).usesJobber ? "Yes" : null],
+                                                ["  ↳ Workiz", (l as any).usesWorkiz ? "Yes" : null],
+                                                ["  ↳ Housecall Pro", (l as any).usesHousecallPro ? "Yes" : null],
+                                                ["  ↳ ServiceTitan", (l as any).usesServiceTitan ? "Yes" : null],
+                                                ["  ↳ Thryv", (l as any).usesThryv ? "Yes" : null],
+                                                ["  ↳ GorillaDesk", (l as any).usesGorillaDesk ? "Yes" : null],
+                                                ["  ↳ FieldPulse", (l as any).usesFieldPulse ? "Yes" : null],
+                                                ["  ↳ QuoteIQ", (l as any).usesQuoteIQ ? "Yes" : null],
+                                                ["  ↳ Docket", (l as any).usesDocket ? "Yes" : null],
+                                                ["  ↳ Dumpsters.com", (l as any).usesDumpstersCom ? "Yes" : null],
+                                                ["Payment Platform", (l as any).paymentPlatform],
+                                                ["  ↳ Stripe", (l as any).usesStripe ? "Yes" : null],
+                                                ["  ↳ Square", (l as any).usesSquare ? "Yes" : null],
+                                                ["  ↳ Online Payment", (l as any).hasOnlinePayment ? "Yes" : null],
+                                                ["  ↳ Cash/Check Only", (l as any).mentionsCashOnly ? "⚠️ Yes" : null],
                                             ].filter(([, v]) => v != null).map(([label, value]) => (
                                                 <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--border-light)" }}>
                                                     <span style={{ color: "var(--text-light)" }}>{label}</span>
@@ -812,7 +1667,18 @@ export default function ScrapedLeadsPage() {
                                                 ["Reviews (last 90d)", (l as any).reviewVelocity90d != null ? String((l as any).reviewVelocity90d) : null],
                                                 ["Last Review Date", (l as any).lastReviewDate ? new Date((l as any).lastReviewDate).toLocaleDateString() : null],
                                                 ["Owner Response Rate", (l as any).ownerResponseRate != null ? `${Math.round((l as any).ownerResponseRate * 100)}% of ${(l as any).reviewsAnalyzedCount || "analyzed"}` : null],
+                                                ["  ↳ On Negatives", (l as any).negativeResponseRate != null ? `${Math.round((l as any).negativeResponseRate * 100)}%` : null],
+                                                ["  ↳ On Positives", (l as any).positiveResponseRate != null ? `${Math.round((l as any).positiveResponseRate * 100)}%` : null],
                                                 ["Last Owner Response", (l as any).lastOwnerResponseDate ? new Date((l as any).lastOwnerResponseDate).toLocaleDateString() : null],
+                                                ["Profile Completeness", (l as any).profileCompletenessScore != null ? `${(l as any).profileCompletenessScore}/100` : null],
+                                                ["  ↳ Description", (l as any).hasBusinessDescription ? "Yes" : null],
+                                                ["  ↳ Business Hours", (l as any).hasBusinessHours ? "Yes" : null],
+                                                ["  ↳ Open 24/7", (l as any).isOpen24_7 ? "Yes" : null],
+                                                ["  ↳ Photo Count", (l as any).photoCount != null ? String((l as any).photoCount) : null],
+                                                ["  ↳ Q&A Activity", (l as any).hasQandAActivity ? "Yes" : null],
+                                                ["  ↳ GBP Posts (90d)", (l as any).gbpPostsLast90d != null ? String((l as any).gbpPostsLast90d) : null],
+                                                ["Most Recent Negative", (l as any).mostRecentNegativeReviewDate ? new Date((l as any).mostRecentNegativeReviewDate).toLocaleDateString() : null],
+                                                ["% Negative Reviews", (l as any).negativeReviewPercent != null ? `${Math.round((l as any).negativeReviewPercent * 100)}%` : null],
                                                 ["Competitors Nearby", (l as any).marketCompetitorCount != null ? `${(l as any).marketCompetitorCount} (${(l as any).marketCompetitionLevel})` : null],
                                                 ["Market Rank", (l as any).marketRankByReviews != null ? `#${(l as any).marketRankByReviews}` : null],
                                             ].filter(([, v]) => v != null).map(([label, value]) => (
@@ -821,17 +1687,45 @@ export default function ScrapedLeadsPage() {
                                                     <span style={{ color: "var(--text)", fontWeight: 500 }}>{String(value)}</span>
                                                 </div>
                                             ))}
-                                            {(l as any).reviewComplaints?.length > 0 && (
+                                            {(l as any).painTags?.length > 0 && (
                                                 <div style={{ marginTop: 8 }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Review Complaints</div>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Pain Tags ({(l as any).painTagCount ?? (l as any).painTags.length})</div>
+                                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                                        {((l as any).painTags as string[]).map((tag: string) => {
+                                                            const count = ((l as any).painTagCounts as Record<string, number> | null)?.[tag];
+                                                            return <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", background: "rgba(239,68,68,0.08)", color: "var(--danger)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8 }}>{tag}{count ? ` × ${count}` : ""}</span>;
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(l as any).praiseTags?.length > 0 && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--success)", marginBottom: 4 }}>Praise Tags</div>
+                                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                                        {((l as any).praiseTags as string[]).map((tag: string) => {
+                                                            const count = ((l as any).praiseTagCounts as Record<string, number> | null)?.[tag];
+                                                            return <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", background: "rgba(0,216,74,0.08)", color: "#00A83A", border: "1px solid rgba(0,216,74,0.2)", borderRadius: 8 }}>{tag}{count ? ` × ${count}` : ""}</span>;
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(l as any).businessDescription && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", marginBottom: 4 }}>GBP Description</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic" }}>&ldquo;{(l as any).businessDescription}&rdquo;</div>
+                                                </div>
+                                            )}
+                                            {(l as any).reviewComplaints?.length > 0 && !(l as any).painTags?.length && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Review Complaints (legacy)</div>
                                                     {((l as any).reviewComplaints as string[]).map((c: string, i: number) => (
                                                         <div key={i} style={{ fontSize: 11, color: "var(--text-muted)" }}>• {c}</div>
                                                     ))}
                                                 </div>
                                             )}
-                                            {(l as any).reviewPraise?.length > 0 && (
+                                            {(l as any).reviewPraise?.length > 0 && !(l as any).praiseTags?.length && (
                                                 <div style={{ marginTop: 8 }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--success)", marginBottom: 4 }}>Review Praise</div>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--success)", marginBottom: 4 }}>Review Praise (legacy)</div>
                                                     {((l as any).reviewPraise as string[]).map((p: string, i: number) => (
                                                         <div key={i} style={{ fontSize: 11, color: "var(--text-muted)" }}>• {p}</div>
                                                     ))}
