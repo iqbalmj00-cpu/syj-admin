@@ -1659,6 +1659,17 @@ model ScrapedLead {
   serviceAreaPagesCount        Int?               // count of /service-area/, /locations/, /areas-we-serve/ pages from sitemap
   hasServiceAreaPublishedOnSite Boolean  @default(false) // distinct from serviceAreaCities (which comes from Google Places)
   totalPageCount               Int?               // total URLs in sitemap.xml
+  // ── Personalization derivations (HIGH-impact Round 7) ──
+  topNegativeReviewExcerpt     String?   @db.Text   // curated verbatim quote from the lowest-rated recent review (≤ 280 chars)
+  topPraiseReviewExcerpt       String?   @db.Text   // curated verbatim positive quote (≤ 280 chars)
+  daysSinceLastReview          Int?                  // computed at enrichment time from lastReviewDate
+  daysSinceLastOwnerResponse   Int?                  // computed from lastOwnerResponseDate
+  daysSinceMostRecentNegative  Int?                  // computed from mostRecentNegativeReviewDate
+  employeeSizeBucket           String?               // "solo" | "small" | "growing" | "established" | "unknown"
+  fleetSizeBucket              String?               // "1" | "2-5" | "6+" | "unknown"
+  yearsInBusinessBucket        String?               // "<1" | "1-5" | "5-10" | "10+" | "unknown"
+  websiteAgeYears              Int?                  // currentYear - lastUpdatedYear
+  primaryBottleneck            String?               // "missed_calls" | "no_online_booking" | "poor_response_rate" | "outdated_website" | "no_reviews" | "stale_reviews" | "negative_review_trend" | "none"
   seoScore             Int?                      // 0-100
   uiuxScore            Int?                      // 0-100
   estimatedEmployees   Int?                      // from about/team page
@@ -1797,6 +1808,8 @@ model ScrapedLead {
   @@index([mostRecentNegativeReviewDate])
   @@index([profileCompletenessScore])
   @@index([rating])
+  @@index([primaryBottleneck])
+  @@index([daysSinceLastReview])
   groupMemberships LeadGroupMember[]
 }
 

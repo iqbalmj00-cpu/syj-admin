@@ -23,6 +23,11 @@ const ALLOWED_FIELDS = new Set([
     // Website crawl depth (Phase 6)
     "lastUpdatedYear", "hasPricingPage", "pricingSnippet", "hasBlog",
     "serviceAreaPagesCount", "hasServiceAreaPublishedOnSite", "totalPageCount",
+    // Personalization derivations (HIGH-impact Round 7)
+    "topNegativeReviewExcerpt", "topPraiseReviewExcerpt",
+    "daysSinceLastReview", "daysSinceLastOwnerResponse", "daysSinceMostRecentNegative",
+    "employeeSizeBucket", "fleetSizeBucket", "yearsInBusinessBucket",
+    "websiteAgeYears", "primaryBottleneck",
     "estimatedEmployees", "estimatedFleetSize",
     "serviceAreaCities", "serviceAreaSize", "enrichedAt", "isExistingClient",
     "city", "websiteScore", "leadScore", "grade", "qualification", "reasons", "painPoints",

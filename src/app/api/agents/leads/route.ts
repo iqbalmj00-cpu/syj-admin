@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const hasSecret = expected && secret === expected;
     const hasSession = !!(await getSession());
     if (!hasSecret && !hasSession) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const idsOnly = searchParams.get("idsOnly") === "true"; // returns { ids: [...] } for "select all across pages"
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
     const companyType = searchParams.get("companyType"); // "junk_removal" or "junk_removal,dumpster_rental"
@@ -118,6 +119,9 @@ export async function GET(req: NextRequest) {
     const hasBlog = searchParams.get("hasBlog"); // "true" | "false"
     const hasServiceAreaPublishedOnSite = searchParams.get("hasServiceAreaPublishedOnSite"); // "true" | "false"
     const totalPageCountBucket = searchParams.get("totalPageCountBucket"); // "tiny" (1-5) | "small" (6-20) | "medium" (21-100) | "large" (100+)
+    // Personalization filters (HIGH-impact Round 7)
+    const primaryBottleneck = searchParams.get("primaryBottleneck"); // comma-separated enum values
+    const websiteAgeYearsMin = searchParams.get("websiteAgeYearsMin"); // "3" | "5" | "7"
 
     const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
@@ -466,6 +470,16 @@ export async function GET(req: NextRequest) {
         else if (totalPageCountBucket === "medium") andClauses.push({ totalPageCount: { gte: 21, lte: 100 } });
         else if (totalPageCountBucket === "large") andClauses.push({ totalPageCount: { gt: 100 } });
 
+        // ── Personalization filters (HIGH-impact Round 7) ──
+        if (primaryBottleneck) {
+            const values = primaryBottleneck.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ primaryBottleneck: { in: values } });
+        }
+        if (websiteAgeYearsMin) {
+            const n = parseInt(websiteAgeYearsMin);
+            if (!isNaN(n) && n > 0) andClauses.push({ websiteAgeYears: { gte: n } });
+        }
+
         if (andClauses.length > 0) where.AND = andClauses;
 
         if (search) {
@@ -475,6 +489,17 @@ export async function GET(req: NextRequest) {
                 { phone: { contains: search } },
                 { website: { contains: search, mode: "insensitive" } },
             ];
+        }
+
+        // "Select all matching" short-circuit — returns every matching ID with no pagination,
+        // used by the leads-table bulk-action "Select all X matching" banner. Skips funnel/markets
+        // computation since the caller only needs the ID list.
+        if (idsOnly) {
+            const allMatching = await prisma.scrapedLead.findMany({
+                where,
+                select: { id: true },
+            });
+            return NextResponse.json({ ids: allMatching.map(l => l.id), total: allMatching.length });
         }
 
         const [leads, total] = await Promise.all([

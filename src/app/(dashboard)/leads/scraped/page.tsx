@@ -132,6 +132,9 @@ export default function ScrapedLeadsPage() {
     const [hasBlog, setHasBlog] = useState("all");
     const [hasServiceAreaPublishedOnSite, setHasServiceAreaPublishedOnSite] = useState("all");
     const [totalPageCountBucket, setTotalPageCountBucket] = useState("all");
+    // Personalization filters (HIGH-impact Round 7)
+    const [selectedPrimaryBottleneck, setSelectedPrimaryBottleneck] = useState<Set<string>>(new Set());
+    const [websiteAgeYearsMin, setWebsiteAgeYearsMin] = useState("all");
     const [showSegmentFilters, setShowSegmentFilters] = useState(false);
     const LEADS_PER_PAGE = 50;
 
@@ -233,6 +236,8 @@ export default function ScrapedLeadsPage() {
             if (hasBlog !== "all") params.set("hasBlog", hasBlog);
             if (hasServiceAreaPublishedOnSite !== "all") params.set("hasServiceAreaPublishedOnSite", hasServiceAreaPublishedOnSite);
             if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
+            if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
+            if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -249,7 +254,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -263,7 +268,7 @@ export default function ScrapedLeadsPage() {
                 body: JSON.stringify({ groupId, leadIds: Array.from(selectedIds) }),
             });
             const data = await res.json();
-            if (res.ok) { showToast(`Added ${data.added} lead(s) to group`); setSelectedIds(new Set()); setShowGroupSelect(false); }
+            if (res.ok) { showToast(`Added ${data.added} lead(s) to group`); setSelectedIds(new Set()); setSelectAllMatching(false); setShowGroupSelect(false); }
             else showToast(data.error || "Failed to add to group", "error");
         } catch { showToast("Failed to add to group", "error"); }
         setAddingToGroup(false);
@@ -288,14 +293,127 @@ export default function ScrapedLeadsPage() {
     };
 
     const totalPages = Math.max(1, Math.ceil(total / LEADS_PER_PAGE));
+    const [selectAllMatching, setSelectAllMatching] = useState(false);
+    const [loadingSelectAll, setLoadingSelectAll] = useState(false);
     const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
+    const canSelectAllMatching = allOnPageSelected && total > leads.length && !selectAllMatching;
 
     const toggleSelect = (id: string) => setSelectedIds(prev => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id); else next.add(id);
         return next;
     });
-    const toggleSelectAll = () => setSelectedIds(allOnPageSelected ? new Set() : new Set(leads.map(l => l.id)));
+    const toggleSelectAll = () => {
+        // Clicking the header checkbox toggles only the current page.
+        // "Select all matching" is a separate explicit action via the banner below.
+        if (allOnPageSelected) {
+            setSelectedIds(new Set());
+            setSelectAllMatching(false);
+        } else {
+            setSelectedIds(new Set(leads.map(l => l.id)));
+        }
+    };
+
+    // "Select all matching filters across every page" — explicit second click via the banner.
+    // Issues one query with `idsOnly=true` that respects every active filter.
+    const selectAllMatchingLeads = async () => {
+        if (loadingSelectAll) return;
+        setLoadingSelectAll(true);
+        try {
+            const params = new URLSearchParams();
+            if (gradeFilter !== "all") params.set("grade", gradeFilter);
+            if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
+            if (marketFilter !== "all") params.set("market", marketFilter);
+            if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
+            if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
+            if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
+            if (phoneTypeFilter !== "all") params.set("phoneType", phoneTypeFilter);
+            if (existingClientFilter !== "all") params.set("isExistingClient", existingClientFilter);
+            if (hasOwnerName !== "all") params.set("hasOwnerName", hasOwnerName);
+            if (hasPhone !== "all") params.set("hasPhone", hasPhone);
+            if (hasEmail !== "all") params.set("hasEmail", hasEmail);
+            if (hasWebsite !== "all") params.set("hasWebsite", hasWebsite);
+            if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
+            if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
+            if (serviceTypeFilter !== "all") params.set("serviceType", serviceTypeFilter);
+            if (reviewPainFilter !== "all") params.set("reviewPain", reviewPainFilter);
+            if (reviewCountRangeFilter !== "all") params.set("reviewCountRange", reviewCountRangeFilter);
+            if (ownerResponseRateFilter !== "all") params.set("ownerResponseRateBucket", ownerResponseRateFilter);
+            if (lastReviewWithinDays !== "all") params.set("lastReviewWithinDays", lastReviewWithinDays);
+            if (yearsInBusinessRangeFilter !== "all") params.set("yearsInBusinessRange", yearsInBusinessRangeFilter);
+            if (hasTrueBookingFilter !== "all") params.set("hasTrueOnlineBooking", hasTrueBookingFilter);
+            if (bookingFlowTypeFilter !== "all") params.set("bookingFlowType", bookingFlowTypeFilter);
+            if (selectedPainTags.size > 0) params.set("painTags", Array.from(selectedPainTags).join(","));
+            if (selectedPraiseTags.size > 0) params.set("praiseTags", Array.from(selectedPraiseTags).join(","));
+            if (painTagCountMin !== "all") params.set("painTagCountMin", painTagCountMin);
+            if (negativeReviewPercentMin !== "all") params.set("negativeReviewPercentMin", negativeReviewPercentMin);
+            if (mostRecentNegativeWithinDays !== "all") params.set("mostRecentNegativeWithinDays", mostRecentNegativeWithinDays);
+            if (starRatingBucket !== "all") params.set("starRatingBucket", starRatingBucket);
+            if (profileCompletenessBucket !== "all") params.set("profileCompletenessBucket", profileCompletenessBucket);
+            if (respondsToNegatives !== "all") params.set("respondsToNegatives", respondsToNegatives);
+            if (hasRecentGbpPosts !== "all") params.set("hasRecentGbpPosts", hasRecentGbpPosts);
+            if (hasBusinessDescription !== "all") params.set("hasBusinessDescription", hasBusinessDescription);
+            if (selectedBookingTiers.size > 0) params.set("bookingSophistication", Array.from(selectedBookingTiers).join(","));
+            if (bookingHasInstantQuote !== "all") params.set("bookingHasInstantQuote", bookingHasInstantQuote);
+            if (bookingHasJobSizeInput !== "all") params.set("bookingHasJobSizeInput", bookingHasJobSizeInput);
+            if (bookingHasItemSelector !== "all") params.set("bookingHasItemSelector", bookingHasItemSelector);
+            if (bookingCollectsPayment !== "all") params.set("bookingCollectsPayment", bookingCollectsPayment);
+            if (bookingIsQuoteRequestOnly !== "all") params.set("bookingIsQuoteRequestOnly", bookingIsQuoteRequestOnly);
+            if (selectedCompetitorStack.size > 0) params.set("competitorStack", Array.from(selectedCompetitorStack).join(","));
+            if (selectedPaymentStack.size > 0) params.set("paymentStack", Array.from(selectedPaymentStack).join(","));
+            if (mentionsCashOnly !== "all") params.set("mentionsCashOnly", mentionsCashOnly);
+            if (hasOnlinePayment !== "all") params.set("hasOnlinePayment", hasOnlinePayment);
+            if (selectedCms.size > 0) params.set("cmsDetected", Array.from(selectedCms).join(","));
+            if (selectedBookingPlatforms.size > 0) params.set("bookingPlatform", Array.from(selectedBookingPlatforms).join(","));
+            if (bookingCtaTargetsPhone !== "all") params.set("bookingCtaTargetsPhone", bookingCtaTargetsPhone);
+            if (marketingMaturityBucket !== "all") params.set("marketingMaturityBucket", marketingMaturityBucket);
+            if (loadTimeBucket !== "all") params.set("loadTimeBucket", loadTimeBucket);
+            if (mobileFriendly !== "all") params.set("mobileFriendly", mobileFriendly);
+            if (sslValid !== "all") params.set("sslValid", sslValid);
+            if (hasGoogleAds !== "all") params.set("hasGoogleAds", hasGoogleAds);
+            if (hasCallTracking !== "all") params.set("hasCallTracking", hasCallTracking);
+            if (hasChatWidget !== "all") params.set("hasChatWidget", hasChatWidget);
+            if (hasGTM !== "all") params.set("hasGTM", hasGTM);
+            if (hasFacebookPixel !== "all") params.set("hasFacebookPixel", hasFacebookPixel);
+            if (hasGoogleAnalytics !== "all") params.set("hasGoogleAnalytics", hasGoogleAnalytics);
+            if (employeeBucket !== "all") params.set("employeeBucket", employeeBucket);
+            if (fleetBucket !== "all") params.set("fleetBucket", fleetBucket);
+            if (selectedWebsiteBuiltBy.size > 0) params.set("websiteBuiltBy", Array.from(selectedWebsiteBuiltBy).join(","));
+            if (selectedMarketCompetitionLevel.size > 0) params.set("marketCompetitionLevel", Array.from(selectedMarketCompetitionLevel).join(","));
+            if (marketRankPercentileMin !== "all") params.set("marketRankPercentileMin", marketRankPercentileMin);
+            if (hasFacebook !== "all") params.set("hasFacebook", hasFacebook);
+            if (hasYouTube !== "all") params.set("hasYouTube", hasYouTube);
+            if (isVeteranOwned !== "all") params.set("isVeteranOwned", isVeteranOwned);
+            if (isFamilyBusiness !== "all") params.set("isFamilyBusiness", isFamilyBusiness);
+            if (reviewVelocityBucket !== "all") params.set("reviewVelocityBucket", reviewVelocityBucket);
+            if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
+            if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
+            if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
+            if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
+            if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
+            if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
+            if (hasOwnerLinkedIn !== "all") params.set("hasOwnerLinkedIn", hasOwnerLinkedIn);
+            if (isDirectContact !== "all") params.set("isDirectContact", isDirectContact);
+            if (lastUpdatedYearBucket !== "all") params.set("lastUpdatedYearBucket", lastUpdatedYearBucket);
+            if (hasPricingPage !== "all") params.set("hasPricingPage", hasPricingPage);
+            if (hasBlog !== "all") params.set("hasBlog", hasBlog);
+            if (hasServiceAreaPublishedOnSite !== "all") params.set("hasServiceAreaPublishedOnSite", hasServiceAreaPublishedOnSite);
+            if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
+            if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
+            if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
+            if (searchQuery) params.set("search", searchQuery);
+            params.set("idsOnly", "true");
+            const res = await fetch(`/api/agents/leads?${params}`);
+            if (!res.ok) throw new Error("Failed to fetch matching IDs");
+            const data = await res.json();
+            setSelectedIds(new Set(data.ids));
+            setSelectAllMatching(true);
+            showToast(`Selected all ${data.total} matching leads`);
+        } catch {
+            showToast("Failed to select all matching leads", "error");
+        }
+        setLoadingSelectAll(false);
+    };
 
     // Drag-to-select: hold mouse down and drag across checkboxes to SELECT multiple
     // Deselecting is click-only (no drag deselect)
@@ -319,7 +437,7 @@ export default function ScrapedLeadsPage() {
         setDeleting(true);
         try {
             const res = await fetch("/api/agents/leads", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: Array.from(selectedIds) }) });
-            if (res.ok) { showToast(`Deleted leads`); setSelectedIds(new Set()); fetchLeads(); }
+            if (res.ok) { showToast(`Deleted leads`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
         } catch { showToast("Failed to delete leads", "error"); }
         setDeleting(false);
     };
@@ -337,6 +455,7 @@ export default function ScrapedLeadsPage() {
             if (res.ok) {
                 showToast(data.message || `Enrichment queued for ${data.queued || selectedIds.size} lead(s). Watch the Agents tab for progress.`);
                 setSelectedIds(new Set());
+                setSelectAllMatching(false);
                 // Refresh leads after a short delay so the enriched state starts showing
                 setTimeout(() => fetchLeads(), 2000);
             } else {
@@ -389,7 +508,7 @@ export default function ScrapedLeadsPage() {
         setSendingOutreach(true);
         try {
             const res = await fetch("/api/agents/outreach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadIds: Array.from(selectedIds), leads: leads.filter(l => selectedIds.has(l.id)) }) });
-            if (res.ok) { showToast(`Sent leads to outreach`); setSelectedIds(new Set()); fetchLeads(); }
+            if (res.ok) { showToast(`Sent leads to outreach`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
         } catch { showToast("Failed to send to outreach", "error"); }
         setSendingOutreach(false);
     };
@@ -554,8 +673,8 @@ export default function ScrapedLeadsPage() {
                     }}>
                     <span>🎯 Segment Filters (Pain · Praise · GBP · Reviews · Booking · Stack · Tech · Marketing · Team · Market · Contact · Site)
                         {(() => {
-                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket].filter(f => f !== "all").length;
-                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size;
+                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, websiteAgeYearsMin].filter(f => f !== "all").length;
+                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size + selectedPrimaryBottleneck.size;
                             return active > 0 ? <span style={{ marginLeft: 6, padding: "1px 6px", fontSize: 10, background: "var(--orange)", color: "#fff", borderRadius: 10, fontWeight: 700 }}>{active}</span> : null;
                         })()}
                     </span>
@@ -564,6 +683,56 @@ export default function ScrapedLeadsPage() {
 
                 {showSegmentFilters && (
                     <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 10 }}>
+                        {/* ── Primary Bottleneck (HIGH-impact Round 7) — the single most important outreach filter ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>🎯 Primary Bottleneck (single biggest outreach angle)</span>
+                                {selectedPrimaryBottleneck.size > 0 && (
+                                    <button onClick={() => setSelectedPrimaryBottleneck(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPrimaryBottleneck.size}</button>
+                                )}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                                {[
+                                    { value: "missed_calls", label: "📞 Missed calls" },
+                                    { value: "no_online_booking", label: "🚫 No online booking" },
+                                    { value: "poor_response_rate", label: "💬 Poor response rate" },
+                                    { value: "outdated_website", label: "🌐 Outdated website" },
+                                    { value: "no_reviews", label: "🕳 No reviews" },
+                                    { value: "stale_reviews", label: "💤 Stale reviews" },
+                                    { value: "negative_review_trend", label: "📉 Negative review trend" },
+                                    { value: "none", label: "✨ None (healthy)" },
+                                ].map(b => {
+                                    const active = selectedPrimaryBottleneck.has(b.value);
+                                    return (
+                                        <button key={b.value}
+                                            onClick={() => setSelectedPrimaryBottleneck(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(b.value)) next.delete(b.value); else next.add(b.value);
+                                                return next;
+                                            })}
+                                            style={{
+                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
+                                                border: `1px solid ${active ? "var(--orange)" : "var(--border)"}`,
+                                                background: active ? "rgba(255,107,0,0.08)" : "transparent",
+                                                color: active ? "var(--orange)" : "var(--text-light)",
+                                            }}>
+                                            {b.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Website age ≥:</span>
+                                <select value={websiteAgeYearsMin} onChange={e => setWebsiteAgeYearsMin(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="3">3+ years old</option>
+                                    <option value="5">5+ years old</option>
+                                    <option value="7">7+ years old</option>
+                                </select>
+                            </label>
+                        </div>
+
                         {/* ── Canonical pain tags (multi-select, grouped by category) ── */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1366,6 +1535,8 @@ export default function ScrapedLeadsPage() {
                                     setHasBlog("all");
                                     setHasServiceAreaPublishedOnSite("all");
                                     setTotalPageCountBucket("all");
+                                    setSelectedPrimaryBottleneck(new Set());
+                                    setWebsiteAgeYearsMin("all");
                                 }}
                                 style={{ padding: "3px 10px", fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>
                                 Clear segment filters
@@ -1447,6 +1618,44 @@ export default function ScrapedLeadsPage() {
                 <input placeholder="Search company..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                     style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", width: 160, outline: "none" }} />
             </div>
+
+            {/* Select-all-matching banner — appears when current page is fully selected and more pages match */}
+            {canSelectAllMatching && (
+                <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                    padding: "8px 14px", background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.2)",
+                    borderRadius: 8, fontSize: 12, color: "var(--text)",
+                }}>
+                    <span>
+                        All <b>{leads.length}</b> leads on this page are selected.
+                    </span>
+                    <button onClick={selectAllMatchingLeads} disabled={loadingSelectAll}
+                        style={{
+                            padding: "4px 12px", fontSize: 11, fontWeight: 600, cursor: loadingSelectAll ? "wait" : "pointer",
+                            border: "1px solid var(--info)", borderRadius: 6, background: "var(--info)", color: "#fff",
+                        }}>
+                        {loadingSelectAll ? "Selecting…" : `Select all ${total.toLocaleString()} matching filters`}
+                    </button>
+                </div>
+            )}
+            {selectAllMatching && selectedIds.size > 0 && (
+                <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                    padding: "8px 14px", background: "rgba(0,216,74,0.06)", border: "1px solid rgba(0,216,74,0.2)",
+                    borderRadius: 8, fontSize: 12, color: "var(--text)",
+                }}>
+                    <span>
+                        <b>{selectedIds.size.toLocaleString()}</b> leads selected across all pages.
+                    </span>
+                    <button onClick={() => { setSelectedIds(new Set()); setSelectAllMatching(false); }}
+                        style={{
+                            padding: "4px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                            border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text-light)",
+                        }}>
+                        Clear selection
+                    </button>
+                </div>
+            )}
 
             {/* Data Table */}
             <div className="op-table-wrapper">
@@ -1573,10 +1782,13 @@ export default function ScrapedLeadsPage() {
                                                 ["Owner Bio", (l as any).ownerBio],
                                                 ["Founded", (l as any).foundedYear],
                                                 ["Years in Business", (l as any).yearsInBusiness ? `${(l as any).yearsInBusiness} years` : null],
+                                                ["  ↳ Bucket", (l as any).yearsInBusinessBucket],
                                                 ["Veteran Owned", (l as any).isVeteranOwned ? "Yes" : null],
                                                 ["Family Business", (l as any).isFamilyBusiness ? "Yes" : null],
                                                 ["Employees", (l as any).estimatedEmployees],
+                                                ["  ↳ Bucket", (l as any).employeeSizeBucket],
                                                 ["Fleet Size", (l as any).estimatedFleetSize],
+                                                ["  ↳ Bucket", (l as any).fleetSizeBucket],
                                                 ["Service Types", (l as any).serviceTypes?.join(", ")],
                                                 ["Service Area", (l as any).serviceAreaDescription || (l as any).serviceAreaCities?.join(", ")],
                                                 ["Phone Type", (l as any).phoneType],
@@ -1619,6 +1831,7 @@ export default function ScrapedLeadsPage() {
                                                 ["SSL", (l as any).sslValid ? "Yes" : "No"],
                                                 ["Load Time", (l as any).loadTimeSeconds ? `${(l as any).loadTimeSeconds.toFixed(1)}s` : null],
                                                 ["Last Updated (Copyright)", (l as any).lastUpdatedYear],
+                                                ["  ↳ Website Age", (l as any).websiteAgeYears != null ? `${(l as any).websiteAgeYears} yrs` : null],
                                                 ["Total Pages (Sitemap)", (l as any).totalPageCount],
                                                 ["Has Pricing Page", (l as any).hasPricingPage ? "Yes" : null],
                                                 ["Has Blog", (l as any).hasBlog ? "Yes" : null],
@@ -1666,10 +1879,12 @@ export default function ScrapedLeadsPage() {
                                                 ["  ↳ Negative (1-3★)", (l as any).negativeReviewCount != null ? String((l as any).negativeReviewCount) : null],
                                                 ["Reviews (last 90d)", (l as any).reviewVelocity90d != null ? String((l as any).reviewVelocity90d) : null],
                                                 ["Last Review Date", (l as any).lastReviewDate ? new Date((l as any).lastReviewDate).toLocaleDateString() : null],
+                                                ["  ↳ Days Since", (l as any).daysSinceLastReview != null ? `${(l as any).daysSinceLastReview}d ago` : null],
                                                 ["Owner Response Rate", (l as any).ownerResponseRate != null ? `${Math.round((l as any).ownerResponseRate * 100)}% of ${(l as any).reviewsAnalyzedCount || "analyzed"}` : null],
                                                 ["  ↳ On Negatives", (l as any).negativeResponseRate != null ? `${Math.round((l as any).negativeResponseRate * 100)}%` : null],
                                                 ["  ↳ On Positives", (l as any).positiveResponseRate != null ? `${Math.round((l as any).positiveResponseRate * 100)}%` : null],
                                                 ["Last Owner Response", (l as any).lastOwnerResponseDate ? new Date((l as any).lastOwnerResponseDate).toLocaleDateString() : null],
+                                                ["  ↳ Days Since", (l as any).daysSinceLastOwnerResponse != null ? `${(l as any).daysSinceLastOwnerResponse}d ago` : null],
                                                 ["Profile Completeness", (l as any).profileCompletenessScore != null ? `${(l as any).profileCompletenessScore}/100` : null],
                                                 ["  ↳ Description", (l as any).hasBusinessDescription ? "Yes" : null],
                                                 ["  ↳ Business Hours", (l as any).hasBusinessHours ? "Yes" : null],
@@ -1678,6 +1893,7 @@ export default function ScrapedLeadsPage() {
                                                 ["  ↳ Q&A Activity", (l as any).hasQandAActivity ? "Yes" : null],
                                                 ["  ↳ GBP Posts (90d)", (l as any).gbpPostsLast90d != null ? String((l as any).gbpPostsLast90d) : null],
                                                 ["Most Recent Negative", (l as any).mostRecentNegativeReviewDate ? new Date((l as any).mostRecentNegativeReviewDate).toLocaleDateString() : null],
+                                                ["  ↳ Days Since", (l as any).daysSinceMostRecentNegative != null ? `${(l as any).daysSinceMostRecentNegative}d ago` : null],
                                                 ["% Negative Reviews", (l as any).negativeReviewPercent != null ? `${Math.round((l as any).negativeReviewPercent * 100)}%` : null],
                                                 ["Competitors Nearby", (l as any).marketCompetitorCount != null ? `${(l as any).marketCompetitorCount} (${(l as any).marketCompetitionLevel})` : null],
                                                 ["Market Rank", (l as any).marketRankByReviews != null ? `#${(l as any).marketRankByReviews}` : null],
@@ -1687,6 +1903,22 @@ export default function ScrapedLeadsPage() {
                                                     <span style={{ color: "var(--text)", fontWeight: 500 }}>{String(value)}</span>
                                                 </div>
                                             ))}
+                                            {(l as any).primaryBottleneck && (l as any).primaryBottleneck !== "none" && (
+                                                <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.2)", borderRadius: 6 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--orange)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>🎯 Primary Bottleneck</div>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
+                                                        {({
+                                                            missed_calls: "📞 Missed calls",
+                                                            no_online_booking: "🚫 No online booking",
+                                                            poor_response_rate: "💬 Poor response rate",
+                                                            outdated_website: "🌐 Outdated website",
+                                                            no_reviews: "🕳 No reviews",
+                                                            stale_reviews: "💤 Stale reviews",
+                                                            negative_review_trend: "📉 Negative review trend",
+                                                        } as Record<string, string>)[(l as any).primaryBottleneck] || (l as any).primaryBottleneck}
+                                                    </div>
+                                                </div>
+                                            )}
                                             {(l as any).painTags?.length > 0 && (
                                                 <div style={{ marginTop: 8 }}>
                                                     <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Pain Tags ({(l as any).painTagCount ?? (l as any).painTags.length})</div>
@@ -1696,6 +1928,18 @@ export default function ScrapedLeadsPage() {
                                                             return <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", background: "rgba(239,68,68,0.08)", color: "var(--danger)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8 }}>{tag}{count ? ` × ${count}` : ""}</span>;
                                                         })}
                                                     </div>
+                                                </div>
+                                            )}
+                                            {(l as any).topNegativeReviewExcerpt && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>Top Negative Review (verbatim — for outreach quoting)</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", padding: "6px 10px", background: "rgba(239,68,68,0.04)", borderLeft: "2px solid var(--danger)", borderRadius: 4 }}>&ldquo;{(l as any).topNegativeReviewExcerpt}&rdquo;</div>
+                                                </div>
+                                            )}
+                                            {(l as any).topPraiseReviewExcerpt && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--success)", marginBottom: 4 }}>Top Praise Review (verbatim)</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", padding: "6px 10px", background: "rgba(0,216,74,0.04)", borderLeft: "2px solid #00A83A", borderRadius: 4 }}>&ldquo;{(l as any).topPraiseReviewExcerpt}&rdquo;</div>
                                                 </div>
                                             )}
                                             {(l as any).praiseTags?.length > 0 && (
