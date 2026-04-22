@@ -1670,6 +1670,10 @@ model ScrapedLead {
   yearsInBusinessBucket        String?               // "<1" | "1-5" | "5-10" | "10+" | "unknown"
   websiteAgeYears              Int?                  // currentYear - lastUpdatedYear
   primaryBottleneck            String?               // "missed_calls" | "no_online_booking" | "poor_response_rate" | "outdated_website" | "no_reviews" | "stale_reviews" | "negative_review_trend" | "none"
+  // ── Round 8: severity + trend + specialty ──
+  painSeverityScore            Int?                  // 0-100 weighted severity from painTagCount + negativeReviewPercent + response inverse + recency
+  businessSpecialty            String?   @db.Text    // Claude-extracted one-line angle (what makes this operator distinct)
+  recentReviewTrend            String?               // "improving" | "stable" | "declining" | "dormant" | "insufficient_data"
   seoScore             Int?                      // 0-100
   uiuxScore            Int?                      // 0-100
   estimatedEmployees   Int?                      // from about/team page

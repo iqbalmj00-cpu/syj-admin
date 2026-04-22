@@ -135,6 +135,9 @@ export default function ScrapedLeadsPage() {
     // Personalization filters (HIGH-impact Round 7)
     const [selectedPrimaryBottleneck, setSelectedPrimaryBottleneck] = useState<Set<string>>(new Set());
     const [websiteAgeYearsMin, setWebsiteAgeYearsMin] = useState("all");
+    // Round 8: trend + severity
+    const [selectedReviewTrend, setSelectedReviewTrend] = useState<Set<string>>(new Set());
+    const [painSeverityMin, setPainSeverityMin] = useState("all");
     const [showSegmentFilters, setShowSegmentFilters] = useState(false);
     const LEADS_PER_PAGE = 50;
 
@@ -238,6 +241,8 @@ export default function ScrapedLeadsPage() {
             if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
             if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
             if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
+            if (selectedReviewTrend.size > 0) params.set("recentReviewTrend", Array.from(selectedReviewTrend).join(","));
+            if (painSeverityMin !== "all") params.set("painSeverityMin", painSeverityMin);
             if (searchQuery) params.set("search", searchQuery);
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
@@ -254,7 +259,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -401,6 +406,8 @@ export default function ScrapedLeadsPage() {
             if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
             if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
             if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
+            if (selectedReviewTrend.size > 0) params.set("recentReviewTrend", Array.from(selectedReviewTrend).join(","));
+            if (painSeverityMin !== "all") params.set("painSeverityMin", painSeverityMin);
             if (searchQuery) params.set("search", searchQuery);
             params.set("idsOnly", "true");
             const res = await fetch(`/api/agents/leads?${params}`);
@@ -673,8 +680,8 @@ export default function ScrapedLeadsPage() {
                     }}>
                     <span>🎯 Segment Filters (Pain · Praise · GBP · Reviews · Booking · Stack · Tech · Marketing · Team · Market · Contact · Site)
                         {(() => {
-                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, websiteAgeYearsMin].filter(f => f !== "all").length;
-                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size + selectedPrimaryBottleneck.size;
+                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, websiteAgeYearsMin, painSeverityMin].filter(f => f !== "all").length;
+                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size + selectedPrimaryBottleneck.size + selectedReviewTrend.size;
                             return active > 0 ? <span style={{ marginLeft: 6, padding: "1px 6px", fontSize: 10, background: "var(--orange)", color: "#fff", borderRadius: 10, fontWeight: 700 }}>{active}</span> : null;
                         })()}
                     </span>
@@ -731,6 +738,42 @@ export default function ScrapedLeadsPage() {
                                     <option value="7">7+ years old</option>
                                 </select>
                             </label>
+                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
+                                <span style={{ fontWeight: 600, marginRight: 4 }}>Pain severity ≥:</span>
+                                <select value={painSeverityMin} onChange={e => setPainSeverityMin(e.target.value)}
+                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
+                                    <option value="all">Any</option>
+                                    <option value="40">40+ (moderate)</option>
+                                    <option value="60">60+ (high)</option>
+                                    <option value="80">80+ (critical)</option>
+                                </select>
+                            </label>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginTop: 2 }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)" }}>Review trend:</span>
+                                {[
+                                    { value: "improving", label: "📈 Improving" },
+                                    { value: "stable", label: "➖ Stable" },
+                                    { value: "declining", label: "📉 Declining" },
+                                    { value: "dormant", label: "💤 Dormant" },
+                                    { value: "insufficient_data", label: "❓ Insufficient data" },
+                                ].map(t => {
+                                    const active = selectedReviewTrend.has(t.value);
+                                    return (
+                                        <button key={t.value}
+                                            onClick={() => setSelectedReviewTrend(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(t.value)) next.delete(t.value); else next.add(t.value);
+                                                return next;
+                                            })}
+                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
+                                                border: `1px solid ${active ? "var(--orange)" : "var(--border)"}`,
+                                                background: active ? "rgba(255,107,0,0.08)" : "transparent",
+                                                color: active ? "var(--orange)" : "var(--text-light)" }}>
+                                            {t.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {/* ── Canonical pain tags (multi-select, grouped by category) ── */}
@@ -1537,6 +1580,8 @@ export default function ScrapedLeadsPage() {
                                     setTotalPageCountBucket("all");
                                     setSelectedPrimaryBottleneck(new Set());
                                     setWebsiteAgeYearsMin("all");
+                                    setSelectedReviewTrend(new Set());
+                                    setPainSeverityMin("all");
                                 }}
                                 style={{ padding: "3px 10px", fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>
                                 Clear segment filters
@@ -1917,6 +1962,28 @@ export default function ScrapedLeadsPage() {
                                                             negative_review_trend: "📉 Negative review trend",
                                                         } as Record<string, string>)[(l as any).primaryBottleneck] || (l as any).primaryBottleneck}
                                                     </div>
+                                                    {(l as any).painSeverityScore != null && (
+                                                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                                                            Pain severity: <b style={{ color: (l as any).painSeverityScore >= 80 ? "var(--danger)" : (l as any).painSeverityScore >= 60 ? "var(--orange)" : (l as any).painSeverityScore >= 40 ? "var(--warn-dark)" : "var(--text-light)" }}>{(l as any).painSeverityScore}/100</b>
+                                                        </div>
+                                                    )}
+                                                    {(l as any).recentReviewTrend && (
+                                                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                                                            Trend: {({
+                                                                improving: "📈 Improving",
+                                                                stable: "➖ Stable",
+                                                                declining: "📉 Declining",
+                                                                dormant: "💤 Dormant",
+                                                                insufficient_data: "❓ Insufficient data",
+                                                            } as Record<string, string>)[(l as any).recentReviewTrend] || (l as any).recentReviewTrend}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {(l as any).businessSpecialty && (
+                                                <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(37,99,235,0.04)", border: "1px solid rgba(37,99,235,0.15)", borderRadius: 6 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--info)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>🎯 Business Specialty (Claude-extracted)</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text)", fontStyle: "italic" }}>&ldquo;{(l as any).businessSpecialty}&rdquo;</div>
                                                 </div>
                                             )}
                                             {(l as any).painTags?.length > 0 && (

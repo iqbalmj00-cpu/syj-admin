@@ -28,6 +28,8 @@ const ALLOWED_FIELDS = new Set([
     "daysSinceLastReview", "daysSinceLastOwnerResponse", "daysSinceMostRecentNegative",
     "employeeSizeBucket", "fleetSizeBucket", "yearsInBusinessBucket",
     "websiteAgeYears", "primaryBottleneck",
+    // Round 8: severity + trend + specialty
+    "painSeverityScore", "businessSpecialty", "recentReviewTrend",
     "estimatedEmployees", "estimatedFleetSize",
     "serviceAreaCities", "serviceAreaSize", "enrichedAt", "isExistingClient",
     "city", "websiteScore", "leadScore", "grade", "qualification", "reasons", "painPoints",
@@ -137,14 +139,28 @@ export async function POST(req: NextRequest) {
                     safeData[key] = value;
                 }
             }
-            // Always set enrichedAt
-            safeData.enrichedAt = new Date();
+            // Stamp enrichedAt ONLY if the payload looks substantive — prevents sparse/failed
+            // enrichment from marking the lead "done" and excluding it from the next retry batch.
+            // Criteria: a grade was assigned (pipeline reached scoring) AND at least one
+            // external-call-derived signal came back (website parsing OR review fetch OR GBP profile).
+            const d = data as Record<string, unknown>;
+            const hasGrade = typeof d.grade === "string" && (d.grade as string).length > 0;
+            const hasWebsiteSignal = (typeof d.cmsDetected === "string" && (d.cmsDetected as string).length > 0)
+                || (typeof d.websiteScore === "number" && (d.websiteScore as number) > 0);
+            const hasReviewSignal = typeof d.reviewsAnalyzedCount === "number" && (d.reviewsAnalyzedCount as number) > 0;
+            const hasGbpSignal = typeof d.profileCompletenessScore === "number" && (d.profileCompletenessScore as number) > 0;
+            const isSubstantive = hasGrade && (hasWebsiteSignal || hasReviewSignal || hasGbpSignal);
+            if (isSubstantive) {
+                safeData.enrichedAt = new Date();
+            }
+            // else: leave enrichedAt null so the next default run retries this lead.
+            // Still write the partial data — any signal captured is better than none.
 
             await prisma.scrapedLead.update({
                 where: { id: leadId },
                 data: safeData,
             });
-            return NextResponse.json({ ok: true, cancelled: false });
+            return NextResponse.json({ ok: true, cancelled: false, enrichedAtStamped: isSubstantive });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });

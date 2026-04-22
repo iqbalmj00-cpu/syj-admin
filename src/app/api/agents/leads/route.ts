@@ -122,6 +122,9 @@ export async function GET(req: NextRequest) {
     // Personalization filters (HIGH-impact Round 7)
     const primaryBottleneck = searchParams.get("primaryBottleneck"); // comma-separated enum values
     const websiteAgeYearsMin = searchParams.get("websiteAgeYearsMin"); // "3" | "5" | "7"
+    // Round 8: trend + severity
+    const recentReviewTrend = searchParams.get("recentReviewTrend"); // comma-separated: "improving,stable,declining,dormant,insufficient_data"
+    const painSeverityMin = searchParams.get("painSeverityMin"); // "40" | "60" | "80"
 
     const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
@@ -478,6 +481,16 @@ export async function GET(req: NextRequest) {
         if (websiteAgeYearsMin) {
             const n = parseInt(websiteAgeYearsMin);
             if (!isNaN(n) && n > 0) andClauses.push({ websiteAgeYears: { gte: n } });
+        }
+
+        // ── Round 8: trend + severity filters ──
+        if (recentReviewTrend) {
+            const values = recentReviewTrend.split(",").filter(Boolean);
+            if (values.length > 0) andClauses.push({ recentReviewTrend: { in: values } });
+        }
+        if (painSeverityMin) {
+            const n = parseInt(painSeverityMin);
+            if (!isNaN(n) && n > 0) andClauses.push({ painSeverityScore: { gte: n } });
         }
 
         if (andClauses.length > 0) where.AND = andClauses;
