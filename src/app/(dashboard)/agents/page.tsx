@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Kpi } from "@/components/ui/Kpi";
 import { Avatar } from "@/components/ui/Avatar";
+import { TEMPLATE_VAR_GROUPS, replaceVariables, PREVIEW_LEAD } from "@/lib/outreach-variables";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -1769,46 +1770,6 @@ interface GroupMember {
     lead: { id: string; name: string; phone: string | null; email: string | null; market: string; grade: string; leadScore: number; outreachStatus: string; city: string | null; ownerName: string | null };
 }
 
-const TEMPLATE_VARS = [
-    // Identity
-    { label: "Company", variable: "[company_name]" },
-    { label: "Owner", variable: "[owner_name]" },
-    { label: "Owner First Name", variable: "[owner_first_name]" },
-    // Location + contact
-    { label: "City", variable: "[city]" },
-    { label: "Market", variable: "[market]" },
-    { label: "Phone", variable: "[phone]" },
-    { label: "Website", variable: "[website]" },
-    { label: "Email", variable: "[email]" },
-    { label: "Grade", variable: "[grade]" },
-    // Business profile
-    { label: "Founded", variable: "[founded_year]" },
-    { label: "Years in Business", variable: "[years_in_business]" },
-    // Reviews (raw)
-    { label: "Rating", variable: "[rating]" },
-    { label: "Review Count", variable: "[review_count]" },
-    { label: "Top Complaint", variable: "[top_complaint]" },
-    { label: "Top 3 Complaints", variable: "[top_complaints]" },
-    { label: "Owner Response Rate", variable: "[owner_response_rate]" },
-    { label: "Days Since Last Review", variable: "[days_since_last_review]" },
-    { label: "Days Since Last Owner Response", variable: "[days_since_last_owner_response]" },
-    // Review pains (only render when pain exists)
-    { label: "Dormant Reviews Pain", variable: "[dormant_reviews_pain]" },
-    { label: "Low Response Rate Pain", variable: "[low_response_rate_pain]" },
-    { label: "Negative Reviews Pain", variable: "[negative_reviews_pain]" },
-    { label: "Stale Owner Response Pain", variable: "[stale_owner_response_pain]" },
-    { label: "Complaint Themes Pain", variable: "[complaint_themes_pain]" },
-    { label: "Last Review Pain", variable: "[last_review_pain]" },
-    { label: "All Review Pain Points", variable: "[review_pain_points]" },
-    // Competitive
-    { label: "Competitor Platform", variable: "[competitor_platform]" },
-    { label: "Booking Platform", variable: "[booking_platform]" },
-    { label: "Booking Flow Type", variable: "[booking_flow_type]" },
-    { label: "CMS", variable: "[cms]" },
-    // Aggregate
-    { label: "All Pain Points", variable: "[pain_points]" },
-];
-
 function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => void }) {
     const [groups, setGroups] = useState<LeadGroupData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1999,14 +1960,23 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>Message Template</div>
                             <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
-                                Insert variables that auto-fill with each lead&apos;s data:
+                                Click any variable to insert it at the end of the template. Variables auto-fill with each lead&apos;s data at send time. Hover for description.
                             </div>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-                                {TEMPLATE_VARS.map(v => (
-                                    <button key={v.variable} onClick={() => insertVariable(v.variable)}
-                                        style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", cursor: "pointer", color: "var(--info)", fontFamily: "monospace" }}>
-                                        {v.variable}
-                                    </button>
+                            <div style={{ maxHeight: 240, overflowY: "auto", marginBottom: 10, background: "var(--white)", border: "1px solid var(--border-light, var(--border))", borderRadius: 6, padding: 10 }}>
+                                {TEMPLATE_VAR_GROUPS.map(group => (
+                                    <div key={group.category} style={{ marginBottom: 10 }}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                                            {group.category}
+                                        </div>
+                                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                            {group.vars.map(v => (
+                                                <button key={v.variable} onClick={() => insertVariable(v.variable)} title={v.label}
+                                                    style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", cursor: "pointer", color: "var(--info)", fontFamily: "monospace" }}>
+                                                    {v.variable}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                             {selectedGroup.channel === "email" && (
@@ -2016,10 +1986,20 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                             <textarea value={templateBody} onChange={e => setTemplateBody(e.target.value)} placeholder="Type your message template here... Use [company_name] for personalization."
                                 rows={5}
                                 style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} />
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                                    Preview: {templateBody.replace(/\[company_name\]/g, "Bob's Junk Removal").replace(/\[owner_name\]/g, "Bob").replace(/\[city\]/g, "Houston").replace(/\[market\]/g, "houston").slice(0, 80)}...
+                            <div style={{ marginTop: 10, padding: 10, background: "var(--white)", border: "1px solid var(--border-light, var(--border))", borderRadius: 6, maxHeight: 160, overflowY: "auto" }}>
+                                <div style={{ fontWeight: 700, color: "var(--text-light)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                                    Live Preview <span style={{ fontWeight: 500, textTransform: "none", color: "var(--text-faint)", letterSpacing: 0 }}>(rendered against a fake lead — real sends use each lead&apos;s data)</span>
                                 </div>
+                                {selectedGroup.channel === "email" && templateSubject && (
+                                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
+                                        <span style={{ fontWeight: 600 }}>Subject:</span> {replaceVariables(templateSubject, PREVIEW_LEAD) || "(empty)"}
+                                    </div>
+                                )}
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                                    {templateBody ? replaceVariables(templateBody, PREVIEW_LEAD) : "(start typing your template above to see the preview...)"}
+                                </div>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: 10 }}>
                                 <button className="btn btn-xs btn-primary" onClick={saveTemplate} disabled={savingTemplate}>
                                     {savingTemplate ? "Saving..." : "Save Template"}
                                 </button>

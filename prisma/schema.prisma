@@ -1587,6 +1587,7 @@ model ScrapedLead {
   website         String?
   address         String?
   city            String?
+  state           String?      // 2-letter US state code (e.g. "TX") — parsed from address at enrichment time for TCPA filtering
   market          String
   source          String       @default("google") // google | yelp | both
   categories      String[]
@@ -1814,6 +1815,7 @@ model ScrapedLead {
   @@index([rating])
   @@index([primaryBottleneck])
   @@index([daysSinceLastReview])
+  @@index([state])
   groupMemberships LeadGroupMember[]
 }
 

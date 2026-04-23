@@ -32,7 +32,8 @@ const ALLOWED_FIELDS = new Set([
     "painSeverityScore", "businessSpecialty", "recentReviewTrend",
     "estimatedEmployees", "estimatedFleetSize",
     "serviceAreaCities", "serviceAreaSize", "enrichedAt", "isExistingClient",
-    "city", "websiteScore", "leadScore", "grade", "qualification", "reasons", "painPoints",
+    "city", "state",
+    "websiteScore", "leadScore", "grade", "qualification", "reasons", "painPoints",
     "hasCta", "hasOnlineBooking", "hasTrueOnlineBooking", "hasBookingCta",
     "bookingPlatform", "bookingType", "bookingCtaTargetsPhone",
     "bookingHasPhotoUpload", "bookingHasTimeslotSelection", "bookingFlowType",
@@ -119,7 +120,20 @@ export async function POST(req: NextRequest) {
 
         // Handle actions
         if (action === "delete") {
-            await prisma.scrapedLead.delete({ where: { id: leadId } });
+            // Soft-delete: mark irrelevant rather than destroying the record.
+            // Why: a regex false-positive on HARD_EXCLUDE / IS_RESTORATION was
+            // permanently wiping recoverable leads. Keeping the row (with
+            // qualification=IRRELEVANT + outreachStatus=skipped) makes the
+            // filter auditable and reversible. enrichedAt is stamped so the
+            // next enrichment run doesn't re-process this lead.
+            await prisma.scrapedLead.update({
+                where: { id: leadId },
+                data: {
+                    qualification: "IRRELEVANT",
+                    outreachStatus: "skipped",
+                    enrichedAt: new Date(),
+                },
+            });
             return NextResponse.json({ ok: true, cancelled: false });
         }
 
