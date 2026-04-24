@@ -346,6 +346,8 @@ export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = {
     "[is_direct_contact]": (l) => yesNo(l.isDirectContact),
     "[email_domain]": (l) => str(l.emailDomain),
     "[email_domain_type]": (l) => str(l.emailDomainType),
+    "[emails_discovered]": (l) => joinArr(l.emailsDiscovered),
+    "[email_category]": (l) => str(l.emailDiscoveryCategory).replace(/_/g, " "),
 
     // Grading
     "[grade]": (l) => str(l.grade),
@@ -559,6 +561,8 @@ export const TEMPLATE_VAR_GROUPS: VarCategory[] = [
             { variable: "[is_direct_contact]", label: "Is Direct Contact to Owner (Yes/blank)" },
             { variable: "[email_domain]", label: "Email Domain" },
             { variable: "[email_domain_type]", label: "Email Domain Type (personal/business)" },
+            { variable: "[emails_discovered]", label: "All Emails Found on Website (comma-joined, best-first)" },
+            { variable: "[email_category]", label: "Primary Email Category (owner direct/personalized/generic)" },
         ],
     },
     {
@@ -830,6 +834,8 @@ export const PREVIEW_LEAD: LeadData = {
     isDirectContact: true,
     emailDomain: "bobsjunkhouston.com",
     emailDomainType: "business_custom",
+    emailsDiscovered: ["bob@bobsjunkhouston.com", "office@bobsjunkhouston.com", "info@bobsjunkhouston.com"],
+    emailDiscoveryCategory: "owner_direct",
 
     // Grading
     grade: "B",
