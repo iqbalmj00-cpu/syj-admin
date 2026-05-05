@@ -1597,14 +1597,14 @@ export default function ScrapedLeadsPage() {
                     <>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
-                        <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(139,92,246,0.3)", borderRadius: 4, background: "rgba(139,92,246,0.06)", color: "#7C3AED", cursor: "pointer" }}>{enriching ? "Enriching..." : "🧪 Enrich Selected"}</button>
-                        <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "📧 Trigger Campaign"}</button>
-                        <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(37,99,235,0.3)", borderRadius: 4, background: "rgba(37,99,235,0.06)", color: "#2563EB", cursor: "pointer" }}>📋 Copy Emails</button>
-                        <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid rgba(0,168,58,0.3)", borderRadius: 4, background: "rgba(0,168,58,0.06)", color: "#00A83A", cursor: "pointer" }}>📋 Copy Phones</button>
+                        <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
+                        <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "Trigger Campaign"}</button>
+                        <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--info-border)", borderRadius: 4, background: "var(--info-bg)", color: "var(--info)", cursor: "pointer" }}>Copy Emails</button>
+                        <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>Copy Phones</button>
                         <div style={{ position: "relative" }}>
                             <button onClick={() => setShowGroupSelect(!showGroupSelect)} disabled={addingToGroup}
                                 style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: showGroupSelect ? "rgba(255,107,0,0.08)" : "var(--white)", color: showGroupSelect ? "var(--orange)" : "var(--text)", cursor: "pointer" }}>
-                                {addingToGroup ? "Adding..." : "📋 Add to Group"}
+                                {addingToGroup ? "Adding..." : "Add to Group"}
                             </button>
                             {showGroupSelect && (
                                 <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "var(--white)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 220, zIndex: 50, overflow: "hidden" }}>
@@ -1629,7 +1629,7 @@ export default function ScrapedLeadsPage() {
                                 </div>
                             )}
                         </div>
-                        <button onClick={deleteSelected} disabled={deleting} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid #FECACA", borderRadius: 4, background: "#FEF2F2", color: "#B91C1C", cursor: "pointer" }}>{deleting ? "Deleting..." : "🗑 Discard"}</button>
+                        <button onClick={deleteSelected} disabled={deleting} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Deleting..." : "Discard"}</button>
                     </>
                 ) : (
                     <span style={{ fontSize: 12, color: "var(--text-light)" }}>Select rows to trigger outreach or discard.</span>

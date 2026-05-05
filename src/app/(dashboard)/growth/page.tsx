@@ -16,7 +16,7 @@ interface GrowthData {
 
 
 
-const FUNNEL_COLORS = ["var(--info)", "var(--orange)", "var(--success)"];
+const FUNNEL_COLORS = ["var(--accent)", "var(--info)", "var(--success)"];
 
 export default function GrowthPage() {
     const [data, setData] = useState<GrowthData | null>(null);
@@ -53,7 +53,7 @@ export default function GrowthPage() {
                                             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{d.count}</span>
                                             <div style={{
                                                 width: "100%", borderRadius: "6px 6px 0 0",
-                                                background: "linear-gradient(180deg, var(--orange), rgba(255,107,0,0.5))",
+                                                background: "linear-gradient(180deg, var(--accent), rgba(198,95,47,0.46))",
                                                 height: `${(d.count / (max || 1)) * 120}px`, minHeight: 8,
                                                 transition: "height 0.3s ease"
                                             }} />
@@ -99,7 +99,7 @@ export default function GrowthPage() {
                             {Object.entries(data.planDistribution).map(([plan, count]) => {
                                 const total = data.totalSignups || 1;
                                 const pct = Math.round((count / total) * 100);
-                                const colors: Record<string, string> = { starter: "var(--info)", growth: "var(--orange)", enterprise: "var(--purple)" };
+                                const colors: Record<string, string> = { starter: "var(--info)", growth: "var(--accent)", enterprise: "var(--ink)" };
                                 return (
                                     <div key={plan} style={{ padding: 12, background: "var(--surface)", borderRadius: 10 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>

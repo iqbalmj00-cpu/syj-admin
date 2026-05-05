@@ -21,7 +21,12 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const PRICES: Record<string, number> = { starter: 149, growth: 299, enterprise: 549 };
-const PLAN_COLORS: Record<string, string> = { starter: "#2563EB", growth: "#FF6B00", enterprise: "#8B5CF6" };
+const PLAN_COLORS: Record<string, string> = { starter: "var(--info)", growth: "var(--accent)", enterprise: "var(--ink)" };
+const PLAN_STYLES: Record<string, { background: string; border: string }> = {
+    starter: { background: "var(--info-bg)", border: "var(--info-border)" },
+    growth: { background: "var(--accent-soft)", border: "var(--accent-border)" },
+    enterprise: { background: "var(--neutral-bg)", border: "var(--neutral-border)" },
+};
 
 function relTime(d: string | null | undefined) {
     if (!d) return "Never";
@@ -53,7 +58,7 @@ function InfoRow({ label, value, mono }: { label: string; value: React.ReactNode
 }
 
 function BoolIcon({ val }: { val: boolean | null | undefined }) {
-    return <span style={{ fontSize: 14 }}>{val ? "✅" : "❌"}</span>;
+    return <span style={{ fontSize: 12, fontWeight: 800, color: val ? "var(--success-dark)" : "var(--danger)" }}>{val ? "Yes" : "No"}</span>;
 }
 
 /* ─── Copyable ID ─────────────────────────────────────────────────────── */
@@ -112,12 +117,12 @@ function EditableField({ label, value, field, onSave }: { label: string; value: 
 function A2PStep({ label, status }: { label: string; status: string | null | undefined }) {
     const s = status || "pending";
     const colorMap: Record<string, { bg: string; color: string }> = {
-        approved: { bg: "rgba(0,216,74,0.12)", color: "#00A83A" },
-        verified: { bg: "rgba(0,216,74,0.12)", color: "#00A83A" },
-        in_review: { bg: "rgba(37,99,235,0.12)", color: "#2563EB" },
-        pending: { bg: "rgba(100,116,139,0.08)", color: "#94A3B8" },
-        rejected: { bg: "rgba(239,68,68,0.12)", color: "#EF4444" },
-        failed: { bg: "rgba(239,68,68,0.12)", color: "#EF4444" },
+        approved: { bg: "var(--success-bg)", color: "var(--success-dark)" },
+        verified: { bg: "var(--success-bg)", color: "var(--success-dark)" },
+        in_review: { bg: "var(--info-bg)", color: "var(--info)" },
+        pending: { bg: "var(--neutral-bg)", color: "var(--muted)" },
+        rejected: { bg: "var(--danger-bg)", color: "var(--danger)" },
+        failed: { bg: "var(--danger-bg)", color: "var(--danger)" },
     };
     const c = colorMap[s] || colorMap.pending;
     return (
@@ -212,7 +217,7 @@ export default function ClientDetailPage() {
                                 {client.company || "Unnamed"}
                             </h2>
                             <Badge {...sc} />
-                            {client.isDemoAccount && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: "rgba(139,92,246,0.12)", color: "#8B5CF6" }}>DEMO</span>}
+                            {client.isDemoAccount && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: "var(--neutral-bg)", color: "var(--ink)", border: "1px solid var(--neutral-border)" }}>DEMO</span>}
                         </div>
                         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
                             {client.email} · Joined {fmtShortDate(client.createdAt)}
@@ -230,8 +235,8 @@ export default function ClientDetailPage() {
                     )}
                     {/* Plan change buttons */}
                     {(["starter", "growth", "enterprise"] as const).filter(p => p !== client.planTier).map(p => (
-                        <button key={p} className="btn btn-xs" style={{ color: PLAN_COLORS[p], background: PLAN_COLORS[p] + "12", border: `1px solid ${PLAN_COLORS[p]}30` }}
-                            onClick={() => handleAction("change_plan", { plan: p })}>→ {p.charAt(0).toUpperCase() + p.slice(1)}</button>
+                        <button key={p} className="btn btn-xs" style={{ color: PLAN_COLORS[p], background: PLAN_STYLES[p].background, border: `1px solid ${PLAN_STYLES[p].border}` }}
+                            onClick={() => handleAction("change_plan", { plan: p })}>Switch to {p.charAt(0).toUpperCase() + p.slice(1)}</button>
                     ))}
                     <button className="btn btn-xs" style={{ color: "var(--text-muted)", background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.2)" }}
                         onClick={() => handleAction("reset_password")}>Reset Password</button>
@@ -300,8 +305,8 @@ function OverviewTab({ client, onProfileSave, showToast }: { client: any; onProf
                     <EditableField label="Email" value={client.email} field="email" onSave={onProfileSave} />
                     <EditableField label="Company" value={client.company} field="company" onSave={onProfileSave} />
                     <InfoRow label="Role" value={client.role} />
-                    <InfoRow label="Onboarding" value={client.onboardingComplete ? "✅ Complete" : "⏳ In Progress"} />
-                    <InfoRow label="Email Verified" value={client.emailVerified ? fmtShortDate(client.emailVerified) : "❌ Not verified"} />
+                    <InfoRow label="Onboarding" value={client.onboardingComplete ? "Complete" : "In Progress"} />
+                    <InfoRow label="Email Verified" value={client.emailVerified ? fmtShortDate(client.emailVerified) : "Not verified"} />
                     <InfoRow label="Last Login" value={fmtDate(client.lastLoginAt)} />
                     <InfoRow label="Demo Account" value={client.isDemoAccount ? "Yes" : "No"} />
                     <InfoRow label="Site Token" value={<CopyId value={client.siteToken} showToast={showToast} />} />
@@ -533,11 +538,11 @@ function PhoneTab({ client, showToast }: { client: any; showToast: (m: string, t
     }, [client.id]);
 
     const OUTCOME_COLORS: Record<string, { bg: string; color: string; label: string }> = {
-        booked: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Booked" },
-        voicemail: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Voicemail" },
-        missed: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Missed" },
-        info_only: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Info Only" },
-        callback_requested: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Callback" },
+        booked: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Booked" },
+        voicemail: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Voicemail" },
+        missed: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Missed" },
+        info_only: { bg: "var(--info-bg)", color: "var(--info)", label: "Info Only" },
+        callback_requested: { bg: "var(--warn-bg)", color: "var(--warn-dark)", label: "Callback" },
     };
 
     return (
@@ -575,10 +580,10 @@ function PhoneTab({ client, showToast }: { client: any; showToast: (m: string, t
                     {a2p && (
                         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 11, color: a2p.smsEnabled ? "var(--success)" : "var(--text-faint)", fontWeight: 600 }}>
-                                SMS: {a2p.smsEnabled ? "✅ Enabled" : "❌ Disabled"}
+                                SMS: {a2p.smsEnabled ? "Enabled" : "Disabled"}
                             </span>
                             <span style={{ fontSize: 11, color: a2p.voiceEnabled ? "var(--success)" : "var(--text-faint)", fontWeight: 600 }}>
-                                Voice: {a2p.voiceEnabled ? "✅ Enabled" : "❌ Disabled"}
+                                Voice: {a2p.voiceEnabled ? "Enabled" : "Disabled"}
                             </span>
                         </div>
                     )}
@@ -688,8 +693,8 @@ function SmsTab({ client }: { client: any }) {
                                     <td style={{ padding: "8px 14px" }}>
                                         <span style={{
                                             fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                                            background: m.direction === "inbound" ? "rgba(37,99,235,0.1)" : "rgba(0,216,74,0.1)",
-                                            color: m.direction === "inbound" ? "#2563EB" : "#00A83A",
+                                            background: m.direction === "inbound" ? "var(--info-bg)" : "var(--success-bg)",
+                                            color: m.direction === "inbound" ? "var(--info)" : "var(--success-dark)",
                                             textTransform: "uppercase",
                                         }}>{m.direction}</span>
                                     </td>
@@ -847,7 +852,7 @@ function IntegrationsTab({ client }: { client: any }) {
                                         <td style={{ padding: "10px 14px", fontSize: 12 }}>{i.connectedAt ? new Date(i.connectedAt).toLocaleDateString() : "—"}</td>
                                         <td style={{ padding: "10px 14px", fontSize: 12, color: isExpired ? "var(--danger)" : "var(--text-faint)" }}>
                                             {i.expiresAt ? new Date(i.expiresAt).toLocaleDateString() : "N/A"}
-                                            {isExpired && " ⚠️ Expired"}
+                                            {isExpired && " Expired"}
                                         </td>
                                         <td style={{ padding: "10px 14px" }}>
                                             <Badge {...(isExpired ? STATUS_COLORS.error : i.status === "connected" ? STATUS_COLORS.healthy : STATUS_COLORS.warning)} />
@@ -870,16 +875,16 @@ function SupportTab({ client }: { client: any }) {
     const tickets = client.supportTickets || [];
 
     const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-        open: { bg: "rgba(249,115,22,0.12)", color: "#EA580C", label: "Open" },
-        in_progress: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "In Progress" },
-        resolved: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Resolved" },
-        closed: { bg: "rgba(100,116,139,0.12)", color: "#6B7280", label: "Closed" },
+        open: { bg: "var(--accent-soft)", color: "var(--accent-strong)", label: "Open" },
+        in_progress: { bg: "var(--info-bg)", color: "var(--info)", label: "In Progress" },
+        resolved: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Resolved" },
+        closed: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Closed" },
     };
 
     const PRIORITY_MAP: Record<string, { bg: string; color: string; label: string }> = {
-        Low: { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Low" },
-        Medium: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Medium" },
-        High: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "High" },
+        Low: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Low" },
+        Medium: { bg: "var(--warn-bg)", color: "var(--warn-dark)", label: "Medium" },
+        High: { bg: "var(--danger-bg)", color: "var(--danger)", label: "High" },
     };
 
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -925,10 +930,10 @@ function SupportTab({ client }: { client: any }) {
                                                                     <div key={msg.id} style={{
                                                                         padding: "10px 14px", borderRadius: 10, maxWidth: "80%",
                                                                         alignSelf: isClient ? "flex-start" : "flex-end",
-                                                                        background: isClient ? "#FFF7ED" : "#EFF6FF",
-                                                                        border: `1px solid ${isClient ? "#FED7AA" : "#BFDBFE"}`,
+                                                                        background: isClient ? "var(--accent-soft)" : "var(--info-bg)",
+                                                                        border: `1px solid ${isClient ? "var(--accent-border)" : "var(--info-border)"}`,
                                                                     }}>
-                                                                        <div style={{ fontSize: 10, fontWeight: 600, color: isClient ? "#EA580C" : "#2563EB", marginBottom: 4 }}>
+                                                                        <div style={{ fontSize: 10, fontWeight: 600, color: isClient ? "var(--accent-strong)" : "var(--info)", marginBottom: 4 }}>
                                                                             {isClient ? "Client" : "Support"} · {new Date(msg.createdAt).toLocaleString()}
                                                                         </div>
                                                                         <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{msg.body}</div>

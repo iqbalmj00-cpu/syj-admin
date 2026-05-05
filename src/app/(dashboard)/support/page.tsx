@@ -53,22 +53,22 @@ interface TicketDetail {
 /* ─── Constants ─────────────────────────────────────────────────────── */
 
 const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    open:        { bg: "rgba(249,115,22,0.12)", color: "#EA580C", label: "Open" },
-    in_progress: { bg: "rgba(37,99,235,0.12)",  color: "#2563EB", label: "In Progress" },
-    resolved:    { bg: "rgba(0,216,74,0.12)",   color: "#00A83A", label: "Resolved" },
-    closed:      { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Closed" },
+    open:        { bg: "var(--accent-soft)", color: "var(--accent-strong)", label: "Open" },
+    in_progress: { bg: "var(--info-bg)",  color: "var(--info)", label: "In Progress" },
+    resolved:    { bg: "var(--success-bg)",   color: "var(--success-dark)", label: "Resolved" },
+    closed:      { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Closed" },
 };
 
 const PRIORITY_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    Low:    { bg: "rgba(107,114,128,0.12)", color: "#6B7280", label: "Low" },
-    Medium: { bg: "rgba(245,158,11,0.12)",  color: "#D97706", label: "Medium" },
-    High:   { bg: "rgba(239,68,68,0.12)",   color: "#EF4444", label: "High" },
+    Low:    { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Low" },
+    Medium: { bg: "var(--warn-bg)",  color: "var(--warn-dark)", label: "Medium" },
+    High:   { bg: "var(--danger-bg)",   color: "var(--danger)", label: "High" },
 };
 
 const PLAN_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    starter:    { bg: "rgba(37,99,235,0.10)",   color: "#2563EB", label: "Starter" },
-    growth:     { bg: "rgba(255,107,0,0.10)",   color: "#FF6B00", label: "Growth" },
-    enterprise: { bg: "rgba(139,92,246,0.10)",  color: "#8B5CF6", label: "Enterprise" },
+    starter:    { bg: "var(--info-bg)",   color: "var(--info)", label: "Starter" },
+    growth:     { bg: "var(--accent-soft)",   color: "var(--accent-strong)", label: "Growth" },
+    enterprise: { bg: "var(--neutral-bg)",  color: "var(--ink)", label: "Enterprise" },
 };
 
 /* ─── Reusable Components (match existing dashboard patterns) ────── */
@@ -77,20 +77,21 @@ function Avatar({ name }: { name: string }) {
     if (!name) name = "?";
     const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || "?";
     const colors = [
-        "linear-gradient(135deg, #FF6B00 0%, #FF8533 100%)",
-        "linear-gradient(135deg, #2563EB 0%, #60A5FA 100%)",
-        "linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%)",
-        "linear-gradient(135deg, #00D84A 0%, #4ADE80 100%)",
-        "linear-gradient(135deg, #EF4444 0%, #F87171 100%)",
+        { bg: "#f3e7df", color: "#8e4320" },
+        { bg: "#e4ecef", color: "#315e72" },
+        { bg: "#e8ece7", color: "#3f6549" },
+        { bg: "#ede8df", color: "#6e5838" },
+        { bg: "#ece9e6", color: "#565c63" },
     ];
     let num = 0;
     for (let i = 0; i < name.length; i++) num += name.charCodeAt(i);
+    const tone = colors[num % colors.length];
     return (
         <div style={{
-            width: 38, height: 38, borderRadius: 12, background: colors[num % colors.length],
-            color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", flexShrink: 0
+            width: 38, height: 38, borderRadius: "var(--radius-md)", background: tone.bg,
+            border: "1px solid rgba(17, 20, 24, 0.08)",
+            color: tone.color, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 800, fontFamily: "var(--font-heading)", flexShrink: 0
         }}>
             {initials}
         </div>
@@ -98,14 +99,14 @@ function Avatar({ name }: { name: string }) {
 }
 
 function Badge({ status, map }: { status: string; map: Record<string, { bg: string; color: string; label: string }> }) {
-    const s = map[status] || { bg: "#f1f5f9", color: "#64748b", label: status };
+    const s = map[status] || { bg: "var(--neutral-bg)", color: "var(--muted)", label: status };
     return (
         <span className="badge" style={{ 
             background: s.bg, color: s.color, 
-            padding: "4px 10px", borderRadius: "10px",
+            padding: "2px 7px", borderRadius: "var(--radius-xs)",
             display: "inline-flex", alignItems: "center", gap: 6,
-            fontWeight: 600, fontSize: 11,
-            boxShadow: `0 0 0 1px ${s.color}20 inset`
+            fontWeight: 700, fontSize: 10,
+            border: `1px solid color-mix(in srgb, ${s.color} 28%, transparent)`
         }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: s.color, display: "inline-block" }} />
             {s.label}
@@ -296,11 +297,15 @@ export default function SupportPage() {
                 {filtered.length === 0 ? (
                     <div className="card" style={{ padding: 60, textAlign: "center", border: "1px dashed var(--border)", boxShadow: "none" }}>
                         <div style={{
-                            width: 56, height: 56, borderRadius: "50%", background: "rgba(107,114,128,0.08)",
+                            width: 56, height: 56, borderRadius: "var(--radius-lg)", background: "var(--neutral-bg)",
                             display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-                            fontSize: 24, color: "var(--text-faint)"
+                            color: "var(--text-faint)"
                         }}>
-                            🎫
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4Z" />
+                                <path d="M9 9h6" />
+                                <path d="M9 15h6" />
+                            </svg>
                         </div>
                         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text)", fontFamily: "var(--font-heading)" }}>
                             {tickets.length === 0 ? "No support tickets yet" : "No tickets match your filters"}
@@ -369,7 +374,7 @@ export default function SupportPage() {
                                 {/* Right: Status & Meta */}
                                 <div style={{ display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
                                     <div style={{ display: "flex", gap: 8 }}>
-                                        <span className="badge" style={{ background: "rgba(107,114,128,0.06)", color: "#64748B", boxShadow: "0 0 0 1px rgba(107,114,128,0.1) inset", padding: "4px 10px", borderRadius: "10px", fontSize: 11 }}>
+                                        <span className="badge" style={{ background: "var(--neutral-bg)", color: "var(--muted)", border: "1px solid var(--neutral-border)", padding: "2px 7px", borderRadius: "var(--radius-xs)", fontSize: 10 }}>
                                             {t.category}
                                         </span>
                                         <Badge status={t.priority} map={PRIORITY_MAP} />
@@ -483,16 +488,16 @@ export default function SupportPage() {
                                                     <div style={{
                                                         maxWidth: "78%", padding: "12px 16px",
                                                         borderRadius: isClient ? "14px 14px 14px 4px" : "14px 14px 4px 14px",
-                                                        background: isClient ? "#FFF7ED" : "#EFF6FF",
-                                                        border: `1px solid ${isClient ? "#FED7AA" : "#BFDBFE"}`,
+                                                        background: isClient ? "var(--accent-soft)" : "var(--info-bg)",
+                                                        border: `1px solid ${isClient ? "var(--accent-border)" : "var(--info-border)"}`,
                                                     }}>
-                                                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: isClient ? "#EA580C" : "#2563EB" }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: isClient ? "var(--accent-strong)" : "var(--info)" }}>
                                                             {isClient ? (selectedTicket.client.name || selectedTicket.client.company || "Client") : "Support (You)"}
                                                         </div>
-                                                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", whiteSpace: "pre-wrap" }}>
+                                                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-muted)", whiteSpace: "pre-wrap" }}>
                                                             {msg.body}
                                                         </div>
-                                                        <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 6 }}>
+                                                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6 }}>
                                                             {formatDate(msg.createdAt)}
                                                         </div>
                                                     </div>

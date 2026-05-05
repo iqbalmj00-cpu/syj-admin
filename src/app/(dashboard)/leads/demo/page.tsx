@@ -19,20 +19,21 @@ function Avatar({ name }: { name: string }) {
     if (!name) name = "?";
     const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || "?";
     const colors = [
-        "linear-gradient(135deg, #FF6B00 0%, #FF8533 100%)",
-        "linear-gradient(135deg, #2563EB 0%, #60A5FA 100%)",
-        "linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%)",
-        "linear-gradient(135deg, #00D84A 0%, #4ADE80 100%)",
-        "linear-gradient(135deg, #EF4444 0%, #F87171 100%)",
+        { bg: "#f3e7df", color: "#8e4320" },
+        { bg: "#e4ecef", color: "#315e72" },
+        { bg: "#e8ece7", color: "#3f6549" },
+        { bg: "#ede8df", color: "#6e5838" },
+        { bg: "#ece9e6", color: "#565c63" },
     ];
     let num = 0;
     for (let i = 0; i < name.length; i++) num += name.charCodeAt(i);
+    const tone = colors[num % colors.length];
     return (
         <div style={{
-            width: 38, height: 38, borderRadius: 12, background: colors[num % colors.length],
-            color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, fontWeight: 700, fontFamily: "var(--font-heading)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", flexShrink: 0
+            width: 38, height: 38, borderRadius: "var(--radius-md)", background: tone.bg,
+            border: "1px solid rgba(17, 20, 24, 0.08)",
+            color: tone.color, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 800, fontFamily: "var(--font-heading)", flexShrink: 0
         }}>
             {initials}
         </div>
@@ -54,16 +55,16 @@ function LiveBadge({ expiresAt }: { expiresAt: string }) {
     if (isLive) {
         return (
             <span className="badge" style={{ 
-                background: "rgba(0, 216, 74, 0.1)", color: "#00A83A", 
-                padding: "6px 12px", borderRadius: "10px",
+                background: "var(--success-bg)", color: "var(--success-dark)", 
+                padding: "2px 7px", borderRadius: "var(--radius-xs)",
                 display: "inline-flex", alignItems: "center", gap: 6,
-                fontWeight: 700, fontSize: 11,
-                boxShadow: `0 0 0 1px rgba(0,216,74,0.3) inset`
+                fontWeight: 700, fontSize: 10,
+                border: "1px solid var(--success-border)"
             }}>
                 <span style={{ 
                     width: 6, height: 6, borderRadius: "50%", 
-                    backgroundColor: "#00D84A", display: "inline-block",
-                    boxShadow: "0 0 4px #00D84A", animation: "pulse 1.5s infinite"
+                    backgroundColor: "var(--success)", display: "inline-block",
+                    boxShadow: "0 0 0 3px var(--success-bg)", animation: "pulse 1.5s infinite"
                 }} />
                 LIVE IN DEMO
                 <style dangerouslySetInnerHTML={{__html: `
@@ -79,11 +80,11 @@ function LiveBadge({ expiresAt }: { expiresAt: string }) {
     
     return (
         <span className="badge" style={{ 
-            background: "rgba(107,114,128,0.06)", color: "#64748B", 
-            padding: "4px 10px", borderRadius: "10px",
+            background: "var(--neutral-bg)", color: "var(--muted)", 
+            padding: "2px 7px", borderRadius: "var(--radius-xs)",
             display: "inline-flex", alignItems: "center", gap: 6,
-            fontWeight: 600, fontSize: 11,
-            boxShadow: "0 0 0 1px rgba(107,114,128,0.1) inset"
+            fontWeight: 700, fontSize: 10,
+            border: "1px solid var(--neutral-border)"
         }}>
             Expired
         </span>

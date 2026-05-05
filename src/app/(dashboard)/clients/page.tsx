@@ -23,7 +23,12 @@ interface Client {
     counts: { jobs: number; leads: number; staff: number; customers: number; trucks: number };
 }
 
-const PLAN_COLORS: Record<string, string> = { starter: "#2563EB", growth: "#FF6B00", enterprise: "#8B5CF6" };
+const PLAN_COLORS: Record<string, string> = { starter: "var(--info)", growth: "var(--accent)", enterprise: "var(--ink)" };
+const PLAN_STYLES: Record<string, { background: string; border: string }> = {
+    starter: { background: "var(--info-bg)", border: "var(--info-border)" },
+    growth: { background: "var(--accent-soft)", border: "var(--accent-border)" },
+    enterprise: { background: "var(--neutral-bg)", border: "var(--neutral-border)" },
+};
 
 function fmtDate(d: string | null) {
     if (!d) return "—";
@@ -179,7 +184,7 @@ export default function ClientsPage() {
                                 </td>
                                 <td style={{ color: "var(--text-light)" }}>{fmtDate(c.createdAt)}</td>
                                 <td onClick={e => e.stopPropagation()}>
-                                    <button className="btn btn-xs" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "none" }} onClick={() => setDeleteTarget(c)}>Delete</button>
+                                    <button className="btn btn-xs" style={{ background: "var(--danger-bg)", color: "var(--danger)", border: "1px solid var(--danger-border)" }} onClick={() => setDeleteTarget(c)}>Delete</button>
                                 </td>
                             </tr>
                         ))}
@@ -250,21 +255,21 @@ export default function ClientsPage() {
                                 <h4 className="section-label">Actions</h4>
                                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                     {(detail.planStatus === "canceled" || detail.planStatus === "past_due") && (
-                                        <button className="btn btn-xs" style={{ background: "rgba(0,216,74,0.08)", color: "#00A83A", border: "1px solid rgba(0,216,74,0.2)" }}
+                                        <button className="btn btn-xs" style={{ background: "var(--success-bg)", color: "var(--success-dark)", border: "1px solid var(--success-border)" }}
                                             onClick={() => handleAction(detail.id, "reactivate")}>Reactivate</button>
                                     )}
                                     {detail.planStatus === "trialing" && (
-                                        <button className="btn btn-xs" style={{ background: "rgba(0,216,74,0.08)", color: "#00A83A", border: "1px solid rgba(0,216,74,0.2)" }}
+                                        <button className="btn btn-xs" style={{ background: "var(--success-bg)", color: "var(--success-dark)", border: "1px solid var(--success-border)" }}
                                             onClick={() => handleAction(detail.id, "reactivate")}>Convert to Paid</button>
                                     )}
                                     {["starter", "growth", "enterprise"].filter(p => p !== detail.plan).map(p => (
-                                        <button key={p} className="btn btn-xs" style={{ background: (PLAN_COLORS[p]) + "12", color: PLAN_COLORS[p], border: `1px solid ${PLAN_COLORS[p]}30` }}
+                                        <button key={p} className="btn btn-xs" style={{ background: PLAN_STYLES[p].background, color: PLAN_COLORS[p], border: `1px solid ${PLAN_STYLES[p].border}` }}
                                             onClick={() => handleAction(detail.id, "change_plan", { plan: p })}>Switch to {p}</button>
                                     ))}
                                     {detail.website?.websiteUrl && (
                                         <a href={detail.website.websiteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost" style={{ textDecoration: "none" }}>Visit Site</a>
                                     )}
-                                    <button className="btn btn-xs" style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }}
+                                    <button className="btn btn-xs" style={{ background: "var(--danger-bg)", color: "var(--danger)", border: "1px solid var(--danger-border)" }}
                                         onClick={() => { setDetail(null); setDeleteTarget(detail); }}>Delete Account</button>
                                 </div>
                             </div>

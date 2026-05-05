@@ -78,8 +78,8 @@ function IntegrationsTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="grid-4">
                 <Kpi label="Healthy" value={c.healthy} />
-                <Kpi label="Expiring Soon" value={c.expiring_soon} sub={c.expiring_soon > 0 ? "⚠️ < 24h" : ""} />
-                <Kpi label="Expired" value={c.expired} sub={c.expired > 0 ? "🔴 Needs attention" : ""} />
+                <Kpi label="Expiring Soon" value={c.expiring_soon} sub={c.expiring_soon > 0 ? "< 24h" : ""} />
+                <Kpi label="Expired" value={c.expired} sub={c.expired > 0 ? "Needs attention" : ""} />
                 <Kpi label="Errors" value={c.error} />
             </div>
             {["expired", "expiring_soon", "error", "disconnected", "missing_refresh", "healthy"].map(group => {
@@ -119,9 +119,9 @@ function EngagementTab() {
     if (!data) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading engagement data...</div>;
 
     const RISK_BADGES: Record<string, { bg: string; color: string; label: string }> = {
-        at_risk: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "At Risk" },
-        low_usage: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Low Usage" },
-        healthy: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Healthy" },
+        at_risk: { bg: "var(--danger-bg)", color: "var(--danger)", label: "At Risk" },
+        low_usage: { bg: "var(--warn-bg)", color: "var(--warn-dark)", label: "Low Usage" },
+        healthy: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Healthy" },
     };
 
     return (
@@ -215,7 +215,7 @@ function PaymentsTab() {
                 </div>
             )}
             {!data.pastDueUsers?.length && !data.alerts?.length && (
-                <div className="card"><div className="card-body" style={{ textAlign: "center", color: "var(--text-faint)", padding: 40 }}>No payment issues — all good! ✅</div></div>
+                <div className="card"><div className="card-body" style={{ textAlign: "center", color: "var(--text-faint)", padding: 40 }}>No payment issues. All clear.</div></div>
             )}
         </div>
     );

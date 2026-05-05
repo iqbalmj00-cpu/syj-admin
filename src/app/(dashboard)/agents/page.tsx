@@ -51,33 +51,33 @@ interface FunnelData { total: number; new: number; emailed: number; sms_sent: nu
 /* ─── Helpers ───────────────────────────────────────────────────────── */
 
 const STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    idle: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Idle" },
-    running: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Running" },
-    completed: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Completed" },
-    error: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Error" },
-    failed: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Failed" },
-    paused: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Paused" },
+    idle: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Idle" },
+    running: { bg: "var(--info-bg)", color: "var(--info)", label: "Running" },
+    completed: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Completed" },
+    error: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Error" },
+    failed: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Failed" },
+    paused: { bg: "var(--warn-bg)", color: "var(--warn-dark)", label: "Paused" },
 };
 
 const GRADE_MAP: Record<string, { bg: string; color: string }> = {
-    A: { bg: "rgba(0,216,74,0.12)", color: "#00A83A" },
-    B: { bg: "rgba(37,99,235,0.12)", color: "#2563EB" },
-    C: { bg: "rgba(245,158,11,0.12)", color: "#D97706" },
+    A: { bg: "var(--success-bg)", color: "var(--success-dark)" },
+    B: { bg: "var(--info-bg)", color: "var(--info)" },
+    C: { bg: "var(--warn-bg)", color: "var(--warn-dark)" },
 };
 
 const BLOG_STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    draft: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Draft" },
-    approved: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Approved" },
-    published: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Published" },
-    rejected: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Rejected" },
+    draft: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Draft" },
+    approved: { bg: "var(--info-bg)", color: "var(--info)", label: "Approved" },
+    published: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Published" },
+    rejected: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Rejected" },
 };
 
 const REPORT_STATUS_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    draft: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Draft" },
-    approved: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Approved" },
-    published: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Published" },
-    archived: { bg: "rgba(148,163,184,0.12)", color: "#64748B", label: "Archived" },
-    rejected: { bg: "rgba(239,68,68,0.12)", color: "#EF4444", label: "Rejected" },
+    draft: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Draft" },
+    approved: { bg: "var(--info-bg)", color: "var(--info)", label: "Approved" },
+    published: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Published" },
+    archived: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "Archived" },
+    rejected: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Rejected" },
 };
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
@@ -89,22 +89,22 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
 };
 
 const OUTREACH_MAP: Record<string, { bg: string; color: string; label: string }> = {
-    new: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "New" },
-    emailed: { bg: "rgba(37,99,235,0.12)", color: "#2563EB", label: "Emailed" },
-    sms_sent: { bg: "rgba(139,92,246,0.12)", color: "#8B5CF6", label: "SMS Sent" },
-    replied: { bg: "rgba(0,216,74,0.12)", color: "#00A83A", label: "Replied" },
-    converted: { bg: "rgba(255,107,0,0.12)", color: "#FF6B00", label: "Converted" },
-    skipped: { bg: "rgba(245,158,11,0.12)", color: "#D97706", label: "Skipped" },
+    new: { bg: "var(--neutral-bg)", color: "var(--muted)", label: "New" },
+    emailed: { bg: "var(--info-bg)", color: "var(--info)", label: "Emailed" },
+    sms_sent: { bg: "var(--neutral-bg)", color: "var(--ink)", label: "SMS Sent" },
+    replied: { bg: "var(--success-bg)", color: "var(--success-dark)", label: "Replied" },
+    converted: { bg: "var(--accent-soft)", color: "var(--accent-strong)", label: "Converted" },
+    skipped: { bg: "var(--warn-bg)", color: "var(--warn-dark)", label: "Skipped" },
 };
 
 const AGENT_ICONS: Record<string, string> = {
-    lead_scraper: "🔍",
-    lead_enrichment: "🧪",
-    cold_outreach: "📧",
-    content_generator: "📸",
-    facebook_scraper: "📘",
-    blog_writer: "📝",
-    research_writer: "📊",
+    lead_scraper: "LS",
+    lead_enrichment: "LE",
+    cold_outreach: "CO",
+    content_generator: "CG",
+    facebook_scraper: "FB",
+    blog_writer: "BW",
+    research_writer: "RR",
 };
 
 function relTime(d: string | null) {
@@ -335,16 +335,11 @@ export default function AgentsPage() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 2, borderBottom: "2px solid var(--border)" }}>
+            <div className="tab-bar">
                 {TABS.map(t => (
-                    <button key={t.id} onClick={() => setTab(t.id)}
-                        style={{
-                            padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                            border: "none", background: "none",
-                            color: tab === t.id ? "var(--orange)" : "var(--text-light)",
-                            borderBottom: tab === t.id ? "2px solid var(--orange)" : "2px solid transparent",
-                            marginBottom: -2, transition: "all 0.15s",
-                        }}>{t.label}</button>
+                    <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`tab-button ${tab === t.id ? "active" : ""}`}>
+                        {t.label}
+                    </button>
                 ))}
             </div>
 
@@ -353,32 +348,31 @@ export default function AgentsPage() {
                 <>
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 16px", background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.15)",
+                        padding: "10px 16px", background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
                         borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 14 }}>💻</span>
                             <span><strong>Start all agents:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>bash ~/Documents/start_agents.sh</code></span>
                         </div>
                         <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText("bash ~/Documents/start_agents.sh"); showToast("Copied!"); }}
-                            style={{ fontSize: 11, padding: "3px 8px", color: "var(--orange)" }}>📋 Copy</button>
+                            style={{ fontSize: 11, padding: "3px 8px", color: "var(--accent-strong)" }}>Copy</button>
                     </div>
                     {[
-                        { icon: "🔍", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "59,130,246" },
-                        { icon: "🧪", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn server:app --port 8006`, color: "16,185,129" },
-                        { icon: "📘", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "24,119,242" },
+                        { icon: "LS", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "var(--info)" },
+                        { icon: "LE", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn server:app --port 8006`, color: "var(--success)" },
+                        { icon: "FB", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "var(--ink)" },
                     ].map(a => (
                         <div key={a.label} style={{
                             display: "flex", alignItems: "center", justifyContent: "space-between",
-                            padding: "10px 16px", background: `rgba(${a.color},0.06)`, border: `1px solid rgba(${a.color},0.15)`,
+                            padding: "10px 16px", background: "var(--surface-raised)", border: "1px solid var(--border)",
                             borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
                         }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 14 }}>{a.icon}</span>
+                                <span style={{ minWidth: 26, height: 22, borderRadius: 4, background: "var(--surface)", color: a.color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{a.icon}</span>
                                 <span><strong>{a.label}:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{a.cmd}</code></span>
                             </div>
                             <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText(a.cmd); showToast("Copied!"); }}
-                                style={{ fontSize: 11, padding: "3px 8px", color: `rgb(${a.color})` }}>📋 Copy</button>
+                                style={{ fontSize: 11, padding: "3px 8px", color: a.color }}>Copy</button>
                         </div>
                     ))}
                     <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} onRefresh={fetchAgents} />
@@ -471,14 +465,14 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
             {agents.map(a => {
                 const st = STATUS_MAP[a.status] || STATUS_MAP.idle;
-                const icon = AGENT_ICONS[a.slug] || "🤖";
+                const icon = AGENT_ICONS[a.slug] || "AI";
                 const isExpanded = expandedId === a.id;
                 return (
                     <div key={a.id} className="card" style={{ display: "flex", flexDirection: "column" }}>
                         <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border-light)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                    <span style={{ fontSize: 24 }}>{icon}</span>
+                                    <span style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--accent-strong)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, fontFamily: "var(--font-heading)" }}>{icon}</span>
                                     <div>
                                         <div style={{ fontWeight: 700, fontSize: 15, fontFamily: "var(--font-heading)", color: "var(--text)" }}>{a.name}</div>
                                         <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{parseCron(a.schedule)}</div>
@@ -533,15 +527,15 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                         <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
                             {/* Primary action: Run or Running indicator */}
                             {a.status === "running" ? (
-                                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(37,99,235,0.08)", borderRadius: 6 }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB", animation: "pulse 1.5s infinite" }} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", flex: 1 }}>Running...</span>
+                                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--info-bg)", borderRadius: 6 }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--info)", animation: "pulse 1.5s infinite" }} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--info)", flex: 1 }}>Running...</span>
                                     {(a.slug === "lead_enrichment" || a.slug === "content_generator") && (
                                         <button className="btn btn-xs" onClick={async (e) => {
                                             e.stopPropagation();
                                             await fetch("/api/agents/enrichment-cancel", { method: "POST" });
                                             showToast("Stop signal sent — agent will stop after current lead");
-                                        }} style={{ color: "var(--danger)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", fontSize: 10, padding: "3px 8px" }}>
+                                        }} style={{ color: "var(--danger)", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", fontSize: 10, padding: "3px 8px" }}>
                                             Stop
                                         </button>
                                     )}
@@ -551,7 +545,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                                         await fetch(`/api/agents/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "idle", lastError: null }) });
                                         showToast("Agent status reset");
                                         onRefresh();
-                                    }} style={{ color: "var(--text-faint)", background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.2)", fontSize: 10, padding: "3px 8px" }}>
+                                    }} style={{ color: "var(--text-faint)", background: "var(--neutral-bg)", border: "1px solid var(--neutral-border)", fontSize: 10, padding: "3px 8px" }}>
                                         Reset
                                     </button>
                                 </div>
@@ -564,9 +558,9 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                             )}
                             {/* Configure */}
                             <button className="btn btn-xs btn-ghost" onClick={() => openConfig(a)}
-                                style={{ color: isExpanded ? "var(--orange)" : "var(--text-light)", padding: "6px 10px" }}
+                                style={{ color: isExpanded ? "var(--accent-strong)" : "var(--text-light)", padding: "6px 10px" }}
                                 title="Configure">
-                                ⚙️
+                                Configure
                             </button>
                             {/* Enable/Disable toggle */}
                             <button onClick={() => onToggle(a)}
@@ -1148,11 +1142,11 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
                 {[
                     { label: "Total", value: funnel.total, color: "var(--text)" },
-                    { label: "New", value: funnel.new, color: "#64748B" },
-                    { label: "Emailed", value: funnel.emailed, color: "#2563EB" },
-                    { label: "SMS Sent", value: funnel.sms_sent, color: "#8B5CF6" },
-                    { label: "Replied", value: funnel.replied, color: "#00A83A" },
-                    { label: "Converted", value: funnel.converted, color: "#FF6B00" },
+                    { label: "New", value: funnel.new, color: "var(--muted)" },
+                    { label: "Emailed", value: funnel.emailed, color: "var(--info)" },
+                    { label: "SMS Sent", value: funnel.sms_sent, color: "var(--ink)" },
+                    { label: "Replied", value: funnel.replied, color: "var(--success-dark)" },
+                    { label: "Converted", value: funnel.converted, color: "var(--accent)" },
                 ].map(f => (
                     <div key={f.label} style={{
                         background: "var(--white)", borderRadius: 10, padding: "12px 16px",
@@ -1168,7 +1162,7 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
             {selectedIds.size > 0 && (
                 <div style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "10px 16px",
-                    background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.2)",
+                    background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
                     borderRadius: 10,
                 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
@@ -1178,16 +1172,16 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                     <button onClick={sendToOutreach} disabled={sendingOutreach}
                         style={{
                             padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
-                            background: "#2563EB", color: "#fff", cursor: "pointer", opacity: sendingOutreach ? 0.6 : 1,
+                            background: "var(--info)", color: "#fff", cursor: "pointer", opacity: sendingOutreach ? 0.6 : 1,
                         }}>
-                        {sendingOutreach ? "Sending..." : "📧 Send to Outreach"}
+                        {sendingOutreach ? "Sending..." : "Send to Outreach"}
                     </button>
                     <button onClick={deleteSelected} disabled={deleting}
                         style={{
                             padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
-                            background: "#EF4444", color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1,
+                            background: "var(--danger)", color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1,
                         }}>
-                        {deleting ? "Deleting..." : "🗑 Delete"}
+                        {deleting ? "Deleting..." : "Delete"}
                     </button>
                 </div>
             )}
@@ -1362,9 +1356,9 @@ function BlogsTab({ blogs, counts, statusFilter, setStatusFilter, onRefresh, sho
                 {content.title && <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text)", marginBottom: 12 }}>{String(content.title)}</h2>}
                 {content.description && <p style={{ fontSize: 13, color: "var(--text-light)", lineHeight: 1.6, marginBottom: 16, fontStyle: "italic" }}>{String(content.description)}</p>}
                 {warnings.length > 0 && (
-                    <div style={{ marginBottom: 16, padding: "12px 14px", background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.25)", borderRadius: 8 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#B45309", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>⚠️ Review warnings ({warnings.length})</div>
-                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#78350F", lineHeight: 1.6 }}>
+                    <div style={{ marginBottom: 16, padding: "12px 14px", background: "var(--warn-bg)", border: "1px solid var(--warn-border)", borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--warn-dark)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Review warnings ({warnings.length})</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--warn-dark)", lineHeight: 1.6 }}>
                             {warnings.map((w, i) => <li key={i}>{w}</li>)}
                         </ul>
                     </div>
@@ -1731,11 +1725,11 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
                     <tbody>
                         {runs.map(r => {
                             const a = agentMap[r.agentId];
-                            const runStatus = STATUS_MAP[r.status] || { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: r.status };
+                            const runStatus = STATUS_MAP[r.status] || { bg: "var(--neutral-bg)", color: "var(--muted)", label: r.status };
                             return (
                                 <tr key={r.id}>
                                     <td style={{ fontWeight: 600 }}>
-                                        {a ? `${AGENT_ICONS[a.slug] || "🤖"} ${a.name}` : r.agentId}
+                                        {a ? `${AGENT_ICONS[a.slug] || "AI"} ${a.name}` : r.agentId}
                                     </td>
                                     <td><Badge bg={runStatus.bg} color={runStatus.color} label={runStatus.label} /></td>
                                     <td>{r.trigger}</td>
@@ -1913,7 +1907,7 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                             }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <span style={{ fontWeight: 600, fontSize: 13 }}>{g.name}</span>
-                                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: g.channel === "sms" ? "rgba(139,92,246,0.1)" : "rgba(37,99,235,0.1)", color: g.channel === "sms" ? "#8B5CF6" : "#2563EB", fontWeight: 600, textTransform: "uppercase" }}>{g.channel}</span>
+                                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: g.channel === "sms" ? "var(--neutral-bg)" : "var(--info-bg)", color: g.channel === "sms" ? "var(--ink)" : "var(--info)", fontWeight: 600, textTransform: "uppercase" }}>{g.channel}</span>
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>
                                 {g.memberCount} lead{g.memberCount !== 1 ? "s" : ""}{g.lastSentAt ? ` · Last sent ${new Date(g.lastSentAt).toLocaleDateString()}` : ""}

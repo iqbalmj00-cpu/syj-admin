@@ -29,7 +29,7 @@ export default function BillingPage() {
                 <Kpi label="MRR" value={`$${data.mrr?.toLocaleString()}`} sub="Monthly Recurring Revenue" />
                 <Kpi label="ARR" value={`$${data.arr?.toLocaleString()}`} />
                 <Kpi label="Trialing" value={data.trialingCount} sub={data.trialingCount > 0 ? "Expiring soon" : "None"} />
-                <Kpi label="Past Due" value={data.pastDueCount} sub={data.pastDueCount > 0 ? "⚠️ Action needed" : "All clear"} />
+                <Kpi label="Past Due" value={data.pastDueCount} sub={data.pastDueCount > 0 ? "Action needed" : "All clear"} />
             </div>
 
             <div className="op-table-wrapper">

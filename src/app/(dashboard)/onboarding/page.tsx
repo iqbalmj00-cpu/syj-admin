@@ -6,7 +6,7 @@ import { Kpi } from "@/app/components/Kpi";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const FUNNEL_COLORS = ["var(--info)", "var(--orange)", "var(--purple)", "#8B5CF6", "#2563EB", "var(--success)", "var(--success-dark)"];
+const FUNNEL_COLORS = ["var(--accent)", "var(--info)", "var(--warn)", "var(--success)", "var(--ink)", "var(--muted)", "var(--success-dark)"];
 
 export default function OnboardingPage() {
     const [data, setData] = useState<any>(null);
@@ -25,7 +25,7 @@ export default function OnboardingPage() {
                 <Kpi label="Total Signups" value={data.total} />
                 <Kpi label="Complete" value={data.complete} sub={data.total ? `${Math.round((data.complete / data.total) * 100)}%` : "0%"} />
                 <Kpi label="In Progress" value={data.inProgress} />
-                <Kpi label="Not Started" value={data.notStarted} sub={data.notStarted > 0 ? "⚠️ Dropped off" : ""} />
+                <Kpi label="Not Started" value={data.notStarted} sub={data.notStarted > 0 ? "Dropped off" : ""} />
             </div>
 
             {/* Funnel */}
@@ -62,9 +62,9 @@ export default function OnboardingPage() {
                                         <span style={{ fontWeight: 700, color: "var(--orange)", fontFamily: "var(--font-heading)" }}>{c.currentStep}/7</span>
                                         <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 6 }}>{c.currentStepLabel}</span>
                                     </td>
-                                    <td style={{ padding: "10px 14px" }}>{c.hasWebsite ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="rgba(239,68,68,0.12)" color="#EF4444" label="Missing" />}</td>
-                                    <td style={{ padding: "10px 14px" }}>{c.hasPhone ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="rgba(239,68,68,0.12)" color="#EF4444" label="Missing" />}</td>
-                                    <td style={{ padding: "10px 14px" }}>{c.hasBilling ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="rgba(239,68,68,0.12)" color="#EF4444" label="Missing" />}</td>
+                                    <td style={{ padding: "10px 14px" }}>{c.hasWebsite ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="var(--danger-bg)" color="var(--danger)" label="Missing" />}</td>
+                                    <td style={{ padding: "10px 14px" }}>{c.hasPhone ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="var(--danger-bg)" color="var(--danger)" label="Missing" />}</td>
+                                    <td style={{ padding: "10px 14px" }}>{c.hasBilling ? <Badge {...STATUS_COLORS.success} /> : <Badge bg="var(--danger-bg)" color="var(--danger)" label="Missing" />}</td>
                                     <td style={{ padding: "10px 14px" }}><Badge {...(c.complete ? STATUS_COLORS.active : STATUS_COLORS.building)} label={c.complete ? "Complete" : "In Progress"} /></td>
                                     <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-faint)" }}>{c.lastActivity ? new Date(c.lastActivity).toLocaleDateString() : "—"}</td>
                                 </tr>

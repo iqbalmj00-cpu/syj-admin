@@ -13,7 +13,7 @@ interface RevenueData {
     timeline: { date: string; count: number }[];
 }
 
-const PLAN_COLORS: Record<string, string> = { starter: "#2563EB", growth: "#FF6B00", enterprise: "#8B5CF6" };
+const PLAN_COLORS: Record<string, string> = { starter: "var(--info)", growth: "var(--accent)", enterprise: "var(--ink)" };
 
 
 export default function RevenuePage() {
@@ -72,7 +72,7 @@ export default function RevenuePage() {
                                                 <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-heading)" }}>{d.count}</span>
                                                 <div style={{
                                                     width: "100%", borderRadius: "6px 6px 0 0",
-                                                    background: "linear-gradient(180deg, var(--orange), rgba(255,107,0,0.5))",
+                                                    background: "linear-gradient(180deg, var(--accent), rgba(198,95,47,0.46))",
                                                     height: `${(d.count / (max || 1)) * 90}px`, minHeight: 8
                                                 }} />
                                                 <span style={{ fontSize: 9, color: "var(--text-faint)", whiteSpace: "nowrap" }}>{d.date}</span>

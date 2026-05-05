@@ -288,7 +288,7 @@ function BookingsView({ bookings, filter, setFilter, counts, loading, onCancel, 
                         style={{
                             padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 16, cursor: "pointer",
                             border: "1px solid", borderColor: filter === f.v ? "var(--orange)" : "var(--border)",
-                            background: filter === f.v ? "rgba(255,107,0,0.08)" : "transparent",
+                            background: filter === f.v ? "var(--accent-soft)" : "transparent",
                             color: filter === f.v ? "var(--orange)" : "var(--text-light)",
                         }}>{f.label}</button>
                 ))}
@@ -510,7 +510,7 @@ function SettingsView({ connStatus, config, setConfig, saving, onSave, onDisconn
                                 </div>
                             </div>
 
-                            <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "rgba(255,107,0,0.06)", border: "1px solid rgba(255,107,0,0.2)", borderRadius: 8, cursor: "pointer" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 8, cursor: "pointer" }}>
                                 <input type="checkbox" checked={config.enabled}
                                     onChange={e => setConfig({ ...config, enabled: e.target.checked })} />
                                 <div>

@@ -16,9 +16,9 @@ interface Alert {
 }
 
 const SEV_COLORS: Record<string, { bg: string; color: string; dot: string }> = {
-    critical: { bg: "rgba(239,68,68,0.06)", color: "#991B1B", dot: "var(--danger)" },
-    warning: { bg: "rgba(245,158,11,0.06)", color: "#92400E", dot: "var(--warn)" },
-    info: { bg: "rgba(37,99,235,0.06)", color: "#1E40AF", dot: "var(--info)" },
+    critical: { bg: "var(--danger-bg)", color: "var(--danger-dark)", dot: "var(--danger)" },
+    warning: { bg: "var(--warn-bg)", color: "var(--warn-dark)", dot: "var(--warn)" },
+    info: { bg: "var(--info-bg)", color: "var(--info)", dot: "var(--info)" },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -65,10 +65,10 @@ export default function AlertsPage() {
                     ["deploy", "Website"], ["phone_error", "Phone"], ["integration", "Integration"],
                 ].map(([k, l]) => (
                     <button key={k} onClick={() => setFilter(k)} style={{
-                        padding: "6px 14px", borderRadius: 20,
-                        border: `1px solid ${filter === k ? "var(--orange)" : "var(--border)"}`,
-                        background: filter === k ? "rgba(255,107,0,0.08)" : "var(--white)",
-                        color: filter === k ? "var(--orange)" : "var(--text-light)",
+                        padding: "6px 14px", borderRadius: "var(--radius-sm)",
+                        border: `1px solid ${filter === k ? "var(--accent-border)" : "var(--border)"}`,
+                        background: filter === k ? "var(--accent-soft)" : "var(--white)",
+                        color: filter === k ? "var(--accent-strong)" : "var(--text-light)",
                         fontSize: 12, fontWeight: 600, cursor: "pointer",
                     }}>{l}</button>
                 ))}
@@ -79,7 +79,7 @@ export default function AlertsPage() {
                 {filtered.length === 0 && (
                     <div className="card">
                         <div className="card-body" style={{ textAlign: "center", color: "var(--text-faint)", padding: 40 }}>
-                            {alerts.length === 0 ? "No alerts — all systems healthy!" : "No alerts match this filter"}
+                            {alerts.length === 0 ? "No alerts. All systems healthy." : "No alerts match this filter"}
                         </div>
                     </div>
                 )}

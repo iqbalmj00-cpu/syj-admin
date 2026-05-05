@@ -99,11 +99,12 @@ export default function SettingsPage() {
                             </div>
                             <div style={{
                                 display: "flex", alignItems: "center", gap: 6,
-                                padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-                                background: gmailStatus.connected ? "rgba(0,216,74,0.12)" : "rgba(107,114,128,0.12)",
-                                color: gmailStatus.connected ? "#00A83A" : "#6B7280",
+                                padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 12, fontWeight: 600,
+                                background: gmailStatus.connected ? "var(--success-bg)" : "var(--neutral-bg)",
+                                color: gmailStatus.connected ? "var(--success-dark)" : "var(--muted)",
+                                border: `1px solid ${gmailStatus.connected ? "var(--success-border)" : "var(--neutral-border)"}`,
                             }}>
-                                <div style={{ width: 7, height: 7, borderRadius: "50%", background: gmailStatus.connected ? "#00D84A" : "#9CA3AF" }} />
+                                <div style={{ width: 7, height: 7, borderRadius: "50%", background: gmailStatus.connected ? "var(--success)" : "var(--muted-faint)" }} />
                                 {gmailStatus.connected ? "Connected" : "Not Connected"}
                             </div>
                         </div>
@@ -142,7 +143,7 @@ export default function SettingsPage() {
                     <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <h3>Announcement Banner</h3>
                         {announcementActive && (
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: "rgba(0,216,74,0.12)", color: "#00A83A" }}>LIVE</span>
+                            <span className="badge" style={{ background: "var(--success-bg)", color: "var(--success-dark)", border: "1px solid var(--success-border)" }}>LIVE</span>
                         )}
                     </div>
                     <div className="card-body">
