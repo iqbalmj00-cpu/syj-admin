@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
                     batchId: body.id || config.batchId || null,
                     summary,
                     totalCounts: body.total_counts || null,
-                } as Prisma.InputJsonValue,
+                } as unknown as Prisma.InputJsonValue,
             },
         });
 

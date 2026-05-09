@@ -61,7 +61,7 @@ export async function POST(req: Request) {
             data: {
                 agentId: agent.id,
                 trigger: "manual",
-                config: runConfig as Prisma.InputJsonValue,
+                config: runConfig as unknown as Prisma.InputJsonValue,
             },
         });
 

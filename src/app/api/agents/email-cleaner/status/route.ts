@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
                             total,
                         },
                         immediateSummary: getImmediateSummary(run.results),
-                    } as Prisma.InputJsonValue,
+                    } as unknown as Prisma.InputJsonValue,
                 },
             });
             return NextResponse.json({
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
                     summary,
                     totalCounts: batch.total_counts || null,
                     reconciledBy: "status_endpoint",
-                } as Prisma.InputJsonValue,
+                } as unknown as Prisma.InputJsonValue,
             },
         });
 

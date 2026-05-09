@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
                 data: {
                     status: "completed",
                     completedAt: new Date(),
-                    results: { summary, provider: "emailable", mode: "sync" } as Prisma.InputJsonValue,
+                    results: { summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
                 },
             });
             await prisma.syjAgent.update({ where: { id: agent.id }, data: { status: "idle" } });
@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
                         mode: "batch",
                         batchId: batch.id,
                         immediateSummary: summary,
-                    } as Prisma.InputJsonValue,
+                    } as unknown as Prisma.InputJsonValue,
                 },
             });
 
@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
             data: {
                 status: "completed",
                 completedAt: new Date(),
-                results: { summary, provider: "emailable", mode: "sync" } as Prisma.InputJsonValue,
+                results: { summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
             },
         });
         await prisma.syjAgent.update({ where: { id: agent.id }, data: { status: "idle" } });
