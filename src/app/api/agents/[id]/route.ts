@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { usesPollingOnlyAgent } from "@/lib/enrichment-run-config";
 
 export const maxDuration = 300; // Allow up to 5 min for in-house blog_writer generation
 
@@ -89,12 +90,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             ? `${gateway}/${agent.slug}`
             : urlMap[agent.slug];
 
-        if (agentUrl) {
+        if (agentUrl && !usesPollingOnlyAgent(agent.slug)) {
             try {
+                const callbackSecret = process.env.AGENT_CALLBACK_SECRET || "";
                 await fetch(`${agentUrl}/run`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ runId: run.id, config: agent.config }),
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(callbackSecret ? { "x-agent-secret": callbackSecret } : {}),
+                    },
+                    body: JSON.stringify({ runId: run.id, config: agent.config, secret: callbackSecret || undefined }),
                 });
             } catch (fetchErr) {
                 console.warn(`Could not reach agent server at ${agentUrl}:`, fetchErr);

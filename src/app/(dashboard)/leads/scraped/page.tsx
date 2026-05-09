@@ -16,6 +16,9 @@ interface Lead {
     estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
     serviceAreaCities?: string[]; serviceAreaSize?: string | null;
     enrichedAt?: string | null; isExistingClient?: boolean;
+    emailDeliverable?: boolean | null; emailRiskScore?: number | null; emailVerifiedAt?: string | null;
+    emailVerificationState?: string | null; emailVerificationReason?: string | null; emailVerificationScore?: number | null;
+    emailCleanedAt?: string | null; archivedAt?: string | null; archiveReason?: string | null;
 }
 
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
@@ -121,6 +124,7 @@ export default function ScrapedLeadsPage() {
     const [selectedEmailDomainType, setSelectedEmailDomainType] = useState<Set<string>>(new Set());
     const [emailDomainMatchesWebsite, setEmailDomainMatchesWebsite] = useState("all");
     const [emailDeliverable, setEmailDeliverable] = useState("all");
+    const [emailVerificationState, setEmailVerificationState] = useState("all");
     const [selectedPhoneLineType, setSelectedPhoneLineType] = useState<Set<string>>(new Set());
     const [phoneDeliverable, setPhoneDeliverable] = useState("all");
     const [hasOwnerFullName, setHasOwnerFullName] = useState("all");
@@ -145,6 +149,7 @@ export default function ScrapedLeadsPage() {
     const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [enriching, setEnriching] = useState(false);
+    const [cleaningEmails, setCleaningEmails] = useState(false);
     const [sendingOutreach, setSendingOutreach] = useState(false);
     const [addingToGroup, setAddingToGroup] = useState(false);
     const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
@@ -154,6 +159,7 @@ export default function ScrapedLeadsPage() {
     const [showAddLead, setShowAddLead] = useState(false);
     const [addingLead, setAddingLead] = useState(false);
     const [newLead, setNewLead] = useState({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
+    const [archivedFilter, setArchivedFilter] = useState("active");
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -161,6 +167,7 @@ export default function ScrapedLeadsPage() {
         try {
             const params = new URLSearchParams();
             if (gradeFilter !== "all") params.set("grade", gradeFilter);
+            if (archivedFilter !== "active") params.set("archived", archivedFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
             if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
@@ -229,6 +236,7 @@ export default function ScrapedLeadsPage() {
             if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
             if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
             if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
+            if (emailVerificationState !== "all") params.set("emailVerificationState", emailVerificationState);
             if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
             if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
             if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
@@ -259,7 +267,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, archivedFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, emailVerificationState, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -327,6 +335,7 @@ export default function ScrapedLeadsPage() {
         try {
             const params = new URLSearchParams();
             if (gradeFilter !== "all") params.set("grade", gradeFilter);
+            if (archivedFilter !== "active") params.set("archived", archivedFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
             if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
@@ -394,6 +403,7 @@ export default function ScrapedLeadsPage() {
             if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
             if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
             if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
+            if (emailVerificationState !== "all") params.set("emailVerificationState", emailVerificationState);
             if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
             if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
             if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
@@ -472,6 +482,61 @@ export default function ScrapedLeadsPage() {
             showToast("Enrichment failed — is the local agent running?", "error");
         }
         setEnriching(false);
+    };
+
+    const pollEmailCleanerBatch = (runId: string) => {
+        let attempts = 0;
+        const poll = async () => {
+            attempts++;
+            try {
+                const res = await fetch(`/api/agents/email-cleaner/status?runId=${encodeURIComponent(runId)}`);
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.status === "completed") {
+                    const summary = data.summary || data.results?.summary;
+                    showToast(summary ? `Email cleaning finished: ${summary.deliverable || 0} deliverable, ${summary.archived || 0} archived` : "Email cleaning finished");
+                    fetchLeads();
+                    return;
+                }
+                if (res.ok && data.status === "failed") {
+                    showToast("Email cleaning batch failed", "error");
+                    return;
+                }
+            } catch {
+                // keep polling; the callback may still complete independently
+            }
+            if (attempts < 18) setTimeout(poll, 10000);
+        };
+        setTimeout(poll, 10000);
+    };
+
+    const cleanSelectedEmails = async () => {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`Verify ${selectedIds.size} selected lead(s) with Emailable? Leads that are not deliverable will be archived and skipped for email outreach.`)) return;
+        setCleaningEmails(true);
+        try {
+            const res = await fetch("/api/agents/email-cleaner", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const summary = data.summary || data.immediateSummary;
+                const summaryText = summary
+                    ? `${summary.deliverable || 0} deliverable, ${summary.archived || 0} archived`
+                    : data.message || "Email cleaning queued";
+                showToast(data.mode === "batch" ? data.message || "Email cleaning batch queued" : `Email cleaning finished: ${summaryText}`);
+                setSelectedIds(new Set());
+                setSelectAllMatching(false);
+                if (data.mode === "batch" && data.runId) pollEmailCleanerBatch(data.runId);
+                setTimeout(() => fetchLeads(), data.mode === "batch" ? 5000 : 1000);
+            } else {
+                showToast(data.error || "Email cleaning failed", "error");
+            }
+        } catch {
+            showToast("Email cleaning failed", "error");
+        }
+        setCleaningEmails(false);
     };
 
     const addManualLead = async () => {
@@ -1598,6 +1663,7 @@ export default function ScrapedLeadsPage() {
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
                         <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
+                        <button onClick={cleanSelectedEmails} disabled={cleaningEmails} title="Verify selected lead emails with Emailable and archive anything not deliverable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: cleaningEmails ? "wait" : "pointer" }}>{cleaningEmails ? "Cleaning..." : "Clean List"}</button>
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "Trigger Campaign"}</button>
                         <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--info-border)", borderRadius: 4, background: "var(--info-bg)", color: "var(--info)", cursor: "pointer" }}>Copy Emails</button>
                         <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>Copy Phones</button>
@@ -1648,6 +1714,22 @@ export default function ScrapedLeadsPage() {
                     <option value="all">Enrichment</option>
                     <option value="true">Enriched</option>
                     <option value="false">Not Enriched</option>
+                </select>
+                <select value={emailVerificationState} onChange={e => setEmailVerificationState(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">Email Clean</option>
+                    <option value="deliverable">Deliverable</option>
+                    <option value="unverified">Unverified</option>
+                    <option value="risky">Risky</option>
+                    <option value="unknown">Unknown</option>
+                    <option value="undeliverable">Undeliverable</option>
+                    <option value="missing">Missing</option>
+                    <option value="invalid">Invalid</option>
+                    <option value="duplicate">Duplicate</option>
+                </select>
+                <select value={archivedFilter} onChange={e => setArchivedFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="active">Active</option>
+                    <option value="all">All Leads</option>
+                    <option value="true">Archived</option>
                 </select>
                 <select value={competitorFilter} onChange={e => setCompetitorFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
                     <option value="all">Competitor</option>
@@ -1745,6 +1827,7 @@ export default function ScrapedLeadsPage() {
                                         {l.name}
                                     </div>
                                     {l.isExistingClient && <span style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", background: "rgba(139,92,246,0.1)", padding: "1px 6px", borderRadius: 4 }}>EXISTING CLIENT</span>}
+                                    {l.archivedAt && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--danger)", background: "var(--danger-bg)", padding: "1px 6px", borderRadius: 4, marginLeft: 4 }}>ARCHIVED</span>}
                                 </td>
                                 <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
                                 <td style={{ fontSize: 11 }}>{(l as any).city || l.market}</td>
@@ -1764,8 +1847,8 @@ export default function ScrapedLeadsPage() {
                                     {l.phone || "—"}
                                     {l.phoneType && l.phoneType !== "none" && <span style={{ fontSize: 9, marginLeft: 4, color: l.phoneType === "toll_free" ? "var(--info)" : "var(--text-faint)" }}>{l.phoneType === "toll_free" ? "TF" : "L"}</span>}
                                     <span
-                                        title={l.email ? `Has email: ${l.email}` : "No email on file"}
-                                        style={{ fontSize: 11, marginLeft: 6, color: l.email ? "#00A83A" : "var(--text-faint)", opacity: l.email ? 1 : 0.4 }}
+                                        title={l.email ? `Email: ${l.email}${l.emailVerificationState ? ` (${l.emailVerificationState})` : ""}` : "No email on file"}
+                                        style={{ fontSize: 11, marginLeft: 6, color: l.emailDeliverable === true ? "#00A83A" : l.emailDeliverable === false ? "var(--danger)" : l.email ? "var(--orange)" : "var(--text-faint)", opacity: l.email ? 1 : 0.4 }}
                                     >
                                         ✉
                                     </span>
@@ -1814,8 +1897,12 @@ export default function ScrapedLeadsPage() {
                                                 ["Email", l.email],
                                                 ["  ↳ Domain Type", (l as any).emailDomainType ? ({ personal: "Personal", business_custom: "Business (custom domain)", unknown: "Unknown" } as Record<string, string>)[(l as any).emailDomainType] || (l as any).emailDomainType : null],
                                                 ["  ↳ Matches Website", (l as any).emailDomainMatchesWebsite ? "✓ Yes" : null],
-                                                ["  ↳ Deliverable", (l as any).emailDeliverable === true ? "✓ Yes" : (l as any).emailDeliverable === false ? "✗ No" : null],
-                                                ["  ↳ Risk Score", (l as any).emailRiskScore != null ? `${(l as any).emailRiskScore}/100` : null],
+                                                ["  ↳ Verification", l.emailVerificationState ? `${l.emailVerificationState}${l.emailVerificationReason ? ` (${l.emailVerificationReason})` : ""}` : null],
+                                                ["  ↳ Deliverable", l.emailDeliverable === true ? "✓ Yes" : l.emailDeliverable === false ? "✗ No" : null],
+                                                ["  ↳ Risk Score", l.emailRiskScore != null ? `${l.emailRiskScore}/100` : null],
+                                                ["  ↳ Emailable Score", l.emailVerificationScore != null ? `${l.emailVerificationScore}/100` : null],
+                                                ["  ↳ Verified", l.emailVerifiedAt ? new Date(l.emailVerifiedAt).toLocaleString() : null],
+                                                ["  ↳ Archived", l.archivedAt ? `${new Date(l.archivedAt).toLocaleString()}${l.archiveReason ? ` (${l.archiveReason})` : ""}` : null],
                                                 ["Website", l.website],
                                                 ["Owner", (l as any).ownerName || (l as any).ownerNameFromReviews],
                                                 ["  ↳ First Name", (l as any).ownerFirstName],

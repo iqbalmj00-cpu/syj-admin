@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { buildSelectedEnrichmentRunConfig } from "@/lib/enrichment-run-config";
 
 /**
  * POST /api/agents/enrichment
  *
- * Triggers the external Python enrichment agent to enrich specific leads
+ * Queues the external Python enrichment agent to enrich specific leads
  * (e.g. when the user clicks "Enrich Selected" in the scraped leads table).
  *
  * Body: { leadIds: string[] }
  *
- * This route creates a SyjAgentRun with the lead IDs in config, then fires
- * a POST to the enrichment agent's /run endpoint. The agent polls pending
- * runs and processes the selected leads via GET /api/agents/enrichment-data
- * with the leadIds query param.
+ * This route creates a SyjAgentRun with the lead IDs in config. The enrichment
+ * worker claims the run through /api/agents/pending-runs, which keeps run
+ * ownership atomic and avoids duplicate direct-trigger + polling execution.
  *
  * All enrichment logic lives in the external Python agent
  * (/Users/jamal/Documents/ENRICHMENT AGENT). This route is purely a trigger.
@@ -52,16 +53,15 @@ export async function POST(req: Request) {
             );
         }
 
+        const runConfig = buildSelectedEnrichmentRunConfig(agent.config, leadIds);
+
         // Create a run record with the specific lead IDs in config.
         // The external Python agent reads cfg.leadIds and fetches only those leads.
         const run = await prisma.syjAgentRun.create({
             data: {
                 agentId: agent.id,
                 trigger: "manual",
-                config: {
-                    ...(typeof agent.config === "object" && agent.config !== null ? agent.config : {}),
-                    leadIds,
-                } as object,
+                config: runConfig as Prisma.InputJsonValue,
             },
         });
 
@@ -70,24 +70,6 @@ export async function POST(req: Request) {
             where: { id: agent.id },
             data: { status: "running", lastRunAt: new Date() },
         });
-
-        // Trigger the agent server — prefer gateway, fall back to direct URL
-        const gateway = process.env.AGENT_GATEWAY_URL;
-        const agentUrl = gateway
-            ? `${gateway}/lead_enrichment`
-            : process.env.ENRICHMENT_AGENT_URL;
-
-        if (agentUrl) {
-            // Fire-and-forget — don't block the API response on the agent's startup latency
-            fetch(`${agentUrl}/run`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ runId: run.id, config: { leadIds } }),
-            }).catch((err) => {
-                console.warn(`Could not reach enrichment agent at ${agentUrl}:`, err);
-                // Agent may pick up via polling anyway
-            });
-        }
 
         return NextResponse.json({
             ok: true,

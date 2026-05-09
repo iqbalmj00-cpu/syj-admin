@@ -58,13 +58,26 @@ export async function POST(req: Request) {
         }
 
         let inserted = 0;
+        let skipped = 0;
         for (const item of items) {
+            const channel = item.channel || "email";
+            if (item.leadId) {
+                const lead = await prisma.scrapedLead.findUnique({
+                    where: { id: item.leadId },
+                    select: { archivedAt: true, smsOptOut: true, emailDeliverable: true },
+                });
+                if (!lead) { skipped++; continue; }
+                if (lead.archivedAt) { skipped++; continue; }
+                if (channel === "email" && lead.emailDeliverable !== true) { skipped++; continue; }
+                if (channel === "sms" && lead.smsOptOut) { skipped++; continue; }
+            }
+
             await prisma.$executeRawUnsafe(`
                 INSERT INTO "OutreachQueue" ("leadId", "channel", "subject", "content", "templateUsed", "variables", "status")
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             `,
                 item.leadId,
-                item.channel || "email",
+                channel,
                 item.subject || null,
                 item.content,
                 item.templateUsed || null,
@@ -74,7 +87,7 @@ export async function POST(req: Request) {
             inserted++;
         }
 
-        return NextResponse.json({ ok: true, inserted });
+        return NextResponse.json({ ok: true, inserted, skipped });
     } catch (error) {
         console.error("POST /api/agents/outreach-queue error:", error);
         return NextResponse.json({ error: String(error) }, { status: 500 });

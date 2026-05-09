@@ -815,8 +815,8 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 </ConfigField>
                 <ConfigToggle label="Auto-delete irrelevant leads (movers, cleaners, auto salvage, etc.)" checked={config.auto_delete_irrelevant !== false} onChange={v => onChange("auto_delete_irrelevant", v)} />
                 <ConfigToggle label="Skip leads that match existing SYJ clients" checked={config.skip_existing_clients !== false} onChange={v => onChange("skip_existing_clients", v)} />
-                <ConfigToggle label="Fetch Google Reviews (uses Outscraper API credits)" checked={config.fetch_reviews !== false} onChange={v => onChange("fetch_reviews", v)} />
-                <ConfigToggle label="Extract owner name from website" checked={config.extract_owner !== false} onChange={v => onChange("extract_owner", v)} />
+                <ConfigToggle label="Fetch Google Reviews + GBP profile (uses Outscraper API credits)" checked={config.fetch_reviews !== false} onChange={v => onChange("fetch_reviews", v)} />
+                <ConfigToggle label="Extract owner/company details from website" checked={config.extract_owner !== false} onChange={v => onChange("extract_owner", v)} />
                 <ConfigToggle label="Run SEO & UX scoring" checked={config.run_seo_scoring !== false} onChange={v => onChange("run_seo_scoring", v)} />
                 <ConfigNote>
                     Enriches scraped leads with website analysis, SEO/UX scores, competitor detection, Google review intelligence, owner name extraction, and lead scoring (A/B/C grades). The agent runs locally — no timeout limit. Cancel anytime with the Stop button.

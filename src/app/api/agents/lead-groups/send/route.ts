@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
                                 // Grading
                                 grade: true, leadScore: true, websiteScore: true,
                                 // Outreach status
-                                outreachStatus: true, smsOptOut: true,
+                                outreachStatus: true, smsOptOut: true, archivedAt: true,
+                                emailDeliverable: true, emailVerificationState: true,
                                 // Business profile
                                 foundedYear: true, yearsInBusiness: true, yearsInBusinessBucket: true,
                                 companyType: true, serviceTypes: true, serviceAreaDescription: true,
@@ -147,8 +148,15 @@ export async function POST(req: NextRequest) {
         for (const member of group.members) {
             const lead = member.lead;
 
-            // Skip opted-out leads
-            if (lead.smsOptOut) {
+            // Skip archived leads
+            if (lead.archivedAt) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: `Archived${lead.emailVerificationState ? `: ${lead.emailVerificationState}` : ""}` });
+                continue;
+            }
+
+            // Skip SMS opted-out leads only for SMS sends.
+            if (!isEmail && lead.smsOptOut) {
                 skipped++;
                 skippedLeads.push({ name: lead.name, reason: "Opted out" });
                 continue;
@@ -165,6 +173,11 @@ export async function POST(req: NextRequest) {
             if (isEmail && !lead.email) {
                 skipped++;
                 skippedLeads.push({ name: lead.name, reason: "No email address" });
+                continue;
+            }
+            if (isEmail && lead.emailDeliverable !== true) {
+                skipped++;
+                skippedLeads.push({ name: lead.name, reason: lead.emailVerificationState ? `Email not deliverable: ${lead.emailVerificationState}` : "Email not verified" });
                 continue;
             }
             if (!isEmail && !lead.phone) {

@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/send-message
- * Send a message from the dashboard to a lead (SMS via BlueBubbles or email, dashboard only)
+ * Send a message from the dashboard to a lead.
+ * SMS uses BlueBubbles. Direct email is intentionally blocked until a real sender is wired.
  */
 export async function POST(req: Request) {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,10 +21,21 @@ export async function POST(req: Request) {
         }
 
         // Get lead info (optional — may be sending to a raw phone number)
-        let lead: { id: string; phone: string | null; email: string | null } | null = null;
+        let lead: {
+            id: string;
+            phone: string | null;
+            email: string | null;
+            archivedAt: Date | null;
+            emailDeliverable: boolean | null;
+            emailVerificationState: string | null;
+        } | null = null;
         if (leadId) {
-            lead = await prisma.scrapedLead.findUnique({ where: { id: leadId }, select: { id: true, phone: true, email: true } });
+            lead = await prisma.scrapedLead.findUnique({
+                where: { id: leadId },
+                select: { id: true, phone: true, email: true, archivedAt: true, emailDeliverable: true, emailVerificationState: true },
+            });
             if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+            if (lead.archivedAt) return NextResponse.json({ error: "Lead is archived and cannot be contacted" }, { status: 400 });
         }
 
         let sendResult: { ok: boolean; error?: string } = { ok: false, error: "Unknown channel" };
@@ -72,7 +84,15 @@ export async function POST(req: Request) {
         }
 
         if (channel === "email") {
-            sendResult = { ok: true };
+            if (!lead?.email) {
+                return NextResponse.json({ error: "Direct email sends require a lead with an email address" }, { status: 400 });
+            }
+            if (lead.emailDeliverable !== true) {
+                return NextResponse.json({
+                    error: lead.emailVerificationState ? `Lead email is not deliverable (${lead.emailVerificationState})` : "Lead email has not been verified",
+                }, { status: 400 });
+            }
+            return NextResponse.json({ error: "Direct dashboard email sending is not configured. Use an email lead group campaign instead." }, { status: 501 });
         }
 
         // Log the message (leadId is optional for direct phone messages)

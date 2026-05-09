@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
+    const archived = searchParams.get("archived"); // "active" | "true" | "all"; default active only
 
     // Enrichment filters
     const hasActiveWebsite = searchParams.get("hasActiveWebsite");
@@ -108,6 +109,7 @@ export async function GET(req: NextRequest) {
     const emailDomainType = searchParams.get("emailDomainType"); // comma-separated: "personal,business_custom,unknown"
     const emailDomainMatchesWebsite = searchParams.get("emailDomainMatchesWebsite"); // "true" | "false"
     const emailDeliverable = searchParams.get("emailDeliverable"); // "true" | "false"
+    const emailVerificationState = searchParams.get("emailVerificationState"); // comma-separated: "deliverable,risky,unknown,undeliverable,duplicate,invalid,missing,unverified"
     const phoneLineType = searchParams.get("phoneLineType"); // comma-separated: "mobile,landline,voip,unknown"
     const phoneDeliverable = searchParams.get("phoneDeliverable"); // "true" | "false"
     const hasOwnerFullName = searchParams.get("hasOwnerFullName"); // "true" | "false" — both first + last present
@@ -126,11 +128,13 @@ export async function GET(req: NextRequest) {
     const recentReviewTrend = searchParams.get("recentReviewTrend"); // comma-separated: "improving,stable,declining,dormant,insufficient_data"
     const painSeverityMin = searchParams.get("painSeverityMin"); // "40" | "60" | "80"
 
-    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt"];
+    const allowedSortFields = ["name", "market", "grade", "leadScore", "websiteScore", "outreachStatus", "createdAt", "rating", "reviewCount", "companyType", "enrichedAt", "emailVerifiedAt", "emailCleanedAt"];
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
 
     try {
         const where: Record<string, unknown> = {};
+        if (archived === "true") where.archivedAt = { not: null };
+        else if (archived !== "all") where.archivedAt = null;
         if (grade) where.grade = { in: grade.split(",") };
         if (market) where.market = market;
         if (companyType) where.companyType = { in: companyType.split(",") };
@@ -442,6 +446,15 @@ export async function GET(req: NextRequest) {
         if (emailDomainMatchesWebsite === "false") andClauses.push({ emailDomainMatchesWebsite: false });
         if (emailDeliverable === "true") andClauses.push({ emailDeliverable: true });
         if (emailDeliverable === "false") andClauses.push({ emailDeliverable: false });
+        if (emailVerificationState) {
+            const values = emailVerificationState.split(",").filter(Boolean);
+            const concreteStates = values.filter(value => value !== "unverified");
+            const stateClauses: Array<Record<string, unknown>> = [];
+            if (concreteStates.length > 0) stateClauses.push({ emailVerificationState: { in: concreteStates } });
+            if (values.includes("unverified")) stateClauses.push({ emailVerificationState: null });
+            if (stateClauses.length === 1) andClauses.push(stateClauses[0]);
+            else if (stateClauses.length > 1) andClauses.push({ OR: stateClauses });
+        }
         if (phoneLineType) {
             const values = phoneLineType.split(",").filter(Boolean);
             if (values.length > 0) andClauses.push({ phoneLineType: { in: values } });
@@ -522,6 +535,7 @@ export async function GET(req: NextRequest) {
 
         // Compute funnel stats
         const stats = await prisma.scrapedLead.groupBy({
+            where,
             by: ["outreachStatus"],
             _count: true,
         });

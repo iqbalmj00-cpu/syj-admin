@@ -1632,6 +1632,58 @@ model ScrapedLead {
   // ── Enrichment Agent fields ──
   serviceTypes         String[]                  // ["junk_removal", "dumpster_rental"] — more granular than companyType
   phoneType            String?                   // "toll_free" | "local" | "none"
+  // ── Enrichment v2 contract + evidence ──
+  enrichmentVersion       String?
+  enrichmentRunId         String?
+  enrichmentEvidence      Json?
+  enrichmentCompleteness  Json?
+  contactStatus           String?                // "checked" | "not_found" | "unknown"
+  ownerStatus             String?                // "confirmed" | "possible" | "not_found" | "unknown"
+  bookingStatus           String?                // "confirmed" | "cta_only" | "not_found" | "unknown"
+  pricingStatus           String?                // "realtime" | "static" | "estimate" | "not_found" | "unknown"
+  serviceAreaStatus       String?                // "confirmed" | "partial" | "not_found" | "unknown"
+  primaryCtaText          String?   @db.Text
+  primaryCtaHref          String?
+  primaryCtaType          String?                // "phone" | "quote" | "booking" | "contact" | "other"
+  primaryCtaEvidence      Json?
+  ctaPromiseTags          String[]  @default([]) // "same_day" | "24_7" | "free_estimate" | etc.
+  leadHandlingPromiseTags String[]  @default([])
+  leadHandlingPromises    Json?
+  bookingProcessSummary   String?   @db.Text
+  bookingProcessSteps     Json?
+  bookingProcessUrl       String?
+  bookingEvidence         Json?
+  realTimePricingVisible  Boolean?
+  pricingEvidence         Json?
+  offersDumpsterRental    Boolean?
+  offersJunkRemoval       Boolean?
+  serviceMixConfidence    String?                // "high" | "medium" | "low" | "unknown"
+  serviceMixEvidence      Json?
+  ownerNameConfidence     String?                // "high" | "medium" | "low" | "unknown"
+  ownerNameEvidence       Json?
+  emailSource             String?
+  emailConfidence         String?                // "high" | "medium" | "low" | "unknown"
+  serviceAreaEvidence     Json?
+  hasPhotos               Boolean?
+  googlePhotosEvidence    Json?
+  lowStarComplaintSummary String?   @db.Text
+  lowStarComplaintTags    String[]  @default([])
+  lowStarReviewExcerpts   Json?
+  mixedStarReviewSummary  String?   @db.Text
+  googleAdsStatus         String?                // "confirmed_current" | "confirmed_recent" | "tag_detected_only" | "not_found" | "unknown"
+  googleAdsEvidence       Json?
+  googleAdsLastCheckedAt  DateTime?
+  payOnlinePresent        Boolean?
+  payOnlineHref           String?
+  payInvoicePresent       Boolean?
+  payInvoiceHref          String?
+  paymentEvidence         Json?
+  operatingHours          Json?
+  operatingHoursSource    String?                // "gbp" | "website" | "unknown"
+  estimatedFleetSizeConfidence    String?
+  estimatedEmployeesConfidence    String?
+  yearsInBusinessConfidence       String?
+  scaleEvidence           Json?
   hasActiveWebsite     Boolean   @default(false) // URL responds with 200
   usingCompetitor      Boolean   @default(false) // on competitor platform (Jobber, Workiz, etc.)
   competitorPlatform   String?                   // "Jobber" | "Workiz" | "Housecall Pro" etc (free-text display; prefer per-platform booleans below for filtering)
@@ -1761,13 +1813,21 @@ model ScrapedLead {
   ownerLastName        String?
   ownerLinkedInUrl     String?                   // promoted from ownerNameSourceUrl when source==web_search and host==linkedin
   isDirectContact      Boolean   @default(false) // heuristic: email local-part contains owner first name OR email domain matches website
-  // ── Email verification (Phase 5 — populated at outreach-queue time, not per-lead) ──
+  // ── Email verification / list cleaning ──
   emailDomain                  String?           // derived at write time from email
   emailDomainType              String?           // "personal" | "business_custom" | "unknown"
   emailDomainMatchesWebsite    Boolean   @default(false)
-  emailDeliverable             Boolean?          // from verification service (ZeroBounce / NeverBounce)
+  emailDeliverable             Boolean?          // from verification service (Emailable / ZeroBounce / NeverBounce)
   emailRiskScore               Int?              // 0-100, higher = riskier
   emailVerifiedAt              DateTime?
+  emailVerificationProvider    String?           // "emailable" | "zerobounce" | "neverbounce"
+  emailVerificationState       String?           // "deliverable" | "undeliverable" | "risky" | "unknown" | "duplicate" | "invalid" | "missing"
+  emailVerificationReason      String?
+  emailVerificationScore       Int?              // provider quality score; for Emailable, higher is better
+  emailVerificationRaw         Json?
+  emailVerificationBatchId     String?
+  emailVerificationRunId       String?
+  emailCleanedAt               DateTime?
   // ── Email discovery (Phase 7 — scraped from website homepage + /contact + /about pages) ──
   emailsDiscovered             String[]          // all unique emails found on the business's site, sorted best-first (owner_direct > personalized > unknown > generic)
   emailDiscoveryCategory       String?           // category of the primary `email` field: "owner_direct" | "personalized" | "generic" | "unknown"
@@ -1801,6 +1861,9 @@ model ScrapedLead {
   repliedAt       DateTime?
   convertedAt     DateTime?
   outreachNotes   String?      @db.Text
+  archivedAt      DateTime?
+  archiveReason   String?
+  archiveSource   String?
   outreachLogs    OutreachLog[]
   outreachQueue   OutreachQueue[]
   createdAt       DateTime     @default(now())
@@ -1820,6 +1883,9 @@ model ScrapedLead {
   @@index([daysSinceLastReview])
   @@index([state])
   @@index([emailDiscoveryCategory])
+  @@index([emailDeliverable])
+  @@index([emailVerificationState])
+  @@index([archivedAt])
   groupMemberships LeadGroupMember[]
 }
 

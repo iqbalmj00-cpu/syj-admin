@@ -77,11 +77,17 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ run: null });
         }
 
-        // Claim the run by changing trigger to "polling" (atomic claim marker)
-        await prisma.syjAgentRun.update({
-            where: { id: pendingRun.id },
+        // Claim the run by changing trigger to "polling" using a conditional
+        // update. This prevents two polling workers from claiming the same run
+        // if they ask for work at nearly the same time.
+        const claim = await prisma.syjAgentRun.updateMany({
+            where: { id: pendingRun.id, status: "running", trigger: "manual" },
             data: { trigger: "polling" },
         });
+
+        if (claim.count !== 1) {
+            return NextResponse.json({ run: null, claimConflict: true });
+        }
 
         return NextResponse.json({
             run: {

@@ -21,7 +21,11 @@ export async function POST(req: Request) {
         // Fetch leads to build outreach content
         const leads = await prisma.scrapedLead.findMany({
             where: { id: { in: leadIds } },
-            select: { id: true, name: true, email: true, phone: true, market: true, ownerName: true, smsOptOut: true, outreachStatus: true },
+            select: {
+                id: true, name: true, email: true, phone: true, market: true, ownerName: true,
+                smsOptOut: true, outreachStatus: true, archivedAt: true,
+                emailDeliverable: true, emailVerificationState: true,
+            },
         });
 
         if (leads.length === 0) {
@@ -32,13 +36,19 @@ export async function POST(req: Request) {
         let skipped = 0;
 
         for (const lead of leads) {
+            if (lead.archivedAt) {
+                skipped++;
+                continue;
+            }
+
             // Skip leads already in outreach or opted out
             if (["emailed", "sms_sent", "converted", "opted_out"].includes(lead.outreachStatus)) {
                 skipped++;
                 continue;
             }
 
-            const channel = lead.email ? "email" : (lead.phone && !lead.smsOptOut ? "sms" : null);
+            const hasCleanEmail = !!lead.email && lead.emailDeliverable === true;
+            const channel = hasCleanEmail ? "email" : (lead.phone && !lead.smsOptOut ? "sms" : null);
             if (!channel) { skipped++; continue; }
 
             const recipientName = lead.ownerName || lead.name;

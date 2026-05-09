@@ -62,6 +62,21 @@ export async function POST() {
                 config: {},
             },
             {
+                slug: "email_cleaner",
+                name: "Email Cleaner",
+                description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
+                schedule: null,
+                config: {
+                    provider: "emailable",
+                    archiveRisky: true,
+                    archiveUnknown: true,
+                    archiveUndeliverable: true,
+                    archiveDuplicate: true,
+                    archiveMissingEmail: true,
+                    archiveInvalidFormat: true,
+                },
+            },
+            {
                 slug: "facebook_scraper",
                 name: "Facebook Lead Scraper",
                 description: "Searches Facebook Pages for junk removal and dumpster rental businesses, extracts contact info (phone, email, website, owner name) from each page. Runs locally via terminal.",

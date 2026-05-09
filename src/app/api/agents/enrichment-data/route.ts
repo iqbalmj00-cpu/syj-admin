@@ -33,10 +33,14 @@ export async function GET(req: NextRequest) {
             take: specificLeadIds?.length ? specificLeadIds.length : limit,
             select: {
                 id: true, name: true, phone: true, email: true, website: true,
-                address: true, city: true, market: true, categories: true,
+                address: true, city: true, state: true, market: true, source: true,
+                categories: true, discoveredVia: true,
                 rating: true, reviewCount: true, companyType: true,
-                googlePlaceId: true, latitude: true, longitude: true,
-                notesFlags: true,
+                googlePlaceId: true, googleMapsUrl: true, yelpUrl: true,
+                latitude: true, longitude: true,
+                contactPageUrl: true, serviceAreaDescription: true,
+                ownerName: true, ownerNameSource: true, ownerNameSourceUrl: true,
+                serviceTypes: true, notesFlags: true,
             },
         });
 
