@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
         const verificationSummary = await applyEmailCleaningResults({
             results,
             emailToLeadIds: config.emailToLeadIds,
+            emailCandidatesByLead: config.emailCandidatesByLead,
             policy: config.policy,
             runId: run.id,
             batchId: body.id || config.batchId || null,

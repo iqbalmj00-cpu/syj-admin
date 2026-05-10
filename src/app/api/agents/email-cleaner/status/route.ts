@@ -132,6 +132,7 @@ export async function GET(req: NextRequest) {
         const verificationSummary = await applyEmailCleaningResults({
             results,
             emailToLeadIds: config.emailToLeadIds,
+            emailCandidatesByLead: config.emailCandidatesByLead,
             policy: config.policy,
             runId: run.id,
             batchId: config.batchId,

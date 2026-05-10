@@ -1,6 +1,6 @@
 # Project Knowledge
 
-Last verified: 2026-05-09
+Last verified: 2026-05-10
 Canonical path: `.agents/PROJECT_KNOWLEDGE.md`
 Scope: `/Users/jamal/Documents/JAMALS ADMIN DASH`
 
@@ -133,6 +133,9 @@ Follow-up required before production use:
 - 2026-05-09 follow-up completed: `/api/agents/email-cleaner/status` can reconcile Emailable batch runs through `GET /v1/batch`, and the scraped-leads UI now polls that endpoint after queued batch cleanups so callback failures have a recovery path.
 - 2026-05-09 deployment follow-up completed: Vercel deployment for commit `6e3934a` failed during TypeScript on direct `as Prisma.InputJsonValue` assertions in the Emailable/enrichment route JSON writes. Those JSON writes were changed to bridge through `unknown` before `Prisma.InputJsonValue`; no local full build was completed because the user asked to stop local build checks and push the fix.
 - 2026-05-09 deployment follow-up completed: Vercel deployment for commit `453a5d2` failed during TypeScript on `src/lib/email-cleaner-db.ts` because `ensureEmailCleanerAgent()` wrote `{ provider, policy }` directly to the Prisma JSON `config` field. The update/create config writes now bridge through `unknown` before `Prisma.InputJsonValue`; no local build was run.
+- 2026-05-10 email extraction assessment: the current enrichment worker only promotes one pre-verification primary email from homepage plus the first successful contact/about/team page, using `mailto:`/raw-regex extraction and rank-before-verify heuristics. The dashboard Emailable cleaner verifies only `ScrapedLead.email`, not every discovered candidate in `emailsDiscovered`, so one bad selected primary can archive a lead even when another candidate may be usable. The more reliable next design is multi-page/multi-source email candidate discovery, candidate evidence storage, verify-all-candidates through Emailable, then select the best deliverable primary email and archive only when no candidate passes policy.
+- 2026-05-10 email extraction implementation: `ScrapedLead.emailCandidates` was added as an additive JSON field and `/api/agents/enrichment-results` now accepts it. The linked local enrichment worker now extracts ranked email candidates from all crawled high-signal pages, mailto links, visible text, obfuscated `at/dot` patterns, Cloudflare-protected emails, and existing lead email, preserving source URL/source type/category/confidence evidence. The Emailable cleaner now builds verification targets from `emailCandidates`, `emailsDiscovered`, and the primary `email`, verifies every unique valid candidate, selects the best non-archivable candidate as the lead primary email, stores candidate-level verification metadata, and archives only when no candidate passes policy. No `prisma db push` was run; the additive schema field still needs the shared database schema update coordinated with the client-facing dashboard.
+- 2026-05-10 verification note: worker checks passed with `python3 -m unittest discover -s tests` and `python3 -m py_compile agent/main.py agent/website_analyzer.py` in `/Users/jamal/Documents/ENRICHMENT AGENT`. Admin `git diff --check` passed for the touched files. Local `npx prisma validate --schema=prisma/schema.prisma` and `npx prisma generate --schema=prisma/schema.prisma` hung with no diagnostics and were stopped; no DB push or database mutation was run.
 
 Known build warnings:
 

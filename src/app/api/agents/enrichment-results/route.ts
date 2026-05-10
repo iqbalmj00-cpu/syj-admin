@@ -36,7 +36,7 @@ const ALLOWED_FIELDS = new Set([
     "emailDeliverable", "emailRiskScore", "emailVerifiedAt",
     // Email discovery (Phase 7) — agent can now populate the lead's primary email
     // from scraped website data + list of all found emails + category of primary
-    "email", "emailsDiscovered", "emailDiscoveryCategory",
+    "email", "emailsDiscovered", "emailDiscoveryCategory", "emailCandidates",
     "phoneLineType", "phoneCarrier", "phoneDeliverable", "phoneVerifiedAt",
     // Website crawl depth (Phase 6)
     "lastUpdatedYear", "hasPricingPage", "pricingSnippet", "hasBlog",

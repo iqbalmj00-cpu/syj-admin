@@ -21,8 +21,10 @@ import {
     applyEmailResultToLeadIds,
     createEmailCleanerCallbackToken,
     ensureEmailCleanerAgent,
+    normalizeEmailCandidatesForLead,
     resolvePublicBaseUrl,
     type EmailCleanSummary,
+    type EmailCandidate,
     type EmailCleanerRunConfig,
 } from "@/lib/email-cleaner-db";
 
@@ -38,6 +40,8 @@ interface EmailCleanerRequestBody {
 interface LeadForCleaning {
     id: string;
     email: string | null;
+    emailsDiscovered: string[];
+    emailCandidates: Prisma.JsonValue | null;
 }
 
 function uniqueStrings(values: unknown): string[] {
@@ -45,34 +49,38 @@ function uniqueStrings(values: unknown): string[] {
     return Array.from(new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
 }
 
-function buildCleanTargets(leads: LeadForCleaning[], policy: EmailCleanPolicy) {
+function buildCleanTargets(leads: LeadForCleaning[]) {
     const emailToLeadIds: Record<string, string[]> = {};
+    const emailCandidatesByLead: Record<string, EmailCandidate[]> = {};
     const missingLeadIds: string[] = [];
     const invalidLeadIds: string[] = [];
     const duplicateLeadIds: string[] = [];
 
     for (const lead of leads) {
-        const email = normalizeEmail(lead.email);
-        if (!email) {
+        const candidates = normalizeEmailCandidatesForLead(lead);
+        if (candidates.length === 0) {
             missingLeadIds.push(lead.id);
             continue;
         }
-        if (!isPlausibleEmail(email)) {
+
+        const validCandidates = candidates.filter(candidate => isPlausibleEmail(candidate.email));
+        if (validCandidates.length === 0) {
             invalidLeadIds.push(lead.id);
             continue;
         }
 
-        if (!emailToLeadIds[email]) {
-            emailToLeadIds[email] = [lead.id];
-        } else if (policy.archiveDuplicate) {
-            duplicateLeadIds.push(lead.id);
-        } else {
-            emailToLeadIds[email].push(lead.id);
+        emailCandidatesByLead[lead.id] = validCandidates;
+        for (const candidate of validCandidates) {
+            const email = normalizeEmail(candidate.email);
+            if (!email) continue;
+            if (!emailToLeadIds[email]) emailToLeadIds[email] = [];
+            if (!emailToLeadIds[email].includes(lead.id)) emailToLeadIds[email].push(lead.id);
         }
     }
 
     return {
         emailToLeadIds,
+        emailCandidatesByLead,
         missingLeadIds,
         invalidLeadIds,
         duplicateLeadIds,
@@ -126,14 +134,14 @@ export async function POST(req: NextRequest) {
         const policy = mergeEmailCleanPolicy(body.policy);
         const leads = await prisma.scrapedLead.findMany({
             where: { id: { in: leadIds } },
-            select: { id: true, email: true },
+            select: { id: true, email: true, emailsDiscovered: true, emailCandidates: true },
         });
 
         if (leads.length === 0) {
             return NextResponse.json({ error: "No leads found for provided IDs" }, { status: 404 });
         }
 
-        const targets = buildCleanTargets(leads, policy);
+        const targets = buildCleanTargets(leads);
         const dryRunSummary = {
             totalSelected: leadIds.length,
             found: leads.length,
@@ -170,6 +178,7 @@ export async function POST(req: NextRequest) {
         const runConfig: EmailCleanerRunConfig = {
             leadIds,
             emailToLeadIds: targets.emailToLeadIds,
+            emailCandidatesByLead: targets.emailCandidatesByLead,
             policy,
             missingLeadIds: targets.missingLeadIds,
             invalidLeadIds: targets.invalidLeadIds,
@@ -250,6 +259,7 @@ export async function POST(req: NextRequest) {
         const verificationSummary = await applyEmailCleaningResults({
             results,
             emailToLeadIds: targets.emailToLeadIds,
+            emailCandidatesByLead: targets.emailCandidatesByLead,
             policy,
             runId: run.id,
             batchId: null,

@@ -1828,9 +1828,10 @@ model ScrapedLead {
   emailVerificationBatchId     String?
   emailVerificationRunId       String?
   emailCleanedAt               DateTime?
-  // ── Email discovery (Phase 7 — scraped from website homepage + /contact + /about pages) ──
+  // ── Email discovery (Phase 7 — scraped from website homepage + high-signal contact/about/service pages) ──
   emailsDiscovered             String[]          // all unique emails found on the business's site, sorted best-first (owner_direct > personalized > unknown > generic)
   emailDiscoveryCategory       String?           // category of the primary `email` field: "owner_direct" | "personalized" | "generic" | "unknown"
+  emailCandidates              Json?             // ranked email candidates with source URL, source type, confidence, and verification metadata
   // ── Phone verification (Phase 5 — Twilio Lookup v2, at outreach time) ──
   phoneLineType                String?           // "mobile" | "landline" | "voip" | "unknown" — SEPARATE from `phoneType` (toll_free/local/none)
   phoneCarrier                 String?
