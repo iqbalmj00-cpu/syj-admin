@@ -69,7 +69,7 @@ export async function ensureEmailCleanerAgent() {
             name: "Email Cleaner",
             description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
             schedule: null,
-            config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY },
+            config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY } as unknown as Prisma.InputJsonValue,
             enabled: true,
         },
         create: {
@@ -77,7 +77,7 @@ export async function ensureEmailCleanerAgent() {
             name: "Email Cleaner",
             description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
             schedule: null,
-            config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY },
+            config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY } as unknown as Prisma.InputJsonValue,
             enabled: true,
         },
     });

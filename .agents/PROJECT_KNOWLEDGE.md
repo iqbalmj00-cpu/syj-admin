@@ -132,6 +132,7 @@ Follow-up required before production use:
 - 2026-05-09 follow-up completed: Emailable transient API failures and 249 try-again responses no longer write `emailDeliverable=false`, `emailVerifiedAt`, or `emailCleanedAt`; they stay retryable and are counted as failed verification attempts instead of true non-deliverable results.
 - 2026-05-09 follow-up completed: `/api/agents/email-cleaner/status` can reconcile Emailable batch runs through `GET /v1/batch`, and the scraped-leads UI now polls that endpoint after queued batch cleanups so callback failures have a recovery path.
 - 2026-05-09 deployment follow-up completed: Vercel deployment for commit `6e3934a` failed during TypeScript on direct `as Prisma.InputJsonValue` assertions in the Emailable/enrichment route JSON writes. Those JSON writes were changed to bridge through `unknown` before `Prisma.InputJsonValue`; no local full build was completed because the user asked to stop local build checks and push the fix.
+- 2026-05-09 deployment follow-up completed: Vercel deployment for commit `453a5d2` failed during TypeScript on `src/lib/email-cleaner-db.ts` because `ensureEmailCleanerAgent()` wrote `{ provider, policy }` directly to the Prisma JSON `config` field. The update/create config writes now bridge through `unknown` before `Prisma.InputJsonValue`; no local build was run.
 
 Known build warnings:
 
