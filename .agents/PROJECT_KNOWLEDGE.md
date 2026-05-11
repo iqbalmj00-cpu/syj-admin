@@ -1,6 +1,6 @@
 # Project Knowledge
 
-Last verified: 2026-05-10
+Last verified: 2026-05-11
 Canonical path: `.agents/PROJECT_KNOWLEDGE.md`
 Scope: `/Users/jamal/Documents/JAMALS ADMIN DASH`
 
@@ -141,6 +141,46 @@ Known build warnings:
 
 - Next inferred workspace root as `/Users/jamal` because another lockfile exists at `/Users/jamal/package-lock.json`.
 - Next 16 warned about middleware convention and reported it as proxy/middleware output.
+
+## Platform Promo Code Admin Notes
+
+Implemented locally on 2026-05-11 to align Admin Dash with the client-facing ScaleYourJunk platform lifetime promo-code contract. This is separate from the tenant/customer booking `PromoCode` model.
+
+Schema/admin contract:
+
+- `User.platformBillingSource String @default("stripe")` was added to the Admin Dash Prisma schema.
+- `User.platformPromoRedemptions PlatformPromoRedemption[]` was added to the Admin Dash Prisma schema.
+- `PlatformPromoCode` and `PlatformPromoRedemption` were added to the Admin Dash Prisma schema to match the website-side additive models.
+- No `prisma db push`, database migration, reset, deploy, Stripe coupon creation, or external billing mutation was run.
+
+Admin API/UI behavior:
+
+- New admin sidebar route: `/platform-promos`.
+- New API routes: `/api/platform-promo-codes` and `/api/platform-promo-codes/[id]`.
+- Platform promo creation is locked server-side to `percentage`, `100`, `lifetime`, `noCardRequired: true`, and `stripeCouponId: null`.
+- The UI includes a one-click Jamal lifetime preset. If no custom code is entered, the server generates an uppercase private code with a random suffix.
+- Editable platform promo fields are limited to active/deactivated status, max uses, expiration, valid Starter/Growth plan scope, and notes.
+- Redemptions display user/company/email, plan tier, code, redeemed date, lifetime status, and platform billing source.
+
+Billing/revenue behavior:
+
+- `platformBillingSource === "promo_lifetime"` is treated as active access but `$0` MRR/ARR in billing, revenue, overview, clients, client detail, and CSV export surfaces.
+- Client and billing UI shows promo-lifetime accounts as comped lifetime access instead of missing Stripe setup.
+- Admin client reactivation, billing-detail fetches, and delete/teardown paths skip Stripe resume/cancel/detail work for promo-lifetime accounts.
+- Onboarding progress treats a promo-lifetime account as having completed billing even without `stripeSubscriptionId`.
+
+Verification on 2026-05-11:
+
+- Targeted `git diff --check` over the touched files passed.
+- `npx prisma validate --schema=prisma/schema.prisma` hung with no output and was stopped; no Prisma diagnostic was produced.
+- `./node_modules/.bin/tsc --noEmit --pretty false --incremental false` hung with no output and was stopped; no TypeScript diagnostic was produced.
+- Prisma client generation was not run locally; deployment should regenerate through the existing `postinstall: "prisma generate"` script. If local runtime needs these new Prisma fields before deployment, run `prisma generate` only after confirming it completes in this checkout.
+
+Follow-up required:
+
+- Ensure the shared database already has the website-side additive platform promo migration applied before using the Admin Dash route in production.
+- Do not create Stripe coupons for the private lifetime/no-card code.
+- Do not count promo-lifetime accounts as paid revenue.
 
 ## Auth And Access Model
 

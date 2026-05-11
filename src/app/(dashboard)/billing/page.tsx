@@ -25,11 +25,12 @@ export default function BillingPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="grid-4">
+            <div className="grid-5">
                 <Kpi label="MRR" value={`$${data.mrr?.toLocaleString()}`} sub="Monthly Recurring Revenue" />
                 <Kpi label="ARR" value={`$${data.arr?.toLocaleString()}`} />
                 <Kpi label="Trialing" value={data.trialingCount} sub={data.trialingCount > 0 ? "Expiring soon" : "None"} />
                 <Kpi label="Past Due" value={data.pastDueCount} sub={data.pastDueCount > 0 ? "Action needed" : "All clear"} />
+                <Kpi label="Comped Lifetime" value={data.compedLifetimeCount || 0} sub="$0 MRR access" />
             </div>
 
             <div className="op-table-wrapper">
@@ -52,12 +53,15 @@ export default function BillingPage() {
                                         <div style={{ display: "flex", flexDirection: "column" }}>
                                             <span style={{ fontWeight: 600 }}>{c.company}</span>
                                             <span style={{ fontSize: 11, color: "var(--text-light)" }}>{c.email}</span>
+                                            {c.isPromoLifetime && <span style={{ fontSize: 11, color: "var(--success-dark)", fontWeight: 700 }}>{c.billingLabel}</span>}
                                         </div>
                                     </div>
                                 </td>
                                 <td><Badge status={c.planTier || "starter"} /></td>
                                 <td><Badge status={c.planStatus} /></td>
-                                <td style={{ fontWeight: 600, color: c.planStatus === "canceled" ? "var(--text-faint)" : "var(--text)" }}>${c.mrr}</td>
+                                <td style={{ fontWeight: 600, color: c.isPromoLifetime ? "var(--success-dark)" : c.planStatus === "canceled" ? "var(--text-faint)" : "var(--text)" }}>
+                                    {c.isPromoLifetime ? "Comped" : `$${c.mrr}`}
+                                </td>
                                 <td style={{ color: "var(--text-light)" }}>{new Date(c.createdAt).toLocaleDateString()}</td>
                             </tr>
                         ))}

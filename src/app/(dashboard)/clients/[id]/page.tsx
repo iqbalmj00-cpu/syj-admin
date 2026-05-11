@@ -181,7 +181,8 @@ export default function ClientDetailPage() {
     };
 
     const handleSoftDelete = async () => {
-        if (!confirm("Deactivate this client? Services (Stripe, Vercel, Twilio) will be torn down. Data preserved for 30 days before auto-purge.")) return;
+        const stripeCopy = client?.platformBillingSource === "promo_lifetime" ? "Stripe will be skipped for this comped lifetime account." : "Stripe, Vercel, and Twilio services will be torn down.";
+        if (!confirm(`Deactivate this client? ${stripeCopy} Data preserved for 30 days before auto-purge.`)) return;
         await handleAction("delete");
     };
 
@@ -204,6 +205,9 @@ export default function ClientDetailPage() {
     if (!client) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Client not found</div>;
 
     const sc = STATUS_COLORS[client.planStatus] || STATUS_COLORS.active;
+    const isPromoLifetime = client.platformBillingSource === "promo_lifetime";
+    const planMrr = isPromoLifetime ? 0 : PRICES[client.planTier] || 0;
+    const billingLabel = isPromoLifetime ? "Comped lifetime access" : "Stripe billing";
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -217,6 +221,7 @@ export default function ClientDetailPage() {
                                 {client.company || "Unnamed"}
                             </h2>
                             <Badge {...sc} />
+                            {isPromoLifetime && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: "var(--success-bg)", color: "var(--success-dark)", border: "1px solid var(--success-border)" }}>COMPED LIFETIME</span>}
                             {client.isDemoAccount && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: "var(--neutral-bg)", color: "var(--ink)", border: "1px solid var(--neutral-border)" }}>DEMO</span>}
                         </div>
                         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
@@ -264,7 +269,7 @@ export default function ClientDetailPage() {
 
             {/* ── KPIs ────────────────────────────────────────────────── */}
             <div className="grid-4">
-                <Kpi label="Plan" value={client.planTier.charAt(0).toUpperCase() + client.planTier.slice(1)} sub={`$${PRICES[client.planTier] || 0}/mo`} />
+                <Kpi label="Plan" value={client.planTier.charAt(0).toUpperCase() + client.planTier.slice(1)} sub={isPromoLifetime ? billingLabel : `$${planMrr}/mo`} />
                 <Kpi label="Jobs" value={client._count?.jobs || 0} />
                 <Kpi label="Customers" value={client._count?.customers || 0} />
                 <Kpi label="Last Login" value={relTime(client.lastLoginAt)} />
@@ -718,18 +723,27 @@ function SmsTab({ client }: { client: any }) {
    ═══════════════════════════════════════════════════════════════════════ */
 function BillingTab({ client, showToast }: { client: any; showToast: (m: string, t?: string) => void }) {
     const cancellationRecords = client.cancellationRecords || [];
+    const isPromoLifetime = client.platformBillingSource === "promo_lifetime";
+    const planMrr = isPromoLifetime ? 0 : PRICES[client.planTier] || 0;
+    const billingLabel = isPromoLifetime ? "Comped lifetime access" : "Stripe billing";
+    const platformPromoRedemption = client.platformPromoRedemptions?.[0] || null;
     const [subscription, setSubscription] = useState<any>(null);
     const [loadingSub, setLoadingSub] = useState(true);
 
     useEffect(() => {
         let cancelled = false;
+        if (client.platformBillingSource === "promo_lifetime") {
+            setSubscription(null);
+            setLoadingSub(false);
+            return () => { cancelled = true; };
+        }
         setLoadingSub(true);
         fetch(`/api/billing/${client.id}`)
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (!cancelled) { setSubscription(d?.subscription || null); setLoadingSub(false); } })
             .catch(() => { if (!cancelled) setLoadingSub(false); });
         return () => { cancelled = true; };
-    }, [client.id]);
+    }, [client.id, client.platformBillingSource]);
 
     // Pull card and invoice info from live Stripe data
     const pm = subscription?.default_payment_method;
@@ -747,7 +761,9 @@ function BillingTab({ client, showToast }: { client: any; showToast: (m: string,
                     <div className="card-body">
                         <InfoRow label="Plan" value={client.planTier.charAt(0).toUpperCase() + client.planTier.slice(1)} />
                         <InfoRow label="Status" value={<Badge {...(STATUS_COLORS[client.planStatus] || STATUS_COLORS.active)} />} />
-                        <InfoRow label="MRR" value={`$${PRICES[client.planTier] || 0}`} />
+                        <InfoRow label="Billing Source" value={billingLabel} />
+                        <InfoRow label="MRR" value={isPromoLifetime ? "$0 comped" : `$${planMrr}`} />
+                        {platformPromoRedemption && <InfoRow label="Platform Promo" value={platformPromoRedemption.code} mono />}
                         <InfoRow label="Stripe Customer" value={<CopyId value={client.saasStripeCustomerId} showToast={showToast} />} />
                         <InfoRow label="Stripe Subscription" value={<CopyId value={client.stripeSubscriptionId} showToast={showToast} />} />
                         <InfoRow label="Stripe Price" value={<CopyId value={client.stripePriceId} showToast={showToast} />} />
@@ -760,6 +776,10 @@ function BillingTab({ client, showToast }: { client: any; showToast: (m: string,
                     <div className="card-body">
                         {loadingSub ? (
                             <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: "var(--text-faint)" }}>Loading from Stripe...</div>
+                        ) : isPromoLifetime ? (
+                            <div style={{ fontSize: 12, color: "var(--success-dark)", lineHeight: 1.6 }}>
+                                Comped lifetime platform access. No payment card, Stripe customer, subscription, coupon, or invoice is required.
+                            </div>
                         ) : !client.stripeSubscriptionId ? (
                             <div style={{ fontSize: 12, color: "var(--text-faint)" }}>No active subscription.</div>
                         ) : !subscription ? (

@@ -11,6 +11,10 @@ interface Client {
     email: string;
     plan: string;
     planStatus: string;
+    platformBillingSource: string;
+    billingLabel: string;
+    isPromoLifetime: boolean;
+    mrr: number;
     city: string;
     state: string;
     createdAt: string;
@@ -111,8 +115,6 @@ export default function ClientsPage() {
 
     if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>;
 
-    const PRICES: Record<string, number> = { starter: 149, growth: 299, enterprise: 549 };
-
     return (
         <div>
             {/* Filters */}
@@ -178,7 +180,10 @@ export default function ClientsPage() {
                                 </td>
                                 <td>
                                     <div style={{ display: "flex", flexDirection: "column" }}>
-                                        <span style={{ fontWeight: 600 }}>${PRICES[c.plan] || 0} <span style={{fontSize: 9, color: "var(--text-faint)", fontWeight: 700}}>MRR</span></span>
+                                        <span style={{ fontWeight: 600, color: c.isPromoLifetime ? "var(--success-dark)" : "var(--text)" }}>
+                                            {c.isPromoLifetime ? "Comped" : `$${c.mrr}`} <span style={{fontSize: 9, color: "var(--text-faint)", fontWeight: 700}}>MRR</span>
+                                        </span>
+                                        {c.isPromoLifetime && <span style={{ fontSize: 11, color: "var(--success-dark)" }}>{c.billingLabel}</span>}
                                         <span style={{ fontSize: 11, color: "var(--text-light)" }}>{c.counts.jobs.toLocaleString()} Jobs</span>
                                     </div>
                                 </td>
@@ -219,7 +224,8 @@ export default function ClientsPage() {
                                     ["Onboarding", detail.onboardingComplete ? "Complete" : "Incomplete"],
                                     ["Trucks", detail.counts.trucks], ["Jobs", detail.counts.jobs.toLocaleString()], ["Leads", detail.counts.leads.toLocaleString()],
                                     ["Customers", detail.counts.customers.toLocaleString()], ["Staff", detail.counts.staff.toLocaleString()],
-                                    ["MRR", `$${PRICES[detail.plan] || 0}`],
+                                    ["Billing", detail.billingLabel],
+                                    ["MRR", detail.isPromoLifetime ? "$0 comped" : `$${detail.mrr}`],
                                 ] as [string, string | number][]).map(([l, v]) => (
                                     <div key={l}>
                                         <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{l}</div>
@@ -291,7 +297,8 @@ export default function ClientsPage() {
                             <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: 14, marginBottom: 16 }}>
                                 <p style={{ color: "#991B1B", fontSize: 13, lineHeight: 1.5, margin: 0 }}>
                                     All data for <strong>{deleteTarget.company}</strong> will be permanently destroyed. This triggers:
-                                    Stripe subscription cancel → Vercel project delete → Twilio number release → full DB cascade delete.
+                                    {deleteTarget.isPromoLifetime ? "No Stripe cancellation will run for this comped account. " : "Stripe subscription cancel → "}
+                                    Vercel project delete → Twilio number release → full DB cascade delete.
                                 </p>
                             </div>
                             <div style={{ marginBottom: 16 }}>

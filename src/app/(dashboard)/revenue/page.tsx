@@ -8,7 +8,9 @@ interface RevenueData {
     arr: number;
     totalClients: number;
     activeClients: number;
-    planBreakdown: { tier: string; price: number; count: number; revenue: number }[];
+    paidActiveClients: number;
+    compedLifetimeClients: number;
+    planBreakdown: { tier: string; price: number; count: number; activeCount: number; compedCount: number; revenue: number }[];
     cancelled: { company: string; cancelledAt: string; reason: string | null; feedback: string | null }[];
     timeline: { date: string; count: number }[];
 }
@@ -25,15 +27,16 @@ export default function RevenuePage() {
 
     if (!data) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>;
 
-    const avgLtv = data.activeClients ? Math.round(data.mrr / data.activeClients * 12) : 0;
+    const avgLtv = data.paidActiveClients ? Math.round(data.mrr / data.paidActiveClients * 12) : 0;
     const pastDue = 0; // Would come from Stripe webhook data
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="grid-4">
+            <div className="grid-5">
                 <Kpi label="MRR" value={`$${data.mrr.toLocaleString()}`} />
                 <Kpi label="ARR (Projected)" value={`$${data.arr.toLocaleString()}`} />
                 <Kpi label="Avg LTV (est)" value={`$${avgLtv.toLocaleString()}`} />
+                <Kpi label="Comped Lifetime" value={data.compedLifetimeClients || 0} sub="$0 MRR active access" />
                 <Kpi label="Past Due" value={pastDue} sub={pastDue > 0 ? "Action needed" : "None"} />
             </div>
 
@@ -45,7 +48,7 @@ export default function RevenuePage() {
                             <div key={p.tier} style={{ marginBottom: 14 }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
                                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", textTransform: "capitalize" }}>
-                                        {p.tier} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>({p.count})</span>
+                                        {p.tier} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>({p.count} paid{p.compedCount ? `, ${p.compedCount} comped` : ""})</span>
                                     </span>
                                     <span style={{ fontSize: 13, fontWeight: 700, color: PLAN_COLORS[p.tier], fontFamily: "var(--font-heading)" }}>
                                         ${p.revenue}/mo

@@ -13,6 +13,8 @@ interface Client {
     email: string;
     plan: string;
     planStatus: string;
+    isPromoLifetime: boolean;
+    mrr: number;
     city: string;
     state: string;
     createdAt: string;
@@ -35,8 +37,7 @@ export default function OverviewPage() {
     if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading...</div>;
 
     const active = clients.filter(c => ["active", "trialing"].includes(c.planStatus));
-    const PRICES: Record<string, number> = { starter: 149, growth: 299, enterprise: 549 };
-    const mrr = active.filter(c => c.planStatus === "active").reduce((s, c) => s + (PRICES[c.plan] || 0), 0);
+    const mrr = active.filter(c => c.planStatus === "active").reduce((s, c) => s + (c.mrr || 0), 0);
     const totalTrucks = active.reduce((s, c) => s + c.counts.trucks, 0);
     const trials = clients.filter(c => c.planStatus === "trialing");
     const churn = clients.length ? ((clients.filter(c => c.planStatus === "canceled").length / clients.length) * 100).toFixed(1) : "0";

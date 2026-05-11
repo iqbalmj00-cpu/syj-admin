@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { cancelSubscription, resumeSubscription } from "@/lib/stripe";
 import { deleteVercelProject } from "@/lib/vercel";
 import { releasePhoneNumber } from "@/lib/twilio";
+import { isPromoLifetimeBilling } from "@/lib/platform-billing";
 import bcrypt from "bcryptjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,6 +41,11 @@ export async function GET(_req: Request, { params }: Params) {
                 automationConfig: true,
                 onboarding: true,
                 integrations: true,
+                platformPromoRedemptions: {
+                    include: { platformPromoCode: true },
+                    orderBy: { redeemedAt: "desc" },
+                    take: 5,
+                },
                 stripeConnectAccount: true,
                 scheduleConfig: true,
                 twilioSubAccount: true,
@@ -90,7 +96,9 @@ export async function PATCH(req: Request, { params }: Params) {
 
         if (action === "reactivate") {
             let stripeWarning: string | undefined;
-            if (client.stripeSubscriptionId) {
+            if (isPromoLifetimeBilling(client.platformBillingSource)) {
+                stripeWarning = "Promo-lifetime account reactivated locally — no Stripe subscription exists.";
+            } else if (client.stripeSubscriptionId) {
                 try { await resumeSubscription(client.stripeSubscriptionId); } catch (e) {
                     console.error("Stripe resume failed:", e);
                     stripeWarning = "Stripe subscription could not be resumed — update billing manually";
@@ -113,7 +121,10 @@ export async function PATCH(req: Request, { params }: Params) {
                 data: { planTier: plan },
             });
             await audit(id, "change_plan", { previousPlan, newPlan: plan });
-            return NextResponse.json({ ...updated, warning: "Plan updated locally. Stripe billing was not changed — update Stripe manually if needed." });
+            const warning = isPromoLifetimeBilling(client.platformBillingSource)
+                ? "Promo-lifetime plan updated locally. MRR stays $0 and no Stripe action was taken."
+                : "Plan updated locally. Stripe billing was not changed — update Stripe manually if needed.";
+            return NextResponse.json({ ...updated, warning });
         }
 
         if (action === "update_profile") {
@@ -178,7 +189,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         // Tear down external services regardless of soft/hard delete
         const teardownResults: Record<string, string> = {};
 
-        if (client.stripeSubscriptionId) {
+        if (isPromoLifetimeBilling(client.platformBillingSource)) {
+            teardownResults.stripe = "skipped_promo_lifetime";
+        } else if (client.stripeSubscriptionId) {
             try { await cancelSubscription(client.stripeSubscriptionId); teardownResults.stripe = "cancelled"; }
             catch (e) { console.error("Stripe cancel failed:", e); teardownResults.stripe = "failed"; }
         }

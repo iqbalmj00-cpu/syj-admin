@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getPlatformBillingLabel, getPlatformPlanMrr, isPromoLifetimeBilling } from "@/lib/platform-billing";
 
 export async function GET() {
     try {
@@ -9,6 +10,11 @@ export async function GET() {
                 websiteConfig: true,
                 phoneConfig: true,
                 onboarding: true,
+                platformPromoRedemptions: {
+                    select: { code: true, redeemedAt: true, lifetimeAccess: true },
+                    orderBy: { redeemedAt: "desc" },
+                    take: 1,
+                },
                 _count: {
                     select: {
                         jobs: true,
@@ -31,6 +37,12 @@ export async function GET() {
                 email: c.email || "—",
                 plan: c.planTier,
                 planStatus: c.planStatus,
+                platformBillingSource: c.platformBillingSource,
+                billingSource: c.platformBillingSource,
+                billingLabel: getPlatformBillingLabel(c.platformBillingSource),
+                isPromoLifetime: isPromoLifetimeBilling(c.platformBillingSource),
+                mrr: getPlatformPlanMrr(c.planTier, c.platformBillingSource),
+                platformPromoRedemption: c.platformPromoRedemptions[0] || null,
                 stripeSubscriptionId: c.stripeSubscriptionId,
                 stripePriceId: c.stripePriceId,
                 saasStripeCustomerId: c.saasStripeCustomerId,

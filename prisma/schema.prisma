@@ -98,6 +98,7 @@ model User {
   dispatchMessages     DispatchMessage[]
   referrals            Referral[]
   promoCodes           PromoCode[]
+  platformPromoRedemptions PlatformPromoRedemption[]
   reviewGates          ReviewGate[]
   customFields         CustomField[]
   messageTemplates     MessageTemplate[]
@@ -130,6 +131,7 @@ model User {
   stripePriceId        String?
   planTier             String                @default("starter") // starter | growth | enterprise
   planStatus           String                @default("trialing") // trialing | active | past_due | canceled
+  platformBillingSource String               @default("stripe") // stripe | promo_lifetime
   billingCancelledAt   DateTime?
   cancelReason         String? // too_expensive | missing_features | switching | other
   cancelFeedback       String?               @db.Text
@@ -2401,6 +2403,51 @@ model PromoCode {
 
   @@unique([userId, code])
   @@index([userId, active])
+}
+
+model PlatformPromoCode {
+  id               String                    @id @default(cuid())
+  code             String                    @unique
+  discountType     String                    @default("percentage") // percentage | flat
+  discountValue    Float
+  discountDuration String                    @default("once") // once | lifetime
+  noCardRequired   Boolean                   @default(false)
+  validPlanTiers   String[]                  @default([]) // empty = starter + growth
+  maxUses          Int?
+  usedCount        Int                       @default(0)
+  expiresAt        DateTime?
+  active           Boolean                   @default(true)
+  stripeCouponId   String?
+  notes            String?                   @db.Text
+  createdBy        String?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  redemptions      PlatformPromoRedemption[]
+
+  @@index([active])
+}
+
+model PlatformPromoRedemption {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformPromoCodeId   String
+  platformPromoCode     PlatformPromoCode @relation(fields: [platformPromoCodeId], references: [id], onDelete: Cascade)
+  code                  String
+  planTier              String
+  discountType          String
+  discountValue         Float
+  discountDuration      String
+  noCardRequired        Boolean
+  lifetimeAccess        Boolean           @default(false)
+  platformBillingSource String
+  stripeSubscriptionId  String?
+  stripeCouponId        String?
+  redeemedAt            DateTime          @default(now())
+
+  @@unique([userId, platformPromoCodeId])
+  @@index([userId])
+  @@index([platformPromoCodeId])
 }
 
 // ── Support Ticket System ──────────────────────────────────────────────────

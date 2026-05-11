@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getPlatformBillingLabel, getPlatformPlanMrr } from "@/lib/platform-billing";
 
 /**
  * GET /api/export/clients
@@ -18,8 +19,7 @@ export async function GET() {
             orderBy: { createdAt: "desc" },
         });
 
-        const PRICES: Record<string, number> = { starter: 149, growth: 299, enterprise: 549 };
-        const headers = ["Company", "Name", "Email", "Plan", "Status", "MRR", "City", "State", "Phone", "Website", "Deploy Status", "Jobs", "Leads", "Customers", "Staff", "Trucks", "Invoices", "Joined", "Last Login"];
+        const headers = ["Company", "Name", "Email", "Plan", "Status", "Billing Source", "MRR", "City", "State", "Phone", "Website", "Deploy Status", "Jobs", "Leads", "Customers", "Staff", "Trucks", "Invoices", "Joined", "Last Login"];
 
         const escape = (v: string | null | undefined) => {
             if (!v) return "";
@@ -29,7 +29,7 @@ export async function GET() {
 
         const rows = clients.map(c => [
             escape(c.company), escape(c.name), escape(c.email),
-            c.planTier, c.planStatus, String(PRICES[c.planTier] || 0),
+            c.planTier, c.planStatus, escape(getPlatformBillingLabel(c.platformBillingSource)), String(getPlatformPlanMrr(c.planTier, c.platformBillingSource)),
             escape(c.companyProfile?.city), escape(c.companyProfile?.state),
             escape(c.companyProfile?.phone || c.phoneConfig?.phoneNumber),
             escape(c.websiteConfig?.websiteUrl || (c.websiteConfig?.subdomain ? `${c.websiteConfig.subdomain}.scaleyourjunk.com` : "")),

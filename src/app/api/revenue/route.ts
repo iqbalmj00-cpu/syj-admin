@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PLATFORM_PLAN_PRICES, getPlatformPlanMrr, hasActivePlatformAccess, isPromoLifetimeBilling } from "@/lib/platform-billing";
 
 export async function GET() {
     try {
@@ -10,6 +11,7 @@ export async function GET() {
                 company: true,
                 planTier: true,
                 planStatus: true,
+                platformBillingSource: true,
                 stripePriceId: true,
                 stripeSubscriptionId: true,
                 saasStripeCustomerId: true,
@@ -20,20 +22,17 @@ export async function GET() {
             },
         });
 
-        const PRICES: Record<string, number> = {
-            starter: 149,
-            growth: 299,
-            enterprise: 549,
-        };
-
-        const active = clients.filter(c => c.planStatus === "active" || c.planStatus === "trialing");
-        const mrr = active.reduce((sum, c) => sum + (PRICES[c.planTier] || 0), 0);
+        const active = clients.filter(c => hasActivePlatformAccess(c.planStatus));
+        const paidActive = active.filter(c => !isPromoLifetimeBilling(c.platformBillingSource));
+        const compedLifetime = active.filter(c => isPromoLifetimeBilling(c.platformBillingSource));
+        const mrr = paidActive.reduce((sum, c) => sum + getPlatformPlanMrr(c.planTier, c.platformBillingSource), 0);
         const arr = mrr * 12;
 
         // Plan breakdown
-        const planBreakdown = Object.entries(PRICES).map(([tier, price]) => {
-            const count = active.filter(c => c.planTier === tier).length;
-            return { tier, price, count, revenue: count * price };
+        const planBreakdown = Object.entries(PLATFORM_PLAN_PRICES).map(([tier, price]) => {
+            const paidCount = paidActive.filter(c => c.planTier === tier).length;
+            const compedCount = compedLifetime.filter(c => c.planTier === tier).length;
+            return { tier, price, count: paidCount, activeCount: paidCount + compedCount, compedCount, revenue: paidCount * price };
         });
 
         // Cancellations
@@ -51,6 +50,8 @@ export async function GET() {
             arr,
             totalClients: clients.length,
             activeClients: active.length,
+            paidActiveClients: paidActive.length,
+            compedLifetimeClients: compedLifetime.length,
             planBreakdown,
             cancelled: cancelled.map(c => ({
                 company: c.company,

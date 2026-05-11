@@ -50,6 +50,7 @@ const NAV_GROUPS = [
     {
         label: "Admin",
         items: [
+            { id: "/platform-promos", label: "Platform Promos", icon: "dollar" },
             { id: "/settings", label: "Settings", icon: "settings" },
         ],
     },
@@ -73,6 +74,7 @@ const TITLES: Record<string, string> = {
     "/alerts": "System Alerts",
     "/support": "Support Tickets",
     "/demo-scheduler": "Demo Scheduler",
+    "/platform-promos": "Platform Promo Codes",
     "/settings": "Platform Settings",
 };
 
@@ -94,6 +96,7 @@ const SUBTITLES: Record<string, string> = {
     "/alerts": "Critical events, warnings, and action-required system notices.",
     "/support": "Open customer issues and resolution workload.",
     "/demo-scheduler": "Calendar connection, demo availability, and booking controls.",
+    "/platform-promos": "Locked lifetime access codes, usage controls, and redemption history.",
     "/settings": "Workspace configuration, integrations, and administrative controls.",
 };
 

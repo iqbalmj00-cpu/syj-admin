@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isPromoLifetimeBilling } from "@/lib/platform-billing";
 
 export async function GET() {
     try {
@@ -9,6 +10,7 @@ export async function GET() {
                 id: true, company: true, email: true,
                 planTier: true, planStatus: true,
                 onboardingComplete: true, onboardingProgress: true,
+                platformBillingSource: true,
                 stripeSubscriptionId: true, createdAt: true, updatedAt: true,
                 onboarding: true,
                 websiteConfig: { select: { id: true, vercelProjectId: true, deployStatus: true, subdomain: true } },
@@ -46,7 +48,8 @@ export async function GET() {
             else missing.push("Phone Agent Config");
 
             // Step 5: Stripe Payment
-            if (c.stripeSubscriptionId) currentStep = Math.max(currentStep, 5);
+            const hasBilling = !!c.stripeSubscriptionId || isPromoLifetimeBilling(c.platformBillingSource);
+            if (hasBilling) currentStep = Math.max(currentStep, 5);
             else missing.push("Payment");
 
             // Step 6: Voice Preview — if agent config exists, likely previewed
@@ -68,7 +71,8 @@ export async function GET() {
                 missing,
                 hasWebsite: !!c.websiteConfig?.vercelProjectId,
                 hasPhone: !!c.phoneConfig?.phoneNumber,
-                hasBilling: !!c.stripeSubscriptionId,
+                hasBilling,
+                billingSource: c.platformBillingSource,
                 lastActivity: c.updatedAt,
                 createdAt: c.createdAt,
             };
