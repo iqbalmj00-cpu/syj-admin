@@ -178,9 +178,33 @@ Verification on 2026-05-11:
 
 Follow-up required:
 
-- Ensure the shared database already has the website-side additive platform promo migration applied before using the Admin Dash route in production.
+- 2026-05-11 follow-up completed: the client-facing `scaleyourjunk` schema was verified against this Admin Dash platform promo contract, and approved `npx prisma db push --schema=prisma/schema.prisma` was run from `/Users/jamal/Documents/Jamals Website/scaleyourjunk`. The shared Neon DB was reported in sync and a read-only information-schema check confirmed `User.platformBillingSource`, both platform promo tables, and the expected platform promo indexes exist.
 - Do not create Stripe coupons for the private lifetime/no-card code.
 - Do not count promo-lifetime accounts as paid revenue.
+
+## Cold Email Command Center Notes
+
+Implemented locally on 2026-05-11 as a new Instantly-backed cold email control surface.
+
+Admin API/UI behavior:
+
+- New sidebar route: `/cold-email`.
+- New API routes: `/api/cold-email/overview`, `/api/cold-email/send`, `/api/cold-email/emails`, `/api/cold-email/reply`, and `/api/cold-email/read`.
+- New helper files: `src/lib/instantly.ts` for Instantly API v2 calls and `src/lib/cold-email.ts` for shared lead/email helpers.
+- The page lists Instantly campaigns, shows campaign analytics/rates, surfaces ready verified leads, lists email lead groups, queues selected leads/groups into a selected Instantly campaign, reads Instantly Unibox threads, marks threads read, and sends replies through Instantly.
+- Required environment variable: `INSTANTLY_API_KEY`. Optional default campaign variable: `INSTANTLY_CAMPAIGN_ID`.
+- The queue action uses Instantly API v2 bulk lead add and requires an explicit UI confirmation plus `confirm: true` server-side.
+- The reply action requires an explicit UI confirmation plus `confirm: true` server-side.
+- Local `OutreachLog` rows created by the new queue route use `status: "pending"` because adding a lead to Instantly is not proof that a campaign email has actually been sent.
+- The legacy `/api/agents/lead-groups/send` email branch was also moved from Instantly v1 API-key-in-body calls to the shared Instantly v2 helper and now logs email campaign adds as `pending` instead of marking leads as emailed/sent immediately. SMS behavior in that route was not changed.
+- The new route does not add or require Prisma schema changes and does not run any database push.
+
+Verification on 2026-05-11:
+
+- Whitespace/diff check passed for the new cold-email files and touched layout.
+- Targeted TypeScript transpile syntax check passed for the new cold-email files and touched layout.
+- Full `./node_modules/.bin/tsc --noEmit --pretty false --incremental false` hung with no output and was stopped, matching prior local compiler-hang behavior in this checkout; no TypeScript diagnostic was produced.
+- No live Instantly send/reply/read request, database push, deploy, or destructive operation was run.
 
 ## Auth And Access Model
 
@@ -204,6 +228,7 @@ Top-level screens:
 - `/leads/demo`: demo lead/growth lead view.
 - `/leads/scraped`: scraped leads table, lead group assignment, enrichment trigger, outreach trigger.
 - `/leads/facebook`: Facebook scraped leads view.
+- `/cold-email`: Instantly campaign control, verified lead/group selection, email analytics, Unibox reading, mark-read, and reply handling.
 - `/billing`: billing overview.
 - `/revenue`: revenue analytics.
 - `/onboarding`: onboarding progress.
@@ -240,8 +265,9 @@ Website operations:
 
 Outreach:
 
-- APIs: `src/app/api/agents/send-message/route.ts`, `src/app/api/agents/lead-groups/send/route.ts`, `src/app/api/agents/process-replies/route.ts`, `src/app/api/agents/incoming-message/route.ts`.
-- Can send real SMS through BlueBubbles and email through Instantly or Gmail depending on route.
+- APIs: `src/app/api/agents/send-message/route.ts`, `src/app/api/agents/lead-groups/send/route.ts`, `src/app/api/agents/process-replies/route.ts`, `src/app/api/agents/incoming-message/route.ts`, and `src/app/api/cold-email/*`.
+- Can send real SMS through BlueBubbles and can queue/send/reply to real email through Instantly or Gmail depending on route.
+- Treat `/api/cold-email/send`, `/api/cold-email/reply`, and `/api/cold-email/read` as external-side-effecting routes. They require an admin session; send/reply also require explicit confirmation in the request body.
 - Incoming SMS supports STOP opt-out and START opt-in behavior.
 
 Support:

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { replaceVariables } from "@/lib/outreach-variables";
+import { addInstantlyLeads } from "@/lib/instantly";
 
 /**
  * POST /api/agents/lead-groups/send
@@ -209,20 +210,18 @@ export async function POST(req: NextRequest) {
                 // ── EMAIL via Instantly.ai ──
                 try {
                     const ownerName = String(lead.ownerName || "");
-                    const instantlyRes = await fetch("https://api.instantly.ai/api/v1/lead/add", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            api_key: process.env.INSTANTLY_API_KEY,
-                            campaign_id: process.env.INSTANTLY_CAMPAIGN_ID,
-                            skip_if_in_workspace: true,
-                            leads: [{
-                                email: lead.email,
-                                first_name: ownerName.split(" ")[0] || "",
-                                last_name: ownerName.split(" ").length > 1 ? ownerName.split(" ").slice(-1)[0] : "",
+                    const ownerParts = ownerName.trim().split(/\s+/).filter(Boolean);
+                    const instantlyResult = await addInstantlyLeads({
+                        campaignId: process.env.INSTANTLY_CAMPAIGN_ID!,
+                        leads: [
+                            {
+                                email: lead.email!,
+                                first_name: ownerParts[0] || "",
+                                last_name: ownerParts.length > 1 ? ownerParts.slice(1).join(" ") : "",
                                 company_name: lead.name,
-                                phone: lead.phone || "",
-                                website: lead.website || "",
+                                phone: lead.phone || undefined,
+                                website: lead.website || undefined,
+                                personalization: personalizedBody || undefined,
                                 custom_variables: {
                                     subject: personalizedSubject,
                                     body: personalizedBody,
@@ -230,23 +229,20 @@ export async function POST(req: NextRequest) {
                                     market: lead.market || "",
                                     city: lead.city || "",
                                 },
-                            }],
-                        }),
+                            },
+                        ],
                     });
 
-                    if (instantlyRes.ok) {
+                    const resultRecord = instantlyResult && typeof instantlyResult === "object" ? instantlyResult as Record<string, unknown> : {};
+                    const uploaded = Number(resultRecord.leads_uploaded || 0);
+                    if (uploaded > 0) {
                         sent++;
                         await prisma.outreachLog.create({
-                            data: { leadId: lead.id, channel: "email", direction: "outbound", sender: "user", subject: personalizedSubject, content: personalizedBody.slice(0, 2000), status: "sent" },
-                        });
-                        await prisma.scrapedLead.update({
-                            where: { id: lead.id },
-                            data: { outreachStatus: "emailed", emailedAt: new Date() },
+                            data: { leadId: lead.id, channel: "email", direction: "outbound", sender: "user", subject: personalizedSubject, content: (personalizedBody || `Queued in Instantly campaign ${process.env.INSTANTLY_CAMPAIGN_ID}. Sending is controlled by Instantly campaign settings.`).slice(0, 2000), status: "pending" },
                         });
                     } else {
-                        failed++;
-                        const errText = await instantlyRes.text().catch(() => "");
-                        failedLeads.push({ name: lead.name, error: `Instantly ${instantlyRes.status}: ${errText.slice(0, 100)}` });
+                        skipped++;
+                        skippedLeads.push({ name: lead.name, reason: "Instantly skipped or did not create lead" });
                     }
                 } catch (e) {
                     failed++;
@@ -310,7 +306,7 @@ export async function POST(req: NextRequest) {
             total: group.members.length,
             skippedLeads: skippedLeads.slice(0, 20),
             failedLeads: failedLeads.slice(0, 20),
-            message: `${isEmail ? "Emailed" : "Sent"} ${sent}, skipped ${skipped}, failed ${failed} of ${group.members.length} leads`,
+            message: `${isEmail ? "Queued" : "Sent"} ${sent}, skipped ${skipped}, failed ${failed} of ${group.members.length} leads`,
         });
     } catch (error) {
         console.error("POST /api/agents/lead-groups/send error:", error);

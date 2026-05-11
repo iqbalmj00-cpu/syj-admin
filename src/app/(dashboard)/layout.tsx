@@ -17,6 +17,7 @@ const NAV_GROUPS = [
             { id: "/leads/demo", label: "Demo Leads", icon: "bell" },
             { id: "/leads/scraped", label: "Scraped Leads", icon: "cpu" },
             { id: "/leads/facebook", label: "Facebook Leads", icon: "users" },
+            { id: "/cold-email", label: "Cold Email", icon: "mail" },
             { id: "/demo-scheduler", label: "Demo Scheduler", icon: "calendar" },
         ],
     },
@@ -62,6 +63,7 @@ const TITLES: Record<string, string> = {
     "/leads/demo": "Demo Leads Pipeline",
     "/leads/scraped": "Outbound Scraped Leads",
     "/leads/facebook": "Facebook Leads",
+    "/cold-email": "Cold Email Campaigns",
     "/billing": "Billing & Payments",
     "/revenue": "Revenue & Billing",
     "/websites": "Website Management",
@@ -84,6 +86,7 @@ const SUBTITLES: Record<string, string> = {
     "/leads/demo": "Inbound demo requests and qualification activity.",
     "/leads/scraped": "Outbound lead review, enrichment signals, and campaign readiness.",
     "/leads/facebook": "Facebook-sourced lead intake and follow-up queue.",
+    "/cold-email": "Instantly campaign control, lead selection, performance rates, and reply handling.",
     "/billing": "Invoices, payment status, and customer billing operations.",
     "/revenue": "MRR, plan mix, churn pressure, and growth signals.",
     "/websites": "Client website deployments, domains, and project health.",
@@ -112,6 +115,7 @@ type IconName =
     | "settings"
     | "support"
     | "calendar"
+    | "mail"
     | "search";
 
 function NavIcon({ name }: { name: string }) {
@@ -150,6 +154,8 @@ function NavIcon({ name }: { name: string }) {
             return <svg {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
         case "calendar":
             return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+        case "mail":
+            return <svg {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>;
         case "search":
             return <svg {...p}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>;
         default:
