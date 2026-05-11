@@ -195,6 +195,8 @@ Admin API/UI behavior:
 - Required environment variable: `INSTANTLY_API_KEY`. Optional default campaign variable: `INSTANTLY_CAMPAIGN_ID`.
 - The queue action uses Instantly API v2 bulk lead add and requires an explicit UI confirmation plus `confirm: true` server-side.
 - The reply action requires an explicit UI confirmation plus `confirm: true` server-side.
+- The cold email page has quick-insert buttons for `[Owner_Name]` and `[Location]`. These aliases are supported by the shared outreach variable replacement layer; `[Location]` resolves to `City, State` when both are present, otherwise the available city/market/state value.
+- Instantly queue payloads include custom variables `Owner_Name` and `Location` for each lead, in addition to the existing lower-case lead metadata variables.
 - Local `OutreachLog` rows created by the new queue route use `status: "pending"` because adding a lead to Instantly is not proof that a campaign email has actually been sent.
 - The legacy `/api/agents/lead-groups/send` email branch was also moved from Instantly v1 API-key-in-body calls to the shared Instantly v2 helper and now logs email campaign adds as `pending` instead of marking leads as emailed/sent immediately. SMS behavior in that route was not changed.
 - The new route does not add or require Prisma schema changes and does not run any database push.
@@ -205,6 +207,8 @@ Verification on 2026-05-11:
 - Targeted TypeScript transpile syntax check passed for the new cold-email files and touched layout.
 - Full `./node_modules/.bin/tsc --noEmit --pretty false --incremental false` hung with no output and was stopped, matching prior local compiler-hang behavior in this checkout; no TypeScript diagnostic was produced.
 - No live Instantly send/reply/read request, database push, deploy, or destructive operation was run.
+- 2026-05-11 deployment follow-up: Vercel deployment for commit `e668573` failed during TypeScript because the cold-email analytics reducer accumulator in `src/app/(dashboard)/cold-email/page.tsx` inferred as `unknown`. The reducer now has an explicit `CampaignAnalyticsTotals` type.
+- 2026-05-11 local build note: `NEXT_TELEMETRY_DISABLED=1 npm run build` failed locally before app compilation with `TypeError: isStableBuild is not a function` from local Next internals under Node `v22.22.1`; this is distinct from the Vercel TypeScript reducer failure.
 
 ## Auth And Access Model
 

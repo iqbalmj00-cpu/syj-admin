@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./page.module.css";
 
 type Candidate = {
@@ -72,6 +72,28 @@ type EmailRecord = Record<string, unknown> & {
         outreachStatus: string;
     } | null;
     syjPreviewText?: string;
+};
+
+type CampaignAnalyticsTotals = {
+    sent: number;
+    contacted: number;
+    leads: number;
+    opens: number;
+    replies: number;
+    clicks: number;
+    bounced: number;
+    unsubscribed: number;
+};
+
+const EMPTY_ANALYTICS_TOTALS: CampaignAnalyticsTotals = {
+    sent: 0,
+    contacted: 0,
+    leads: 0,
+    opens: 0,
+    replies: 0,
+    clicks: 0,
+    bounced: 0,
+    unsubscribed: 0,
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -167,7 +189,7 @@ function campaignStatus(campaign: unknown) {
 }
 
 function aggregateAnalytics(items: unknown[]) {
-    return items.reduce((acc, item) => {
+    return items.reduce<CampaignAnalyticsTotals>((acc, item) => {
         const record = asRecord(item);
         acc.sent += numberValue(record.emails_sent_count);
         acc.contacted += numberValue(record.contacted_count);
@@ -178,7 +200,7 @@ function aggregateAnalytics(items: unknown[]) {
         acc.bounced += numberValue(record.bounced_count);
         acc.unsubscribed += numberValue(record.unsubscribed_count);
         return acc;
-    }, { sent: 0, contacted: 0, leads: 0, opens: 0, replies: 0, clicks: 0, bounced: 0, unsubscribed: 0 });
+    }, { ...EMPTY_ANALYTICS_TOTALS });
 }
 
 function rate(part: number, total: number) {
@@ -211,6 +233,8 @@ export default function ColdEmailPage() {
     const [threadEmails, setThreadEmails] = useState<EmailRecord[]>([]);
     const [replyText, setReplyText] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
+    const subjectRef = useRef<HTMLInputElement>(null);
+    const bodyRef = useRef<HTMLTextAreaElement>(null);
 
     const loadOverview = useCallback(async (nextCampaign = campaign, quiet = false) => {
         if (quiet) setRefreshing(true);
@@ -292,6 +316,31 @@ export default function ColdEmailPage() {
         setSelectedGroupIds((current) => current.includes(group.id) ? current.filter((item) => item !== group.id) : [...current, group.id]);
         if (!templateSubject && group.templateSubject) setTemplateSubject(group.templateSubject);
         if (!templateBody && group.templateBody) setTemplateBody(group.templateBody);
+    };
+
+    const insertVariable = (variable: string, target: "subject" | "body") => {
+        if (target === "subject") {
+            const input = subjectRef.current;
+            const start = input?.selectionStart ?? templateSubject.length;
+            const end = input?.selectionEnd ?? templateSubject.length;
+            const next = `${templateSubject.slice(0, start)}${variable}${templateSubject.slice(end)}`;
+            setTemplateSubject(next);
+            requestAnimationFrame(() => {
+                input?.focus();
+                input?.setSelectionRange(start + variable.length, start + variable.length);
+            });
+            return;
+        }
+
+        const input = bodyRef.current;
+        const start = input?.selectionStart ?? templateBody.length;
+        const end = input?.selectionEnd ?? templateBody.length;
+        const next = `${templateBody.slice(0, start)}${variable}${templateBody.slice(end)}`;
+        setTemplateBody(next);
+        requestAnimationFrame(() => {
+            input?.focus();
+            input?.setSelectionRange(start + variable.length, start + variable.length);
+        });
     };
 
     const queueCampaign = async () => {
@@ -471,9 +520,17 @@ export default function ColdEmailPage() {
                         </div>
                         <div className={`card-body ${styles.queueBody}`}>
                             <label className={styles.fieldLabel}>Subject variable</label>
-                            <input className="input" value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Optional subject custom variable" />
+                            <input ref={subjectRef} className="input" value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Optional subject custom variable" />
+                            <div className={styles.variableRow}>
+                                <button type="button" onClick={() => insertVariable("[Owner_Name]", "subject")}>[Owner_Name]</button>
+                                <button type="button" onClick={() => insertVariable("[Location]", "subject")}>[Location]</button>
+                            </div>
                             <label className={styles.fieldLabel}>Personalization variable</label>
-                            <textarea className={`input ${styles.textArea}`} value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} placeholder="Optional body/personalization custom variable for Instantly" />
+                            <textarea ref={bodyRef} className={`input ${styles.textArea}`} value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} placeholder="Optional body/personalization custom variable for Instantly" />
+                            <div className={styles.variableRow}>
+                                <button type="button" onClick={() => insertVariable("[Owner_Name]", "body")}>[Owner_Name]</button>
+                                <button type="button" onClick={() => insertVariable("[Location]", "body")}>[Location]</button>
+                            </div>
                             <button type="button" className="btn btn-primary btn-sm" onClick={queueCampaign} disabled={!configured || !campaign || selectionCount === 0}>
                                 Queue selected in Instantly
                             </button>

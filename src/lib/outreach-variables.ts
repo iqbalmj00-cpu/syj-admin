@@ -49,6 +49,13 @@ function firstName(fullName: unknown): string {
     return s.split(/\s+/)[0];
 }
 
+function formatLocation(l: LeadData): string {
+    const city = str(l.city || l.market).trim();
+    const state = str(l.state).trim();
+    if (city && state) return `${city}, ${state}`;
+    return city || state;
+}
+
 export function daysSince(dateValue: unknown): number | null {
     if (!dateValue) return null;
     const dt = dateValue instanceof Date ? dateValue : new Date(String(dateValue));
@@ -326,6 +333,7 @@ export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = {
     // Identity
     "[company_name]": (l) => str(l.name),
     "[owner_name]": (l) => str(l.ownerName).trim() || "there",
+    "[Owner_Name]": (l) => str(l.ownerName).trim() || "there",
     "[owner_first_name]": (l) => firstName(l.ownerName) || "there",
     "[owner_bio]": (l) => str(l.ownerBio),
     "[business_specialty]": (l) => str(l.businessSpecialty),
@@ -333,6 +341,8 @@ export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = {
     "[is_family_business]": (l) => yesNo(l.isFamilyBusiness),
 
     // Location
+    "[location]": formatLocation,
+    "[Location]": formatLocation,
     "[city]": (l) => str(l.city || l.market),
     "[market]": (l) => str(l.market),
     "[state]": (l) => str(l.state),
@@ -532,6 +542,7 @@ export const TEMPLATE_VAR_GROUPS: VarCategory[] = [
         vars: [
             { variable: "[company_name]", label: "Company Name" },
             { variable: "[owner_name]", label: "Owner Full Name" },
+            { variable: "[Owner_Name]", label: "Owner Name" },
             { variable: "[owner_first_name]", label: "Owner First Name" },
             { variable: "[owner_bio]", label: "Owner Bio" },
             { variable: "[business_specialty]", label: "Business Specialty (Claude-extracted angle)" },
@@ -542,6 +553,7 @@ export const TEMPLATE_VAR_GROUPS: VarCategory[] = [
     {
         category: "Location",
         vars: [
+            { variable: "[Location]", label: "Location (City, State)" },
             { variable: "[city]", label: "City" },
             { variable: "[market]", label: "Market (lowercase slug)" },
             { variable: "[state]", label: "State (2-letter code)" },

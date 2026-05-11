@@ -160,6 +160,8 @@ export async function POST(req: NextRequest) {
                     syj_group_ids: groupIds.join(",") || null,
                     subject: personalizedSubject || null,
                     body: personalizedBody || null,
+                    Owner_Name: lead.ownerName || null,
+                    Location: [lead.city || lead.market, lead.state].filter(Boolean).join(", ") || null,
                     grade: lead.grade || null,
                     market: lead.market || null,
                     city: lead.city || null,

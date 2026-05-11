@@ -111,6 +111,30 @@
   text-transform: uppercase;
 }
 
+.variableRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.variableRow button {
+  min-height: 28px;
+  padding: 0 9px;
+  color: var(--info);
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.variableRow button:hover {
+  background: #e6f0f5;
+  border-color: rgba(53, 111, 143, 0.34);
+}
+
 .textArea {
   min-height: 112px;
   resize: vertical;
