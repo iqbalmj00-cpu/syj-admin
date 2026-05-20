@@ -359,7 +359,7 @@ export default function AgentsPage() {
                     </div>
                     {[
                         { icon: "LS", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "var(--info)" },
-                        { icon: "LE", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn server:app --port 8006`, color: "var(--success)" },
+                        { icon: "LE", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu python -m uvicorn server:app --host 127.0.0.1 --port 8006`, color: "var(--success)" },
                         { icon: "FB", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "var(--ink)" },
                     ].map(a => (
                         <div key={a.label} style={{
@@ -816,10 +816,10 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 <ConfigToggle label="Auto-delete irrelevant leads (movers, cleaners, auto salvage, etc.)" checked={config.auto_delete_irrelevant !== false} onChange={v => onChange("auto_delete_irrelevant", v)} />
                 <ConfigToggle label="Skip leads that match existing SYJ clients" checked={config.skip_existing_clients !== false} onChange={v => onChange("skip_existing_clients", v)} />
                 <ConfigToggle label="Fetch Google Reviews + GBP profile (uses Outscraper API credits)" checked={config.fetch_reviews !== false} onChange={v => onChange("fetch_reviews", v)} />
-                <ConfigToggle label="Extract owner/company details from website" checked={config.extract_owner !== false} onChange={v => onChange("extract_owner", v)} />
+                <ConfigToggle label="Check public LinkedIn owner evidence (no LinkedIn scraping/login)" checked={!!config.fetch_linkedin_owner_evidence} onChange={v => onChange("fetch_linkedin_owner_evidence", v)} />
                 <ConfigToggle label="Run SEO & UX scoring" checked={config.run_seo_scoring !== false} onChange={v => onChange("run_seo_scoring", v)} />
                 <ConfigNote>
-                    Enriches scraped leads with website analysis, SEO/UX scores, competitor detection, Google review intelligence, owner name extraction, and lead scoring (A/B/C grades). The agent runs locally — no timeout limit. Cancel anytime with the Stop button.
+                    Enriches scraped leads with website analysis, SEO/UX scores, competitor detection, Google review intelligence, owner name extraction, Google Ads Transparency evidence, and lead scoring (A/B/C grades). Owner extraction and Ads Transparency checks always run. The agent runs locally — no timeout limit. Cancel anytime with the Stop button.
                 </ConfigNote>
             </>
         );

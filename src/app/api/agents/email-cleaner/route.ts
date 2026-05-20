@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
             runId: run.id,
             mode: "sync",
             summary,
-            message: `Email cleaning finished. ${summary.deliverable} deliverable, ${summary.archived} archived.`,
+            message: `Email cleaning finished. ${summary.deliverable} deliverable, ${summary.archived} hard failures archived.`,
         });
     } catch (error) {
         console.error("POST /api/agents/email-cleaner error:", error);

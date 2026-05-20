@@ -67,16 +67,25 @@ const KNOWN_STATES = new Set<EmailableState>([
     "risky",
     "unknown",
     "duplicate",
+    "invalid",
+    "missing",
 ]);
 
 export const DEFAULT_EMAIL_CLEAN_POLICY: EmailCleanPolicy = {
-    archiveRisky: true,
-    archiveUnknown: true,
+    archiveRisky: false,
+    archiveUnknown: false,
     archiveUndeliverable: true,
-    archiveDuplicate: true,
+    archiveDuplicate: false,
     archiveMissingEmail: true,
     archiveInvalidFormat: true,
 };
+
+const PERSONAL_EMAIL_DOMAINS = new Set([
+    "gmail.com", "googlemail.com", "yahoo.com", "aol.com", "outlook.com", "hotmail.com",
+    "icloud.com", "live.com", "me.com", "protonmail.com", "proton.me",
+    "mail.com", "ymail.com", "msn.com", "comcast.net", "verizon.net",
+    "sbcglobal.net", "att.net", "bellsouth.net", "cox.net",
+]);
 
 export const EMAIL_CLEANER_SYNC_LIMIT = 200;
 export const EMAIL_CLEANER_BATCH_LIMIT = 1000;
@@ -90,6 +99,18 @@ export function normalizeEmail(value: string | null | undefined): string | null 
     const email = value?.trim().toLowerCase();
     if (!email) return null;
     return email;
+}
+
+export function getEmailDomain(email: string | null | undefined): string | null {
+    const normalized = normalizeEmail(email);
+    if (!normalized?.includes("@")) return null;
+    const domain = normalized.split("@", 2)[1]?.trim();
+    return domain || null;
+}
+
+export function isPersonalEmailDomain(email: string | null | undefined): boolean {
+    const domain = getEmailDomain(email);
+    return !!domain && PERSONAL_EMAIL_DOMAINS.has(domain);
 }
 
 export function isPlausibleEmail(email: string): boolean {
@@ -136,7 +157,11 @@ export function getEmailCleanDecision(
     result: EmailableVerificationResult,
     policy: EmailCleanPolicy = DEFAULT_EMAIL_CLEAN_POLICY,
 ): EmailCleanDecision {
-    const deliverable = result.state === "deliverable";
+    const deliverable = result.state === "deliverable"
+        ? true
+        : ["undeliverable", "invalid", "missing"].includes(result.state) && !isPersonalEmailDomain(result.email)
+            ? false
+            : null;
     if (result.error) {
         return {
             deliverable: null,
@@ -147,14 +172,14 @@ export function getEmailCleanDecision(
     }
 
     const reasonSuffix = result.reason ? `:${result.reason}` : "";
+    const protectedPersonalEmail = isPersonalEmailDomain(result.email);
 
     let shouldArchive = false;
-    if (result.state === "undeliverable") shouldArchive = policy.archiveUndeliverable;
-    else if (result.state === "risky") shouldArchive = policy.archiveRisky;
-    else if (result.state === "unknown") shouldArchive = policy.archiveUnknown;
-    else if (result.state === "duplicate") shouldArchive = policy.archiveDuplicate;
-    else if (result.state === "missing") shouldArchive = policy.archiveMissingEmail;
-    else if (result.state === "invalid") shouldArchive = policy.archiveInvalidFormat;
+    if (!protectedPersonalEmail) {
+        if (result.state === "undeliverable") shouldArchive = policy.archiveUndeliverable;
+        else if (result.state === "missing") shouldArchive = policy.archiveMissingEmail;
+        else if (result.state === "invalid") shouldArchive = policy.archiveInvalidFormat;
+    }
 
     return {
         deliverable,

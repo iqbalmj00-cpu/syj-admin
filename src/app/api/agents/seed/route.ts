@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { DEFAULT_EMAIL_CLEAN_POLICY } from "@/lib/emailable";
 
 // POST /api/agents/seed — Seed the 4 default agents (dashboard only)
 export async function POST() {
@@ -64,16 +65,11 @@ export async function POST() {
             {
                 slug: "email_cleaner",
                 name: "Email Cleaner",
-                description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
+                description: "Verifies enriched lead emails with Emailable, archives hard failures, and keeps uncertain emails for review.",
                 schedule: null,
                 config: {
                     provider: "emailable",
-                    archiveRisky: true,
-                    archiveUnknown: true,
-                    archiveUndeliverable: true,
-                    archiveDuplicate: true,
-                    archiveMissingEmail: true,
-                    archiveInvalidFormat: true,
+                    policy: DEFAULT_EMAIL_CLEAN_POLICY,
                 },
             },
             {

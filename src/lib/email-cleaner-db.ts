@@ -32,6 +32,8 @@ export interface EmailCandidate {
     contextText?: string | null;
     isMailto?: boolean | null;
     isPrimary?: boolean | null;
+    generated?: boolean | null;
+    requiresVerification?: boolean | null;
     sources?: string[];
     verification?: Record<string, unknown> | null;
 }
@@ -82,7 +84,7 @@ export async function ensureEmailCleanerAgent() {
         where: { slug: "email_cleaner" },
         update: {
             name: "Email Cleaner",
-            description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
+            description: "Verifies enriched lead emails with Emailable, archives hard failures, and keeps uncertain emails for review.",
             schedule: null,
             config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY } as unknown as Prisma.InputJsonValue,
             enabled: true,
@@ -90,7 +92,7 @@ export async function ensureEmailCleanerAgent() {
         create: {
             slug: "email_cleaner",
             name: "Email Cleaner",
-            description: "Verifies enriched lead emails with Emailable and archives leads that are not safe for email outreach.",
+            description: "Verifies enriched lead emails with Emailable, archives hard failures, and keeps uncertain emails for review.",
             schedule: null,
             config: { provider: "emailable", policy: DEFAULT_EMAIL_CLEAN_POLICY } as unknown as Prisma.InputJsonValue,
             enabled: true,
@@ -136,6 +138,7 @@ export function resolvePublicBaseUrl(requestUrl: string): string | null {
 }
 
 const EMAIL_SOURCE_RANK: Record<string, number> = {
+    generated_owner_pattern: 0,
     website_mailto: 0,
     website_obfuscated: 1,
     website_text: 2,
@@ -161,7 +164,7 @@ const EMAIL_CONFIDENCE_RANK: Record<string, number> = {
 };
 
 const PERSONAL_EMAIL_DOMAINS = new Set([
-    "gmail.com", "yahoo.com", "aol.com", "outlook.com", "hotmail.com",
+    "gmail.com", "googlemail.com", "yahoo.com", "aol.com", "outlook.com", "hotmail.com",
     "icloud.com", "live.com", "me.com", "protonmail.com", "proton.me",
     "mail.com", "ymail.com", "msn.com", "comcast.net", "verizon.net",
     "sbcglobal.net", "att.net", "bellsouth.net", "cox.net",
@@ -191,6 +194,8 @@ function candidateFromUnknown(raw: unknown, fallbackSource: string, primaryEmail
         contextText: typeof record.contextText === "string" ? record.contextText.slice(0, 260) : null,
         isMailto: typeof record.isMailto === "boolean" ? record.isMailto : null,
         isPrimary: typeof record.isPrimary === "boolean" ? record.isPrimary : primaryEmail === email,
+        generated: typeof record.generated === "boolean" ? record.generated : null,
+        requiresVerification: typeof record.requiresVerification === "boolean" ? record.requiresVerification : null,
         sources: uniqueStringArray(record.sources),
     };
 }
@@ -215,6 +220,8 @@ function mergeCandidate(existing: EmailCandidate, incoming: EmailCandidate): Ema
             : existing.domainMatchesWebsite ?? incoming.domainMatchesWebsite ?? null,
         contextText: base.contextText || existing.contextText || incoming.contextText || null,
         isMailto: base.isMailto || existing.isMailto || incoming.isMailto || null,
+        generated: base.generated || existing.generated || incoming.generated || null,
+        requiresVerification: base.requiresVerification || existing.requiresVerification || incoming.requiresVerification || null,
         sources: Array.from(sources),
     };
 }
@@ -372,6 +379,11 @@ function resultSnapshot(result: EmailableVerificationResult): Record<string, unk
         reason: result.reason || null,
         score: typeof result.score === "number" ? result.score : null,
         error: result.error || null,
+        accept_all: typeof result.accept_all === "boolean" ? result.accept_all : null,
+        role: typeof result.role === "boolean" ? result.role : null,
+        free: typeof result.free === "boolean" ? result.free : null,
+        disposable: typeof result.disposable === "boolean" ? result.disposable : null,
+        no_reply: typeof result.no_reply === "boolean" ? result.no_reply : null,
     };
 }
 
@@ -415,6 +427,18 @@ function candidateSelectionRank(candidate: EmailCandidate, result: EmailableVeri
     ];
 }
 
+function isGeneratedOwnerCandidate(candidate: EmailCandidate) {
+    return candidate.generated === true
+        || candidate.requiresVerification === true
+        || candidate.source === "generated_owner_pattern";
+}
+
+function canPromoteCandidate(candidate: EmailCandidate, result: EmailableVerificationResult) {
+    if (result.error || result.state !== "deliverable") return false;
+    if (isGeneratedOwnerCandidate(candidate) && result.accept_all === true) return false;
+    return true;
+}
+
 function sortCandidateResults(a: { candidate: EmailCandidate; result: EmailableVerificationResult }, b: { candidate: EmailCandidate; result: EmailableVerificationResult }) {
     const rankA = candidateSelectionRank(a.candidate, a.result);
     const rankB = candidateSelectionRank(b.candidate, b.result);
@@ -454,11 +478,19 @@ async function applyCandidateEmailCleaningResults(params: {
             continue;
         }
 
-        const usable = candidatesWithResults
-            .filter(({ result }) => !result.error && !getEmailCleanDecision(result, params.policy).shouldArchive)
+        const promotable = candidatesWithResults
+            .filter(({ candidate, result }) => canPromoteCandidate(candidate, result))
             .sort(sortCandidateResults);
-        const selected = (usable[0] || [...candidatesWithResults].sort(sortCandidateResults)[0]);
-        const decision = getEmailCleanDecision(selected.result, params.policy);
+        const nonGenerated = candidatesWithResults
+            .filter(({ candidate }) => !isGeneratedOwnerCandidate(candidate))
+            .sort(sortCandidateResults);
+        const selectedForPrimary = promotable[0] || null;
+        const selected = selectedForPrimary || nonGenerated[0] || [...candidatesWithResults].sort(sortCandidateResults)[0];
+        const selectedIsUnpromotedGenerated = isGeneratedOwnerCandidate(selected.candidate) && !selectedForPrimary;
+        const rawDecision = getEmailCleanDecision(selected.result, params.policy);
+        const decision = selectedIsUnpromotedGenerated
+            ? { ...rawDecision, deliverable: null, shouldArchive: false, archiveReason: null }
+            : rawDecision;
         const now = new Date();
         const domainDetails = emailDomainDetails(selected.candidate.email);
 
@@ -481,7 +513,7 @@ async function applyCandidateEmailCleaningResults(params: {
             data.emailCleanedAt = now;
         }
 
-        if (!decision.shouldArchive && !selected.result.error) {
+        if (selectedForPrimary && !decision.shouldArchive && !selected.result.error) {
             data.email = selected.candidate.email;
             data.emailSource = selected.candidate.source || null;
             data.emailConfidence = selected.candidate.confidence || null;

@@ -493,7 +493,7 @@ export default function ScrapedLeadsPage() {
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.status === "completed") {
                     const summary = data.summary || data.results?.summary;
-                    showToast(summary ? `Email cleaning finished: ${summary.deliverable || 0} deliverable, ${summary.archived || 0} archived` : "Email cleaning finished");
+                    showToast(summary ? `Email cleaning finished: ${summary.deliverable || 0} deliverable, ${summary.archived || 0} hard failures archived` : "Email cleaning finished");
                     fetchLeads();
                     return;
                 }
@@ -511,7 +511,7 @@ export default function ScrapedLeadsPage() {
 
     const cleanSelectedEmails = async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Verify ${selectedIds.size} selected lead(s) with Emailable? Leads that are not deliverable will be archived and skipped for email outreach.`)) return;
+        if (!confirm(`Verify ${selectedIds.size} selected lead(s) with Emailable? Hard failures will be archived; risky or unknown emails will stay active for review.`)) return;
         setCleaningEmails(true);
         try {
             const res = await fetch("/api/agents/email-cleaner", {
@@ -1663,7 +1663,7 @@ export default function ScrapedLeadsPage() {
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
                         <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
-                        <button onClick={cleanSelectedEmails} disabled={cleaningEmails} title="Verify selected lead emails with Emailable and archive anything not deliverable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: cleaningEmails ? "wait" : "pointer" }}>{cleaningEmails ? "Cleaning..." : "Clean List"}</button>
+                        <button onClick={cleanSelectedEmails} disabled={cleaningEmails} title="Verify selected lead emails with Emailable; archive hard failures and keep uncertain emails for review" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: cleaningEmails ? "wait" : "pointer" }}>{cleaningEmails ? "Cleaning..." : "Clean List"}</button>
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "Trigger Campaign"}</button>
                         <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--info-border)", borderRadius: 4, background: "var(--info-bg)", color: "var(--info)", cursor: "pointer" }}>Copy Emails</button>
                         <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>Copy Phones</button>
