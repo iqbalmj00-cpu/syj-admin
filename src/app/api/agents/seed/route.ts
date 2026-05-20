@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_EMAIL_CLEAN_POLICY } from "@/lib/emailable";
@@ -135,10 +136,11 @@ export async function POST() {
 
         const results = [];
         for (const agent of agents) {
+            const config = agent.config as unknown as Prisma.InputJsonValue;
             const result = await prisma.syjAgent.upsert({
                 where: { slug: agent.slug },
-                update: { name: agent.name, description: agent.description, schedule: agent.schedule, config: agent.config },
-                create: agent,
+                update: { name: agent.name, description: agent.description, schedule: agent.schedule, config },
+                create: { ...agent, config },
             });
             results.push(result);
         }
