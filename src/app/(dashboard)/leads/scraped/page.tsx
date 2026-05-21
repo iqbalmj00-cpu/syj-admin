@@ -23,6 +23,12 @@ interface Lead {
 
 interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
 
+function displayMarketCity(market: string | null | undefined) {
+    const clean = market?.trim();
+    if (!clean) return "—";
+    return clean.split(",")[0]?.trim() || clean;
+}
+
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
         <button onClick={onClick} style={{
@@ -311,19 +317,31 @@ export default function ScrapedLeadsPage() {
     const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
     const canSelectAllMatching = allOnPageSelected && total > leads.length && !selectAllMatching;
 
-    const toggleSelect = (id: string) => setSelectedIds(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        return next;
-    });
+    const toggleSelect = (id: string) => {
+        setSelectAllMatching(false);
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
     const toggleSelectAll = () => {
         // Clicking the header checkbox toggles only the current page.
         // "Select all matching" is a separate explicit action via the banner below.
+        const pageIds = leads.map(l => l.id);
         if (allOnPageSelected) {
-            setSelectedIds(new Set());
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                pageIds.forEach(id => next.delete(id));
+                return next;
+            });
             setSelectAllMatching(false);
         } else {
-            setSelectedIds(new Set(leads.map(l => l.id)));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                pageIds.forEach(id => next.add(id));
+                return next;
+            });
         }
     };
 
@@ -1830,7 +1848,7 @@ export default function ScrapedLeadsPage() {
                                     {l.archivedAt && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--danger)", background: "var(--danger-bg)", padding: "1px 6px", borderRadius: 4, marginLeft: 4 }}>ARCHIVED</span>}
                                 </td>
                                 <td style={{ fontSize: 11, color: (l as any).ownerName ? "var(--text)" : "var(--text-faint)" }}>{(l as any).ownerName || "—"}</td>
-                                <td style={{ fontSize: 11 }}>{(l as any).city || l.market}</td>
+                                <td style={{ fontSize: 11 }}>{displayMarketCity(l.market)}</td>
                                 <td>
                                     <span style={{
                                         fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 8,
@@ -1909,7 +1927,7 @@ export default function ScrapedLeadsPage() {
                                                 ["  ↳ Last Name", (l as any).ownerLastName],
                                                 ["  ↳ LinkedIn", (l as any).ownerLinkedInUrl],
                                                 ["  ↳ Direct Contact", (l as any).isDirectContact ? "🎯 Yes" : null],
-                                                ["Owner Source", (l as any).ownerNameSource ? ({ website: "Website", reviews: "Google Reviews", web_search: "Web Search", facebook: "Facebook" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
+                                                ["Owner Source", (l as any).ownerNameSource ? ({ website: "Website", reviews: "Google Reviews", google_ai_mode: "Google AI Mode", web_search: "Web Search", facebook: "Facebook" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
                                                 ["Owner Source URL", (l as any).ownerNameSourceUrl],
                                                 ["Owner Bio", (l as any).ownerBio],
                                                 ["Founded", (l as any).foundedYear],
