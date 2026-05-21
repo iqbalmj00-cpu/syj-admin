@@ -720,20 +720,21 @@ export default function ScrapedLeadsPage() {
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "8px 12px", background: "var(--white)", border: "1px solid var(--border-light)", borderRadius: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-faint)", marginRight: 4 }}>Show only:</span>
                 {[
-                    { label: "Has Owner Name", state: hasOwnerName, setter: setHasOwnerName },
-                    { label: "Has Phone", state: hasPhone, setter: setHasPhone },
-                    { label: "Has Email", state: hasEmail, setter: setHasEmail },
-                    { label: "Has Website", state: hasWebsite, setter: setHasWebsite },
-                    { label: "DIY Builder", state: diyFilter, setter: setDiyFilter },
+                    { label: "Has Owner Name", state: hasOwnerName, setter: setHasOwnerName, activeValue: "true" },
+                    { label: "No Owner Name", state: hasOwnerName, setter: setHasOwnerName, activeValue: "false" },
+                    { label: "Has Phone", state: hasPhone, setter: setHasPhone, activeValue: "true" },
+                    { label: "Has Email", state: hasEmail, setter: setHasEmail, activeValue: "true" },
+                    { label: "Has Website", state: hasWebsite, setter: setHasWebsite, activeValue: "true" },
+                    { label: "DIY Builder", state: diyFilter, setter: setDiyFilter, activeValue: "true" },
                 ].map(f => (
-                    <button key={f.label} onClick={() => f.setter(f.state === "true" ? "all" : "true")}
+                    <button key={f.label} onClick={() => f.setter(f.state === f.activeValue ? "all" : f.activeValue)}
                         style={{
                             padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, cursor: "pointer",
-                            border: `1px solid ${f.state === "true" ? "var(--success)" : "var(--border)"}`,
-                            background: f.state === "true" ? "rgba(0,216,74,0.08)" : "var(--white)",
-                            color: f.state === "true" ? "#00A83A" : "var(--text-light)",
+                            border: `1px solid ${f.state === f.activeValue ? "var(--success)" : "var(--border)"}`,
+                            background: f.state === f.activeValue ? "rgba(0,216,74,0.08)" : "var(--white)",
+                            color: f.state === f.activeValue ? "#00A83A" : "var(--text-light)",
                         }}>
-                        {f.state === "true" ? "✓ " : ""}{f.label}
+                        {f.state === f.activeValue ? "✓ " : ""}{f.label}
                     </button>
                 ))}
                 <div style={{ width: 1, height: 16, background: "var(--border)", margin: "0 4px" }} />

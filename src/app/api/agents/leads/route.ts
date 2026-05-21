@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
         if (isExistingClient === "false") where.isExistingClient = false;
         if (serviceType) where.serviceTypes = { has: serviceType };
         if (hasOwnerName === "true") where.AND = [...(where.AND as Array<Record<string, unknown>> || []), { ownerName: { not: null } }, { ownerName: { not: "" } }];
-        if (hasOwnerName === "false") where.ownerName = null;
+        if (hasOwnerName === "false") where.AND = [...(where.AND as Array<Record<string, unknown>> || []), { OR: [{ ownerName: null }, { ownerName: "" }] }];
         if (hasPhone === "true") where.phone = { not: null };
         if (hasPhone === "false") where.phone = null;
         if (hasEmail === "true") where.email = { not: null };

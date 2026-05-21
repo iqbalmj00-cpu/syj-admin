@@ -96,9 +96,91 @@ function isV2Payload(data: Record<string, unknown>, version?: unknown) {
     return version === "v2" || data.enrichmentVersion === "v2";
 }
 
+const DATE_FIELDS = new Set([
+    "googleAdsLastCheckedAt", "enrichedAt", "lastReviewDate", "lastOwnerResponseDate",
+    "mostRecentNegativeReviewDate", "emailVerifiedAt", "phoneVerifiedAt",
+]);
+
+const INTEGER_FIELDS = new Set([
+    "estimatedEmployees", "estimatedFleetSize", "lastUpdatedYear", "serviceAreaPagesCount",
+    "totalPageCount", "daysSinceLastReview", "daysSinceLastOwnerResponse",
+    "daysSinceMostRecentNegative", "websiteAgeYears", "painSeverityScore",
+    "reviewsAnalyzedCount", "positiveReviewCount", "negativeReviewCount",
+    "reviewVelocity90d", "painTagCount", "photoCount", "gbpPostsLast90d",
+    "profileCompletenessScore", "marketingMaturityScore", "marketCompetitorCount",
+    "marketRankByReviews", "yearsInBusiness", "foundedYear", "websiteScore", "leadScore",
+    "emailRiskScore",
+]);
+
+const FLOAT_FIELDS = new Set([
+    "loadTimeSeconds", "ownerResponseRate", "negativeReviewPercent", "negativeResponseRate",
+    "positiveResponseRate", "marketRankPercentile",
+]);
+
+const STRING_ARRAY_FIELDS = new Set([
+    "serviceTypes", "ctaPromiseTags", "leadHandlingPromiseTags", "emailsDiscovered",
+    "serviceAreaCities", "reasons", "painPoints", "notesFlags", "reviewComplaints",
+    "reviewPraise", "mentionedStaffNames", "painTags", "praiseTags", "lowStarComplaintTags",
+]);
+
+function errorDetail(error: unknown) {
+    if (!error || typeof error !== "object") {
+        return { name: typeof error, message: String(error).slice(0, 300) };
+    }
+    const record = error as { name?: unknown; message?: unknown; code?: unknown; meta?: unknown };
+    return {
+        name: typeof record.name === "string" ? record.name : error.constructor?.name,
+        code: typeof record.code === "string" ? record.code : undefined,
+        message: typeof record.message === "string" ? record.message.slice(0, 500) : undefined,
+        meta: record.meta,
+    };
+}
+
+function normalizeFieldValue(key: string, value: unknown, skippedInvalidFields: string[]) {
+    if (DATE_FIELDS.has(key)) {
+        if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+        if (typeof value === "string" || typeof value === "number") {
+            const parsed = new Date(value);
+            if (!Number.isNaN(parsed.getTime())) return parsed;
+        }
+        skippedInvalidFields.push(`${key}:invalid_date`);
+        return undefined;
+    }
+
+    if (INTEGER_FIELDS.has(key)) {
+        const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+        if (Number.isFinite(numeric)) return Math.trunc(numeric);
+        skippedInvalidFields.push(`${key}:invalid_int`);
+        return undefined;
+    }
+
+    if (FLOAT_FIELDS.has(key)) {
+        const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+        if (Number.isFinite(numeric)) return numeric;
+        skippedInvalidFields.push(`${key}:invalid_float`);
+        return undefined;
+    }
+
+    if (STRING_ARRAY_FIELDS.has(key)) {
+        if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+        skippedInvalidFields.push(`${key}:invalid_string_array`);
+        return undefined;
+    }
+
+    return value;
+}
+
 export async function POST(req: NextRequest) {
+    let body: any;
     try {
-        const body = await req.json();
+        body = await req.json();
+    } catch (error) {
+        const detail = errorDetail(error);
+        console.error("POST /api/agents/enrichment-results invalid JSON:", detail);
+        return NextResponse.json({ error: "Invalid JSON payload", detail }, { status: 400 });
+    }
+
+    try {
         const { secret, leadId, action, data, progress, version } = body;
 
         // Authenticate
@@ -194,6 +276,7 @@ export async function POST(req: NextRequest) {
             const acceptedFields: string[] = [];
             const clearedFields: string[] = [];
             const skippedNullFields: string[] = [];
+            const skippedInvalidFields: string[] = [];
             const rejectedFields: string[] = [];
             for (const [key, value] of Object.entries(rawData)) {
                 if (key === "clearFields") continue;
@@ -212,7 +295,9 @@ export async function POST(req: NextRequest) {
                     }
                     continue;
                 }
-                safeData[key] = value;
+                const normalized = normalizeFieldValue(key, value, skippedInvalidFields);
+                if (normalized === undefined) continue;
+                safeData[key] = normalized;
                 acceptedFields.push(key);
             }
 
@@ -224,6 +309,7 @@ export async function POST(req: NextRequest) {
                     acceptedFields,
                     clearedFields,
                     skippedNullFields,
+                    skippedInvalidFields,
                 }, { status: 400 });
             }
             // Stamp enrichedAt ONLY if the payload looks substantive — prevents sparse/failed
@@ -251,10 +337,29 @@ export async function POST(req: NextRequest) {
             // else: leave enrichedAt null so the next default run retries this lead.
             // Still write the partial data — any signal captured is better than none.
 
-            await prisma.scrapedLead.update({
-                where: { id: leadId },
-                data: safeData,
-            });
+            try {
+                await prisma.scrapedLead.update({
+                    where: { id: leadId },
+                    data: safeData,
+                });
+            } catch (error) {
+                const detail = errorDetail(error);
+                console.error("POST /api/agents/enrichment-results write error:", {
+                    leadId,
+                    action,
+                    detail,
+                    acceptedFields,
+                    skippedInvalidFields,
+                });
+                return NextResponse.json({
+                    error: "Failed to process enrichment result",
+                    detail,
+                    acceptedFields,
+                    skippedNullFields,
+                    skippedInvalidFields,
+                    fieldCount: acceptedFields.length,
+                }, { status: 500 });
+            }
             return NextResponse.json({
                 ok: true,
                 cancelled: false,
@@ -263,12 +368,14 @@ export async function POST(req: NextRequest) {
                 rejectedFields,
                 clearedFields,
                 skippedNullFields,
+                skippedInvalidFields,
             });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (error) {
-        console.error("POST /api/agents/enrichment-results error:", error);
-        return NextResponse.json({ error: "Failed to process enrichment result" }, { status: 500 });
+        const detail = errorDetail(error);
+        console.error("POST /api/agents/enrichment-results error:", detail);
+        return NextResponse.json({ error: "Failed to process enrichment result", detail }, { status: 500 });
     }
 }
