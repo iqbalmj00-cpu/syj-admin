@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     const idsOnly = searchParams.get("idsOnly") === "true"; // returns { ids: [...] } for "select all across pages"
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
+    const state = searchParams.get("state"); // 2-letter US state code, used for region/pilot observability
     const companyType = searchParams.get("companyType"); // "junk_removal" or "junk_removal,dumpster_rental"
     const outreachStatus = searchParams.get("outreachStatus"); // "new" or "new,emailed"
     const search = searchParams.get("search");
@@ -137,6 +138,7 @@ export async function GET(req: NextRequest) {
         else if (archived !== "all") where.archivedAt = null;
         if (grade) where.grade = { in: grade.split(",") };
         if (market) where.market = market;
+        if (state) where.state = state;
         if (companyType) where.companyType = { in: companyType.split(",") };
         if (outreachStatus) where.outreachStatus = { in: outreachStatus.split(",") };
         if (hasActiveWebsite === "true") where.hasActiveWebsite = true;
@@ -554,6 +556,13 @@ export async function GET(req: NextRequest) {
         });
         const markets = marketGroups.map(m => m.market).filter(Boolean).sort();
 
+        // Get distinct states for the region filter dropdown
+        const stateGroups = await prisma.scrapedLead.groupBy({
+            by: ["state"],
+            _count: true,
+        });
+        const states = stateGroups.map(s => s.state).filter(Boolean).sort();
+
         // Get company type stats for filter
         const typeGroups = await prisma.scrapedLead.groupBy({
             by: ["companyType"],
@@ -561,14 +570,32 @@ export async function GET(req: NextRequest) {
         });
         const companyTypes = typeGroups.map(t => ({ type: t.companyType, count: t._count }));
 
-        return NextResponse.json({ leads, total, page, limit, funnel, markets, companyTypes });
+        return NextResponse.json({ leads, total, page, limit, funnel, markets, states, companyTypes });
     } catch (err) {
         console.error("GET /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 });
     }
 }
 
-// POST /api/agents/leads — Bulk upsert leads from scraper or manual add (dedup by googlePlaceId)
+// ScrapedLead scalar-list columns without database defaults. Apply these on create only:
+// applying [] during update would clobber enrichment-owned arrays.
+const LIST_FIELD_DEFAULTS: Record<string, string[]> = {
+    categories: [],
+    techDetected: [],
+    notesFlags: [],
+    serviceTypes: [],
+    serviceAreaCities: [],
+    reviewComplaints: [],
+    reviewPraise: [],
+    mentionedStaffNames: [],
+    painTags: [],
+    praiseTags: [],
+    emailsDiscovered: [],
+    reasons: [],
+    painPoints: [],
+};
+
+// POST /api/agents/leads — Bulk upsert leads from approved lead discovery workflows or manual add.
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -602,7 +629,7 @@ export async function POST(req: NextRequest) {
             try {
                 // Build update data — only include non-null fields to preserve existing data
                 const updateData: Record<string, unknown> = {};
-                const createData = { ...lead, agentRunId: validRunId };
+                const createData = { ...LIST_FIELD_DEFAULTS, ...lead, agentRunId: validRunId };
 
                 // Only overwrite fields that have real values (don't null out existing data)
                 for (const [key, value] of Object.entries(lead)) {

@@ -1,0 +1,11 @@
+# secrets & local state — never commit
+.env
+venv/
+venv*/
+__pycache__/
+*.pyc
+scraper_ledger.db
+
+# the licensed ZIP dataset — download per README, do not commit
+data/us_zips.csv
+simplemaps_uszips_basicv1/

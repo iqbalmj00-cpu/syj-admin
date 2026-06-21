@@ -57,6 +57,8 @@ export default function ScrapedLeadsPage() {
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [marketFilter, setMarketFilter] = useState("all");
     const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+    const [stateFilter, setStateFilter] = useState("all");
+    const [availableStates, setAvailableStates] = useState<string[]>([]);
     const [companyTypeFilter, setCompanyTypeFilter] = useState("all");
     const [enrichedFilter, setEnrichedFilter] = useState("all");
     const [competitorFilter, setCompetitorFilter] = useState("all");
@@ -176,6 +178,7 @@ export default function ScrapedLeadsPage() {
             if (archivedFilter !== "active") params.set("archived", archivedFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
+            if (stateFilter !== "all") params.set("state", stateFilter);
             if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
             if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
             if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
@@ -270,10 +273,11 @@ export default function ScrapedLeadsPage() {
                 setTotal(data.total);
                 setFunnel(data.funnel);
                 if (data.markets) setAvailableMarkets(data.markets);
+                if (data.states) setAvailableStates(data.states);
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, archivedFilter, outreachFilter, marketFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, emailVerificationState, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
+    }, [gradeFilter, archivedFilter, outreachFilter, marketFilter, stateFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, emailVerificationState, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -356,6 +360,7 @@ export default function ScrapedLeadsPage() {
             if (archivedFilter !== "active") params.set("archived", archivedFilter);
             if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
             if (marketFilter !== "all") params.set("market", marketFilter);
+            if (stateFilter !== "all") params.set("state", stateFilter);
             if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
             if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
             if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
@@ -751,6 +756,11 @@ export default function ScrapedLeadsPage() {
                     <option value="google_maps">Google Maps</option>
                     <option value="facebook_group">Facebook</option>
                     <option value="manual">Manual</option>
+                </select>
+                <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
+                    <option value="all">All States</option>
+                    {availableStates.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
             </div>
 

@@ -47,6 +47,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
         const agent = await prisma.syjAgent.findUnique({ where: { id } });
         if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+        if (agent.slug === "lead_scraper") {
+            return NextResponse.json(
+                { error: "lead_scraper is controlled via the Lead Scraper card (Start/Stop), not Run Now" },
+                { status: 400 },
+            );
+        }
         if (!agent.enabled) return NextResponse.json({ error: "Agent is disabled" }, { status: 400 });
 
         // Create run record

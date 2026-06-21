@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_EMAIL_CLEAN_POLICY } from "@/lib/emailable";
 
-// POST /api/agents/seed — Seed the 4 default agents (dashboard only)
+// POST /api/agents/seed — Seed dashboard agents (dashboard only)
 export async function POST() {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
@@ -12,21 +12,21 @@ export async function POST() {
             {
                 slug: "lead_scraper",
                 name: "Lead Scraper",
-                description: "Discovers junk removal companies via Google Places + Yelp, enriches their websites, and scores them for outreach potential.",
-                schedule: "0 8 * * 1", // Monday 8 AM
+                description: "Discovers junk removal and dumpster rental businesses on Google Maps via Outscraper, by ZIP. Manual start only through the Lead Scraper card; an external worker ingests thin leads for enrichment.",
+                schedule: null,
                 config: {
-                    markets: ["houston", "philadelphia", "phoenix", "dallas"],
-                    max_results_per_market: 200,
-                    skip_yelp: false,
-                    skip_enrichment: false,
-                    use_grid: false,
+                    search_terms: ["junk removal", "dumpster rental"],
+                    results_per_query_limit: null,
+                    fetch_reviews: false,
+                    batch_zip_count: 12,
+                    skip_empty_zips_on_rerun: true,
                 },
             },
             {
                 slug: "cold_outreach",
                 name: "Cold Outreach",
                 description: "Sends personalized emails and iMessages to qualified leads using Claude AI for copy generation.",
-                schedule: "0 9 * * 1", // Monday 9 AM (after scraper)
+                schedule: "0 9 * * 1", // Monday 9 AM
                 config: {
                     email_sequence: [
                         { day: 0, subject: "{{company}} — quick question", template: "intro" },

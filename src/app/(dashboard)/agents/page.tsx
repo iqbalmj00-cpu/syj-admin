@@ -80,6 +80,15 @@ const REPORT_STATUS_MAP: Record<string, { bg: string; color: string; label: stri
     rejected: { bg: "var(--danger-bg)", color: "var(--danger)", label: "Rejected" },
 };
 
+const ENRICHMENT_AGENT_START_CMD = `cd "/Volumes/CODE/ENRICHMENT AGENT" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8006`;
+const LEAD_SCRAPER_AGENT_START_CMD = `cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8007`;
+
+const AVAILABLE_AGENT_START_COMMANDS = [
+    { icon: "LS", label: "Lead Scraper", cmd: LEAD_SCRAPER_AGENT_START_CMD, color: "var(--info)" },
+    { icon: "LE", label: "Lead Enrichment", cmd: ENRICHMENT_AGENT_START_CMD, color: "var(--success)" },
+    { icon: "FB", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "var(--ink)" },
+];
+
 const REPORT_TYPE_LABELS: Record<string, string> = {
     market_analysis: "Market Analysis",
     competitor_study: "Competitor Study",
@@ -346,22 +355,7 @@ export default function AgentsPage() {
             {/* Tab Content */}
             {tab === "agents" && (
                 <>
-                    <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 16px", background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
-                        borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span><strong>Start all agents:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>bash ~/Documents/start_agents.sh</code></span>
-                        </div>
-                        <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard.writeText("bash ~/Documents/start_agents.sh"); showToast("Copied!"); }}
-                            style={{ fontSize: 11, padding: "3px 8px", color: "var(--accent-strong)" }}>Copy</button>
-                    </div>
-                    {[
-                        { icon: "LS", label: "Lead Scraper", cmd: `cd ~/Documents/"LEAD SCRAPER BRIDGE" && source venv/bin/activate && caffeinate -dimsu uvicorn bridge:app --port 8001`, color: "var(--info)" },
-                        { icon: "LE", label: "Lead Enrichment", cmd: `cd ~/Documents/"ENRICHMENT AGENT" && source venv/bin/activate && caffeinate -dimsu python -m uvicorn server:app --host 127.0.0.1 --port 8006`, color: "var(--success)" },
-                        { icon: "FB", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "var(--ink)" },
-                    ].map(a => (
+                    {AVAILABLE_AGENT_START_COMMANDS.map(a => (
                         <div key={a.label} style={{
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             padding: "10px 16px", background: "var(--surface-raised)", border: "1px solid var(--border)",
@@ -523,7 +517,10 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                             </div>
                         )}
 
-                        {/* ── Simplified Action Bar ── */}
+                        {/* ── Action Bar ── */}
+                        {a.slug === "lead_scraper" ? (
+                            <LeadScraperControls showToast={showToast} onRefresh={onRefresh} />
+                        ) : (
                         <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
                             {/* Primary action: Run or Running indicator */}
                             {a.status === "running" ? (
@@ -577,9 +574,150 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                                 }} />
                             </button>
                         </div>
+                        )}
                     </div>
                 );
             })}
+        </div>
+    );
+}
+
+/* Lead Scraper Controls */
+
+const US_STATE_OPTIONS = [
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
+    "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
+    "VA", "WA", "WV", "WI", "WY", "DC",
+];
+
+interface ScraperControl {
+    active: boolean;
+    target: string | null;
+    startNonce: string | null;
+    agentStatus: string;
+    progress: {
+        state?: string;
+        zipsDone?: number;
+        zipsTotal?: number;
+        zipsEmpty?: number;
+        zipsError?: number;
+        leadsFound?: number;
+        updatedAt?: string;
+    } | null;
+}
+
+function LeadScraperControls({
+    showToast,
+    onRefresh,
+}: {
+    showToast: (m: string, t?: string) => void;
+    onRefresh: () => void;
+}) {
+    const [ctrl, setCtrl] = useState<ScraperControl | null>(null);
+    const [selected, setSelected] = useState("MA");
+    const [busy, setBusy] = useState(false);
+
+    const fetchCtrl = useCallback(async () => {
+        try {
+            const res = await fetch("/api/agents/lead-scraper");
+            if (res.ok) setCtrl(await res.json());
+        } catch {
+            // Keep the existing display if a transient read fails.
+        }
+    }, []);
+
+    useEffect(() => { fetchCtrl(); }, [fetchCtrl]);
+    useEffect(() => {
+        if (!ctrl?.active) return;
+        const timer = setInterval(fetchCtrl, 10000);
+        return () => clearInterval(timer);
+    }, [ctrl?.active, fetchCtrl]);
+
+    const post = async (body: Record<string, unknown>, okMsg: string) => {
+        setBusy(true);
+        try {
+            const res = await fetch("/api/agents/lead-scraper", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showToast(okMsg);
+                await fetchCtrl();
+                onRefresh();
+            } else {
+                showToast(data.error || "Action failed", "error");
+            }
+        } catch {
+            showToast("Action failed", "error");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const active = !!ctrl?.active;
+    const progress = ctrl?.progress;
+    const total = progress?.zipsTotal ?? 0;
+    const processed = (progress?.zipsDone ?? 0) + (progress?.zipsEmpty ?? 0) + (progress?.zipsError ?? 0);
+    const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+    const staleMin = progress?.updatedAt ? (Date.now() - new Date(progress.updatedAt).getTime()) / 60000 : null;
+    const offline = active && staleMin !== null && staleMin > 10;
+
+    return (
+        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select
+                    value={selected}
+                    onChange={e => setSelected(e.target.value)}
+                    disabled={active || busy}
+                    style={{ flex: 1, padding: "6px 8px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: active ? "var(--neutral-bg)" : "var(--white)" }}
+                >
+                    <option value="ALL">All states</option>
+                    {US_STATE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {active ? (
+                    <button
+                        className="btn btn-xs"
+                        onClick={() => post({ action: "stop" }, "Lead Scraper stopped")}
+                        disabled={busy}
+                        style={{ color: "var(--danger)", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", padding: "6px 14px" }}
+                    >
+                        Stop
+                    </button>
+                ) : (
+                    <button
+                        className="btn btn-xs btn-primary"
+                        onClick={() => post({ action: "start", target: selected }, `Lead Scraper started - ${selected}`)}
+                        disabled={busy}
+                        style={{ padding: "6px 14px" }}
+                    >
+                        Start
+                    </button>
+                )}
+            </div>
+
+            {(active || progress) && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ height: 6, background: "var(--neutral-bg)", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: offline ? "var(--warn-dark)" : "var(--info)", transition: "width 0.3s" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-light)" }}>
+                        <span>{progress?.state || ctrl?.target || "-"}: {processed}/{total} ZIPs ({pct}%)</span>
+                        <span>{progress?.leadsFound ?? 0} leads</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-faint)" }}>
+                        <span>{progress?.zipsEmpty ?? 0} empty / {progress?.zipsError ?? 0} error</span>
+                        <span>{progress?.updatedAt ? `updated ${relTime(progress.updatedAt)}` : ""}</span>
+                    </div>
+                    {offline && (
+                        <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
+                            Worker may be offline. No progress in {Math.round(staleMin ?? 0)} min. Check the scraper process or press Stop to reset.
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -717,31 +855,12 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
 
     /* ── Lead Scraper ── */
     if (slug === "lead_scraper") {
-        const markets = (config.markets as string[]) || ["Philadelphia", "Phoenix", "Jacksonville"];
-        const [marketsText, setMarketsText] = useState(markets.join(", "));
         return (
-            <>
-                <ConfigField label="Search Keyword">
-                    <select value={String(config.keyword || "junk removal")} onChange={e => onChange("keyword", e.target.value)}
-                        style={{ ...inputStyle, cursor: "pointer" }}>
-                        <option value="junk removal">Junk Removal</option>
-                        <option value="dumpster rental">Dumpster Rental</option>
-                    </select>
-                </ConfigField>
-                <ConfigField label="Markets (comma-separated city names)">
-                    <input value={marketsText} onChange={e => setMarketsText(e.target.value)}
-                        onBlur={() => onChange("markets", marketsText.split(",").map(s => s.trim()).filter(Boolean))}
-                        placeholder="Philadelphia, San Antonio, Las Vegas"
-                        style={inputStyle} />
-                </ConfigField>
-                <ConfigField label="Max Results Per Market">
-                    <ConfigInput value={String(config.max_results_per_market || 200)} onChange={v => onChange("max_results_per_market", parseInt(v) || 200)} />
-                </ConfigField>
-                <ConfigToggle label="Use grid search (searches zip codes for deeper coverage)" checked={!!config.use_grid} onChange={v => onChange("use_grid", v)} />
-                <ConfigNote>
-                    Searches Google Maps for junk removal companies in each market. Results are deduplicated by Google Place ID so the same company is never added twice.
-                </ConfigNote>
-            </>
+            <ConfigNote>
+                Manual-only ZIP sweeps are controlled from the Lead Scraper card. The worker uses
+                junk removal and dumpster rental queries, writes thin Google Maps leads, and leaves
+                enrichment-owned fields untouched.
+            </ConfigNote>
         );
     }
 
