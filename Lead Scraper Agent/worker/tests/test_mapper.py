@@ -38,9 +38,18 @@ class TestMapper(unittest.TestCase):
         self.assertEqual(lead["source"], "google")
         self.assertEqual(lead["googlePlaceId"], "ChIJabc123")
         self.assertEqual(lead["companyType"], "junk_removal")
+        self.assertEqual(lead["website"], "https://joesjunk.com")
+        self.assertEqual(lead["address"], "1 Main St, Boston, MA 02108")
         self.assertEqual(lead["rating"], 4.8)
         self.assertEqual(lead["reviewCount"], 212)
         self.assertIsInstance(lead["latitude"], float)
+
+    def test_current_outscraper_website_and_address_keys(self):
+        lead = mapper.to_lead(_row(site=None, full_address=None,
+                                   website="https://current.example",
+                                   address="2 Current St, Boston, MA 02108"), ZIPROW)
+        self.assertEqual(lead["website"], "https://current.example")
+        self.assertEqual(lead["address"], "2 Current St, Boston, MA 02108")
 
     def test_categories_seeded_with_term(self):
         lead = mapper.to_lead(_row(), ZIPROW)

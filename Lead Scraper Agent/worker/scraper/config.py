@@ -21,9 +21,9 @@ from dataclasses import dataclass, field
 
 # ── Locked agent config (mirrors the A1 seed config in the admin repo) ──
 SEARCH_TERMS = ["junk removal", "dumpster rental"]
-BATCH_ZIP_COUNT = 12          # ZIPs per worker batch (×2 terms = 24 queries ≤ 25-cap, plan §6)
+BATCH_ZIP_COUNT = int(os.getenv("BATCH_ZIP_COUNT", "4"))  # ZIPs per worker batch (×2 terms)
 SKIP_EMPTY_ON_RERUN = True
-RESULTS_LIMIT = 400           # explicit high cap — never omit `limit` (plan §6)
+RESULTS_LIMIT = int(os.getenv("RESULTS_LIMIT", "400"))  # explicit high cap — never omit `limit`
 INGEST_CHUNK_SIZE = 50        # ≤50 leads per POST (plan §3B/ingest)
 
 

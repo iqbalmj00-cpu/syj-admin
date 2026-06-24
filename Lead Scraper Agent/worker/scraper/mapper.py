@@ -84,6 +84,14 @@ def _coerce_int(v):
         return None
 
 
+def _first_non_empty(row: dict, *keys: str):
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def to_lead(row: dict, ziprow: dict):
     """Outscraper dict -> ScrapedLead ingest dict, or None to drop the row.
 
@@ -112,8 +120,8 @@ def to_lead(row: dict, ziprow: dict):
         "source": "google",
         "googlePlaceId": row.get("place_id") or None,
         "phone": (row.get("phone") or None),
-        "website": (row.get("site") or None),
-        "address": (row.get("full_address") or None),
+        "website": _first_non_empty(row, "website", "site"),
+        "address": _first_non_empty(row, "address", "full_address"),
         "categories": _as_categories(row, term),
         "companyType": company_type,
         "rating": _coerce_float(row.get("rating")),
@@ -130,7 +138,8 @@ def _dedup_key(row: dict):
     if pid:
         return ("pid", str(pid))
     # Fallback when place_id is absent (rare): name + address.
-    return ("na", (row.get("name") or "").strip().lower(), (row.get("full_address") or "").strip().lower())
+    address = _first_non_empty(row, "address", "full_address") or ""
+    return ("na", (row.get("name") or "").strip().lower(), str(address).strip().lower())
 
 
 def dedup_by_place_id(rows: list[dict]) -> list[dict]:
