@@ -1,123 +1,123 @@
-# Lead Scraper — Implementation Plan (read this first)
+# Lead Scraper Implementation Plan & Current Handoff
 
-A concise, developer-facing guide: the files, how the agent works, and how to build it into the
-finalized Jamals Admin Dashboard correctly. For the full spec see `docs/LEAD_SCRAPER_TECHNICAL_PLAN.md`.
+Current status as of 2026-06-23: implemented and pushed. This file is no longer a pre-build approval plan; it is a concise guide to how the implemented Lead Scraper works and what a future conversation should verify before changing it.
 
----
+For deeper history, see `docs/LEAD_SCRAPER_TECHNICAL_PLAN.md`. For operator status, see `docs/LEAD_SCRAPER_BUILD_STATUS.md`.
 
-## 1. What you're building (in one paragraph)
+## What The Agent Does
 
-A **discovery agent**. An external Python worker searches Google Maps (via the Outscraper API)
-for junk-removal & dumpster-rental businesses, one US ZIP code at a time, and posts "thin" leads
-(name, phone, website, address, rating, place id) into the **existing `ScrapedLead` table** via
-the **existing** `POST /api/agents/leads` route. The dashboard gets one new API route plus a card
-to Start/Stop/watch it. From there the **existing** enrichment → outreach agents take over,
-unchanged. It is **manual-start-only** (no cron) and requires **no database schema change**.
+The Lead Scraper is a discovery agent. A local Python worker searches Google Maps through Outscraper for junk-removal and dumpster-rental businesses, one selected state at a time, by ZIP code. It posts thin leads into the existing `ScrapedLead` table through the existing `/api/agents/leads` route. The existing `lead_enrichment`, `email_cleaner`, and `cold_outreach` agents handle the downstream work.
 
----
+The scraper is manual-start-only. There is no cron, no generic Run Now path, and no automatic enrichment after scraping.
 
-## 2. The files
-
-### Worker — `worker/` (new, standalone Python service; runs on the Mac, port 8007)
-| File | Role |
-|---|---|
-| `server.py` | FastAPI app + the self-driving control loop (the brain). Polls the dashboard; when Started, sweeps the target state's ZIPs. |
-| `scraper/config.py` | Locked config (search terms, batch size, limits) + env loader. |
-| `scraper/region.py` | Turns a state (or "ALL") into its list of ZIPs from `data/us_zips.csv` or the uploaded `simplemaps_uszips_basicv1/uszips.csv`. 50 states + DC only. |
-| `scraper/ledger.py` | Local SQLite file tracking each ZIP's status (pending/done/empty/error) — drives resume, skip-empty, and re-run sweeps. |
-| `scraper/outscraper_client.py` | Calls Outscraper `maps/search-v3` (async + poll), same REST pattern the enrichment worker uses. |
-| `scraper/mapper.py` | Maps an Outscraper result → the lead shape; dedups by Google place id. |
-| `scraper/ingest.py` | POSTs leads to `/api/agents/leads` in chunks. |
-| `scraper/control.py` | Talks to the new dashboard control route (get status / post progress / post done). |
-| `tests/` | 35 unit tests (pure logic, no network/DB) — run `python3 -m unittest discover -s tests`. |
-| `requirements.txt`, `.env.example`, `README.md` | Setup. The ZIP dataset is a one-time manual download (see worker README). |
-
-### Admin — changes to the dashboard repo (see `admin/ADMIN_CHANGES.md` for exact code)
-| Label | File | Change |
-|---|---|---|
-| **A2** | `api/agents/lead-scraper/route.ts` | **NEW FILE** — the control plane (GET status; POST start/stop/progress/done). Provided whole in `admin/`. |
-| **A1** | `api/agents/seed/route.ts` | Add the `lead_scraper` agent entry. |
-| **A3** | `middleware.ts` | Add the new route to the auth-exclusion matcher (1 line). |
-| **A5** | `api/agents/[id]/route.ts` | Make generic "Run Now" 400 for this slug. |
-| **A6** | `api/agents/leads/route.ts` | Initialize 13 list columns to `[]` on create. |
-| **A7** | `api/agents/leads/route.ts` + `leads/scraped/page.tsx` | *(optional)* state filter param + dropdown. |
-| **A4** | `(dashboard)/agents/page.tsx` | The Lead Scraper card (state picker, Start/Stop, progress); hides the generic buttons for this agent. |
-
----
-
-## 3. How the agent works (the flow)
+## Current Flow
 
 ```
-1. Operator opens the Agents tab → Lead Scraper card → picks a state → presses Start.
-2. The card POSTs {action:"start", target} to /api/agents/lead-scraper, which sets three
-   flags in the AdminSetting table: active=true, target=<state>, a fresh start-nonce.
-3. The worker (already running on the Mac) polls that route every ~10s. Seeing active=true,
-   it expands the state into ZIPs, and works them in small batches:
-     • builds 2 search queries per ZIP ("junk removal …", "dumpster rental …")
-     • calls Outscraper, maps + dedups the results into thin leads
-     • POSTs them to /api/agents/leads (upserts by Google place id → no duplicates)
-     • records each ZIP done/empty/error in its local ledger
-     • POSTs a progress summary back → the card's progress bar updates
-4. When every ZIP is processed, the worker POSTs {action:"done"} → the route clears active.
-   (Stop at any time clears active; the worker finishes its current batch and idles.)
-5. Leads land with enrichedAt=null, so the EXISTING enrichment agent picks them up the next
-   time it's run — then email-cleaner and cold-outreach, exactly as today.
+Agents tab -> Lead Scraper card -> Start(state)
+        |
+        v
+/api/agents/lead-scraper
+  AdminSetting active/target/startNonce/progress
+        |
+        v
+worker/server.py polls control route
+        |
+        v
+SimpleMaps ZIP rows -> Outscraper maps/search-v3 -> mapper -> /api/agents/leads
+        |
+        v
+ScrapedLead rows with enrichedAt=null
 ```
 
-Resilience built in: the ledger persists, so a crash/sleep/Stop resumes exactly where it left
-off; failed ZIPs are retried on the next run; re-running a finished state re-checks it for new
-businesses while skipping the empties.
+## Dashboard Files
 
----
+- `src/app/api/agents/lead-scraper/route.ts`: Start/Stop/progress/done/status control route.
+- `src/app/(dashboard)/agents/page.tsx`: dedicated Lead Scraper card.
+- `src/app/api/agents/[id]/route.ts`: blocks generic triggers for `lead_scraper`.
+- `src/app/api/agents/seed/route.ts`: seeds `lead_scraper` with `schedule: null`.
+- `src/middleware.ts`: excludes the control route from session middleware so secret-auth worker calls reach the handler.
+- `src/app/api/agents/leads/route.ts`: receives and upserts thin leads; initializes scalar-list defaults on create.
+- `src/app/(dashboard)/leads/scraped/page.tsx`: state filter support.
 
-## 4. How to implement it correctly (build order)
+## Worker Files
 
-Do these in order; each has a check.
+Path: `/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker`
 
-1. **Apply the admin code** onto your canonical repo:
-   - Copy the new file `admin/NEW_FILE__api_agents_lead-scraper__route.ts` →
-     `src/app/api/agents/lead-scraper/route.ts`.
-   - Apply each snippet in `admin/ADMIN_CHANGES.md` (A1, A3, A5, A6, A4, and A7 if you want it).
-   - ⚠️ Apply by hand from the snippets — **do not** trust a raw diff of the folder these were
-     authored in; that working tree had unrelated uncommitted work. The snippets are anchor-based.
-   - **Verify:** `npx tsc --noEmit` → 0 errors (these changes were authored to pass clean).
-2. **Set up the worker** (`worker/README.md` has exact commands): create a venv, `pip install -r
-   requirements.txt`, copy `.env.example` → `.env` and fill in `OUTSCRAPER_API_KEY`,
-   `AGENT_CALLBACK_URL`, `AGENT_CALLBACK_SECRET` (the SAME values the enrichment worker uses).
-   The uploaded SimpleMaps ZIP dataset is already usable at `worker/simplemaps_uszips_basicv1/uszips.csv`;
-   a fresh setup can also copy `uszips.csv` to `worker/data/us_zips.csv`.
-   - **Verify:** `python3 -m unittest discover -s tests` → 35 pass.
-3. **Deploy** the dashboard (so the new route + card go live).
-4. **Seed** the agent: trigger `POST /api/agents/seed` once (logged in) → the card appears.
-5. **Dry run (optional, recommended):** set `DRY_RUN_TARGET=MA` in the worker `.env` and run it —
-   it exercises the full loop with ingest stubbed (no DB writes). Unset it after.
-6. **Run the worker** for real: `caffeinate -dimsu python -m uvicorn server:app --host 127.0.0.1
-   --port 8007`. Then Start the Massachusetts pilot from the card and inspect the first batch.
+- `server.py`: FastAPI app and control loop.
+- `scraper/config.py`: runtime defaults and env loader.
+- `scraper/control.py`: dashboard control route client.
+- `scraper/region.py`: expands state/`ALL` to ZIPs.
+- `scraper/ledger.py`: local SQLite ZIP ledger.
+- `scraper/outscraper_client.py`: Outscraper async request/poll wrapper.
+- `scraper/mapper.py`: Outscraper result to `ScrapedLead` shape.
+- `scraper/ingest.py`: posts chunks to `/api/agents/leads`.
+- `simplemaps_uszips_basicv1/uszips.csv`: current ZIP dataset.
+- `tests/`: 36 no-network/no-DB unit tests.
 
----
+## Runtime Defaults
 
-## 5. What it relies on that already exists (do NOT rebuild)
+- Search terms: `junk removal`, `dumpster rental`.
+- Default ZIP batch size: `BATCH_ZIP_COUNT=4`, overridable in worker env.
+- Outscraper result limit: `RESULTS_LIMIT=400`, overridable in worker env.
+- Ingest chunk size: 50 leads per POST.
+- Poll interval: 10 seconds unless `POLL_INTERVAL` is set.
+- Control route base URL: `AGENT_CALLBACK_URL` must be the dashboard base URL only.
 
-- `POST /api/agents/leads` — the ingest route (upserts by `googlePlaceId`). Only A6 touches it.
-- `AdminSetting` table — the existing key/value table; used for the control flags. No migration.
-- `ScrapedLead` columns — the worker writes only existing columns: `name, market, city, state,
-  source, discoveredVia, googlePlaceId, phone, website, address, categories, companyType, rating,
-  reviewCount, googleMapsUrl, latitude, longitude`. No new columns.
-- Enrichment pickup — enrichment selects `{ enrichedAt: null, isExistingClient: false }`; the
-  scraper leaves both at their defaults, so leads flow in automatically.
+Note: `src/app/api/agents/seed/route.ts` still stores `batch_zip_count: 12` in the agent config metadata. The current worker does not dynamically read that row; it uses `worker/scraper/config.py` and env variables at boot.
 
----
+## Lead Mapping
 
-## 6. Must-knows / gotchas
+The worker writes only existing `ScrapedLead` columns:
 
-- **No schema change**, no new dashboard dependencies.
-- **Reuses** the enrichment worker's Outscraper key and callback secret — nothing new to provision.
-- **The ZIP CSV is not committed** (SimpleMaps free license); this workspace has it uploaded under
-  `worker/simplemaps_uszips_basicv1/uszips.csv`, and the worker README documents both supported paths.
-- **A7 is optional.** Skip it (the leads-route state param + the scraped-page dropdown) and the
-  agent still works fully; you only lose the "filter leads by state" convenience.
-- **Live confirmation:** the only thing unit tests/typecheck can't prove is Outscraper's exact
-  live response shape — confirmed in the operator's first pilot batch (plan §9.3). The code is
-  defensive about it (length-checks the response, marks anything unexpected as a retryable error).
-- **Verified state of this package:** worker 35/35 tests pass + compiles; admin changes pass
-  `tsc --noEmit` with 0 errors.
+- `name`, `market`, `city`, `state`
+- `source`, `discoveredVia`
+- `googlePlaceId`, `phone`, `website`, `address`
+- `categories`, `companyType`
+- `rating`, `reviewCount`, `googleMapsUrl`
+- `latitude`, `longitude`
+
+Mapper compatibility:
+
+- Website: `website` first, then `site`.
+- Address: `address` first, then `full_address`.
+- State: full state name or two-letter value normalized to a two-letter code.
+- Categories: include the search term so enrichment can classify website-less leads.
+- Permanently closed businesses are dropped.
+
+The worker must not send enrichment-owned fields like `email`, `ownerName`, `serviceTypes`, `painTags`, `emailsDiscovered`, `reviewComplaints`, `reviewPraise`, `techDetected`, `notesFlags`, `reasons`, or `painPoints`.
+
+## Failure Model
+
+- Leads are posted after each successful ZIP batch, not after the whole state finishes.
+- The local SQLite ledger preserves ZIP status across Stop, sleep, crash, and restart.
+- If Outscraper credits run out or a batch fails, previous successful leads remain in `ScrapedLead`.
+- Failed ZIPs are marked `error`; a later sweep can retry them.
+- Pressing Stop clears the dashboard active flag; the worker finishes/halts at a batch boundary and idles.
+
+## Database Boundary
+
+No schema change is required. The feature uses:
+
+- `AdminSetting`
+- `SyjAgent`
+- `ScrapedLead`
+
+Do not run `prisma db push`, migrations, reset commands, direct SQL, or schema-application commands for this feature. Seeding the `lead_scraper` agent is an application data upsert through the dashboard, not a schema migration.
+
+## Verification Before Changing
+
+Before modifying this agent again:
+
+1. Read `.agents/README.md`, `.agents/PROJECT_KNOWLEDGE.md`, and `.agents/workflows/database-safety.md`.
+2. Verify the current code, not only these docs.
+3. Run worker tests:
+
+```bash
+cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker"
+source venv/bin/activate
+python3 -m unittest discover -s tests -v
+python3 -m py_compile server.py scraper/*.py tests/*.py
+```
+
+4. Use `git diff --check` before committing.
+5. Keep DB/schema commands out of scope unless Jamal explicitly overrides the shared-DB boundary.

@@ -1,89 +1,117 @@
-# Lead Scraper Agent
+# Lead Scraper Worker
 
-Discovers junk-removal & dumpster-rental businesses on Google Maps (via Outscraper),
-nationwide by ZIP, and ingests thin leads into the SYJ admin dashboard for the existing
-enrichment → outreach pipeline.
+FastAPI worker for the `lead_scraper` agent. It discovers junk-removal and dumpster-rental businesses through Outscraper, by ZIP, and posts thin leads into Jamal's Admin Dashboard.
 
-**Manual-only.** The worker acts only while the dashboard's Lead Scraper card is set to
-Start (it polls `lead_scraper_active`). There is no cron, no timer, no automated run.
-
-Spec: `JAMALS ADMIN DASH/LEAD_SCRAPER_TECHNICAL_PLAN.md` (Rev 5). This worker is the
-external half of that plan; the admin-repo half (control route, agent card, ingest
-normalization) ships in the dashboard repo.
-
-Replaces the retired v1 `LEAD SCRAPER BRIDGE` (now `LEAD SCRAPER BRIDGE (RETIRED)`).
+Manual-only: the worker acts only while the dashboard Lead Scraper card has an active Start state. There is no cron and no autonomous schedule.
 
 ## Layout
 
 ```
-server.py                 FastAPI app + self-driving control loop (plan §5)
+server.py                 FastAPI app + self-driving control loop
 scraper/
-  config.py               cfg snapshot + env loader
-  control.py              dashboard control-plane client (get_control / post_progress / post_done)
-  region.py               target (state | ALL) -> ZIP rows; 50 states + DC only
-  ledger.py               SQLite per-ZIP ledger + sweep/reset semantics (§4D)
-  outscraper_client.py    httpx maps/search-v3 (async + archive poll)
+  config.py               runtime defaults + env loader
+  control.py              dashboard control-plane client
+  region.py               target state/ALL -> ZIP rows; 50 states + DC
+  ledger.py               local SQLite per-ZIP ledger + sweep/reset semantics
+  outscraper_client.py    httpx maps/search-v3 async + archive polling
   mapper.py               Outscraper row -> ScrapedLead shape + per-ZIP dedup
   ingest.py               POST chunked leads to /api/agents/leads
-data/us_zips.csv          ZIP dataset (NOT bundled — download manually, see below)
-tests/                    pure-logic unit tests (no network/DB)
+simplemaps_uszips_basicv1/uszips.csv
+data/us_zips.csv          optional alternate ZIP dataset path
+tests/                    pure-logic unit tests; no network or DB
 ```
+
+## Required `.env`
+
+Copy `.env.example` to `.env` and fill:
+
+- `OUTSCRAPER_API_KEY`: same Outscraper key used by the enrichment worker.
+- `AGENT_CALLBACK_URL`: dashboard base URL, for production usually `https://syj-admin.vercel.app`.
+- `AGENT_CALLBACK_SECRET`: same shared agent callback secret used by enrichment.
+
+Optional runtime settings:
+
+- `POLL_INTERVAL`: control route polling interval in seconds, default `10`.
+- `BATCH_ZIP_COUNT`: ZIPs per worker batch, default `4`.
+- `RESULTS_LIMIT`: Outscraper `limit`, default `400`.
+- `DRY_RUN_TARGET`: dev-only state code such as `MA`; bypasses dashboard control and stubs ingest.
+
+Important: `AGENT_CALLBACK_URL` must be only the dashboard base URL. Do not append `/api/agents/callback` or any route path, because this worker builds its own `/api/agents/lead-scraper` and `/api/agents/leads` URLs.
+
+## ZIP Dataset
+
+The worker auto-detects either:
+
+- `simplemaps_uszips_basicv1/uszips.csv`
+- `data/us_zips.csv`
+
+This workspace currently uses `simplemaps_uszips_basicv1/uszips.csv`. If setting up a fresh clone, download the free/basic SimpleMaps US ZIP Codes CSV from `https://simplemaps.com/data/us-zips` and place `uszips.csv` in one of the supported paths.
+
+Attribution: ZIP data (c) SimpleMaps.com, free/basic tier.
 
 ## Setup
 
 ```bash
 cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker"
-python3.12 -m venv venv          # match the enrichment worker's Python
+python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env             # then fill in real values
+cp .env.example .env
 ```
 
-`.env` needs `OUTSCRAPER_API_KEY` (the SAME key the enrichment worker uses),
-`AGENT_CALLBACK_URL` (for local dashboard testing, `http://localhost:3000`), and
-`AGENT_CALLBACK_SECRET` (same secret as the enrichment worker).
-
-## ZIP dataset (one-time manual download — required)
-
-The worker needs `data/us_zips.csv` — the SimpleMaps **US Zip Codes (free/basic)** dataset.
-It is licensed and served behind a Cloudflare challenge, so it cannot be auto-downloaded:
-
-1. Go to https://simplemaps.com/data/us-zips and download the **free** (Basic) CSV.
-2. Unzip and either copy `uszips.csv` to `data/us_zips.csv` or leave the extracted folder at
-   `simplemaps_uszips_basicv1/uszips.csv`. The worker auto-detects both locations.
-3. Keep the SimpleMaps attribution (their free license requires a visible credit; this README
-   is the credit: *ZIP data © SimpleMaps.com, free/basic tier*).
-
-Expected columns (SimpleMaps default): `zip, city, state_id, lat, lng` (extra columns are
-ignored; `state_id` is the 2-letter code). Territories/military ZIPs are filtered out.
-
-## Run
+The one-line startup command Jamal has been using is:
 
 ```bash
-source venv/bin/activate
-caffeinate -dimsu python -m uvicorn server:app --host 127.0.0.1 --port 8007
+cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8007
 ```
 
-`caffeinate` keeps the Mac awake during a sweep. If the Mac sleeps or the process dies, the
-sweep pauses; restarting the worker resumes the same sweep (the ledger + the dashboard
-`lead_scraper_active` flag persist). Health: `GET http://127.0.0.1:8007/health`.
+Do not add any trailing word after port `8007`.
 
-Then drive it from the dashboard: **Agents tab → Lead Scraper card → pick a state → Start.**
-Watch the progress bar; press **Stop** to halt (the card's Stop is the only stop/recovery
-control — do not use any generic agent Reset).
+Health check:
 
-## Dry run (dev — no dashboard, no DB writes)
+```bash
+curl http://127.0.0.1:8007/health
+```
 
-Set `DRY_RUN_TARGET=MA` in `.env` and run the server. The loop bypasses the control route,
-sweeps MA, and **stubs ingest** (logs payloads instead of POSTing). Requires `data/us_zips.csv`
-and a real `OUTSCRAPER_API_KEY` if you want live Outscraper calls; otherwise the search step
-will error and ZIPs are marked `error` (safe). Use this to exercise the loop end-to-end with
-zero dashboard/DB contact before the real pilot.
+## Dashboard Operation
+
+1. Start the worker on port 8007.
+2. Open the Admin Dashboard -> Agents tab.
+3. Use the Lead Scraper card to select a state or `ALL`.
+4. Press Start.
+5. Watch the progress counts on the card.
+6. Press Stop to halt after the current batch.
+
+Successful leads are posted after each ZIP batch, not at the end of the whole state. If Outscraper credits run out or a batch fails, previously successful leads remain in `ScrapedLead`, and failed ZIPs are stored as `error` in the local ledger for a later retry.
+
+## Mapping Rules
+
+The worker writes only thin discovery fields needed before enrichment:
+
+- name, market, city, state
+- source, discoveredVia
+- googlePlaceId, phone, website, address
+- categories, companyType
+- rating, reviewCount, googleMapsUrl
+- latitude, longitude
+
+Current mapper compatibility:
+
+- Website: accepts Outscraper `website` first, then legacy/documented `site`.
+- Address: accepts Outscraper `address` first, then legacy/documented `full_address`.
+- State: normalizes full state names to two-letter codes.
+- Categories: always starts with the matched search term (`junk removal` or `dumpster rental`).
+- Closed businesses: drops `business_status="CLOSED_PERMANENTLY"`.
+
+The worker intentionally does not send enrichment-owned fields such as `email`, `ownerName`, `serviceTypes`, `painTags`, `emailsDiscovered`, `techDetected`, `notesFlags`, `reasons`, or `painPoints`.
 
 ## Tests
 
 ```bash
+cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker"
+source venv/bin/activate
 python3 -m unittest discover -s tests -v
+python3 -m py_compile server.py scraper/*.py tests/*.py
 ```
 
-Pure logic only (region/ledger/mapper/dedup/server control) — no network, no DB. 35 tests.
+Latest clean verification: 36/36 unit tests passed and py_compile passed.

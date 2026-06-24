@@ -1,84 +1,115 @@
-# Lead Scraper — Developer Handoff
+# Lead Scraper Agent
 
-Everything needed to assess, refine, and implement the **Lead Scraper agent** into the Jamals
-Admin Dashboard. Self-contained: hand this whole folder to the developer.
+Current status: integrated into Jamal's Admin Dashboard and pushed to `main`.
 
-The Lead Scraper discovers junk-removal & dumpster-rental businesses on Google Maps (via the
-Outscraper API), nationwide by ZIP code, and feeds thin leads into the existing `ScrapedLead`
-table for the existing enrichment → outreach pipeline. It is **manual-start-only** (no cron).
+The Lead Scraper discovers junk-removal and dumpster-rental businesses on Google Maps through Outscraper, runs by ZIP code for a selected state, and writes thin leads into the existing `ScrapedLead` table for the enrichment -> email cleaner -> outreach pipeline. It is manual-start-only from the dashboard.
 
-## What's in this folder
+## Current Architecture
 
 ```
-LEAD_SCRAPER_HANDOFF/
-├── README.md                  ← you are here
-├── worker/                    ← the external worker — a COMPLETE, STANDALONE app (new code)
-│   ├── server.py              ← FastAPI app + the self-driving control loop
-│   ├── scraper/*.py           ← config, control, region, ledger, outscraper_client, mapper, ingest
-│   ├── tests/*                ← 35 unit tests (pure logic, no network/DB) — all pass
-│   ├── requirements.txt, .env.example, .gitignore
-│   └── README.md              ← worker setup + run instructions
-├── admin/                     ← changes to the EXISTING dashboard repo (JAMALS ADMIN DASH)
-│   ├── NEW_FILE__api_agents_lead-scraper__route.ts   ← one new file, drop in whole
-│   └── ADMIN_CHANGES.md       ← exact additions to 6 existing files (anchor-based snippets)
-└── docs/                      ← the spec & build record (read these to assess)
-    ├── LEAD_SCRAPER_TECHNICAL_PLAN.md   ← the authoritative spec (Rev 5) — start here
-    ├── LEAD_SCRAPER_BRIEF.md            ← goal + locked product decisions
-    ├── LEAD_SCRAPER_BUILD_STATUS.md     ← what was built/verified + operator runbook
-    └── DB_BRIEF_FOR_SYJ_DEVELOPER.md    ← concise DB/schema handoff; no schema push expected
+Dashboard Lead Scraper card
+  POST start/stop
+        |
+        v
+src/app/api/agents/lead-scraper/route.ts
+  AdminSetting flags: active, target, startNonce, progress
+        ^
+        | polls every ~10s
+        v
+Lead Scraper Agent/worker/server.py
+  SimpleMaps ZIPs -> Outscraper maps/search-v3 -> mapper -> ingest
+        |
+        v
+POST /api/agents/leads
+  ScrapedLead rows with source="google", discoveredVia="google_maps", enrichedAt=null
+        |
+        v
+Existing lead_enrichment, email_cleaner, cold_outreach agents
 ```
 
-## The two halves
+The scraper does not create `SyjAgentRun` rows and does not use `/api/agents/pending-runs`. The generic `POST /api/agents/[id]` trigger is intentionally blocked for `lead_scraper`; the card's Start/Stop route is the only supported control path.
 
-1. **`worker/`** — a separate Python service that runs on a Mac (same machine as the existing
-   enrichment worker, on port **8007**). It does the actual searching and posts leads to the
-   dashboard's API. It is 100% new, standalone code — nothing in the dashboard repo. Refine it
-   in place.
-
-2. **`admin/`** — small, surgical changes inside the existing dashboard repo so it can drive and
-   observe the worker: one new API route (the control plane) + 6 small edits to existing files
-   (seed an agent, exclude the route from auth middleware, guard the generic trigger, normalize
-   the leads ingest, add a state filter, and add the dashboard card). See `admin/ADMIN_CHANGES.md`.
-
-## How they talk to each other
+## Folder Map
 
 ```
-Dashboard "Lead Scraper" card  ──start/stop──▶  AdminSetting flags (existing key/value table)
-        ▲ progress                                      │
-        │                                               ▼  (polls every ~10s)
-   GET /api/agents/lead-scraper  ◀──────────  Worker control loop (server.py)
-        ▲ progress/done                                 │  Outscraper maps/search-v3 (httpx)
-        │                                               ▼
-   ScrapedLead table  ◀── POST /api/agents/leads ──  map rows → thin leads (no enrichment fields)
-        │  (source="google", enrichedAt=null, discoveredVia="google_maps")
-        ▼
-   [existing lead_enrichment → email_cleaner → cold_outreach agents, unchanged]
+Lead Scraper Agent/
+|-- README.md
+|-- IMPLEMENTATION_PLAN.md                 # historical/current implementation guide
+|-- worker/
+|   |-- server.py                          # FastAPI app + control loop
+|   |-- scraper/
+|   |   |-- config.py                      # runtime defaults and env loader
+|   |   |-- control.py                     # dashboard control route client
+|   |   |-- region.py                      # state/ALL -> ZIP rows
+|   |   |-- ledger.py                      # local SQLite per-ZIP ledger
+|   |   |-- outscraper_client.py           # Outscraper maps/search-v3 wrapper
+|   |   |-- mapper.py                      # Outscraper row -> ScrapedLead payload
+|   |   `-- ingest.py                      # POST chunks to /api/agents/leads
+|   |-- simplemaps_uszips_basicv1/uszips.csv
+|   |-- tests/                             # 36 pure-logic tests
+|   |-- requirements.txt
+|   `-- README.md
+|-- admin/                                 # historical handoff snippets
+`-- docs/
+    |-- LEAD_SCRAPER_BUILD_STATUS.md       # current status and operator runbook
+    |-- DB_BRIEF_FOR_SYJ_DEVELOPER.md      # no-schema-change DB brief
+    |-- LEAD_SCRAPER_TECHNICAL_PLAN.md     # current technical contract
+    `-- LEAD_SCRAPER_BRIEF.md              # current product brief
 ```
 
-## Important notes for the developer
+## Current Runtime Behavior
 
-- **No database schema change.** The agent uses only existing columns on `ScrapedLead` and the
-  existing `AdminSetting` key/value table. The shared Neon DB is owned by the `scaleyourjunk`
-  repo — do not add columns here.
-- **Apply `admin/ADMIN_CHANGES.md` by hand, not as a patch.** The repo these were authored in had
-  unrelated uncommitted work in some of the same files, so a raw `git diff` is not clean. The
-  snippets are anchor-based (find X → add Y) so they apply onto your canonical copy.
-- **Verification already done:** the admin changes pass `tsc --noEmit` (0 errors) together; the
-  worker passes all 35 unit tests and `py_compile`. The one thing only a live run confirms is the
-  exact Outscraper response shape — validated in the operator's first pilot batch (see the plan
-  §9.3 and the runbook).
-- **ZIP dataset:** this workspace has the uploaded SimpleMaps folder at
-  `worker/simplemaps_uszips_basicv1/uszips.csv`, and the worker auto-detects it. For a fresh clone,
-  the worker README also supports copying the file to `worker/data/us_zips.csv`.
-- **Secrets:** the worker reuses the SAME `OUTSCRAPER_API_KEY` and `AGENT_CALLBACK_SECRET` the
-  enrichment worker already uses. See `worker/.env.example`.
+- The dashboard card lets the operator select one state or `ALL` and press Start.
+- The worker expands that target into ZIP rows using the SimpleMaps ZIP file.
+- Each ZIP is searched with two terms: `junk removal` and `dumpster rental`.
+- Default worker batch size is `BATCH_ZIP_COUNT=4` ZIPs per batch, overridable in the worker environment.
+- Outscraper is called with `async=true` and `limit=400`.
+- Successful ZIP batches are ingested immediately through `/api/agents/leads`; they do not wait for the full state to finish.
+- The local SQLite ledger tracks `pending`, `done`, `empty`, and `error` ZIPs so Stop, sleep, or a crash does not erase previous successful work.
+- If credits run out or a batch fails, already ingested leads remain in `ScrapedLead`; failed ZIPs are marked `error` for retry on a future sweep.
 
-## Suggested review order
+## Lead Payload Contract
 
-1. **`IMPLEMENTATION_PLAN.md`** — the concise developer plan: the files, how it works, and the
-   build order. **Start here.**
-2. `docs/LEAD_SCRAPER_TECHNICAL_PLAN.md` — the full design and the exact contracts.
-3. `worker/` — read `server.py` (the loop) then the `scraper/` modules; run `python3 -m unittest
-   discover -s tests` to see the 35 tests pass.
-4. `admin/NEW_FILE__…route.ts` + `admin/ADMIN_CHANGES.md` — the dashboard side.
-5. `docs/LEAD_SCRAPER_BUILD_STATUS.md` — the deploy/run runbook for after the code is merged.
+The worker writes only existing `ScrapedLead` fields:
+
+- `name`, `market`, `city`, `state`
+- `source="google"`, `discoveredVia="google_maps"`
+- `googlePlaceId`, `phone`, `website`, `address`
+- `categories`, `companyType`
+- `rating`, `reviewCount`, `googleMapsUrl`
+- `latitude`, `longitude`
+
+The mapper accepts both current and legacy Outscraper field names:
+
+- website: `website` or `site`
+- address: `address` or `full_address`
+
+The scraper intentionally does not write enrichment-owned fields such as `email`, `ownerName`, `serviceTypes`, `painTags`, `emailsDiscovered`, `reviewComplaints`, `reviewPraise`, `techDetected`, `notesFlags`, `reasons`, or `painPoints`.
+
+## Database Boundary
+
+No database schema additions are required for this feature.
+
+Do not run `prisma db push`, migrations, reset commands, or direct shared-DB mutation commands for Lead Scraper setup. The feature uses existing `AdminSetting`, `SyjAgent`, and `ScrapedLead` fields. Seeding the `lead_scraper` row through `/api/agents/seed` is an application data upsert, not a schema migration.
+
+## Verification
+
+Latest clean verification before this documentation refresh:
+
+- `python3 -m unittest discover -s tests -v`: 36/36 worker tests passed.
+- `python3 -m py_compile server.py scraper/*.py tests/*.py`: passed.
+- `git diff --check`: passed.
+- Latest functional fix commit: `d07deeb` (`Fix lead scraper website mapping`).
+
+## Operator Entry Points
+
+Worker setup and exact run command live in `worker/README.md`.
+
+Current dashboard flow:
+
+1. Ensure the dashboard code is deployed.
+2. Seed agents from the dashboard if the `lead_scraper` row is missing.
+3. Start the worker on port 8007.
+4. Open the Agents tab, select a state on the Lead Scraper card, and press Start.
+5. Watch progress in the card and inspect new rows in `/leads/scraped` filtered by state.
+6. Run Lead Enrichment manually after scraping; the scraper does not auto-enrich.

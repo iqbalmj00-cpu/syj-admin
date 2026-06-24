@@ -5,6 +5,8 @@
 No database schema additions are required for the Lead Scraper implementation.
 Do not run `prisma db push`, migrations, reset, or generated-schema changes for this feature unless the SYJ database owner independently finds schema drift.
 
+Current as of 2026-06-23: the latest Lead Scraper changes only adjusted worker runtime behavior and mapping compatibility (`website`/`site`, `address`/`full_address`, default worker batch size). They do not add any table, column, index, enum, relation, or schema-level requirement.
+
 The Lead Scraper uses existing shared database surfaces:
 
 - `AdminSetting` for control/progress flags.
@@ -103,3 +105,5 @@ First live validation should be a Massachusetts pilot batch. Inspect new leads b
 - categories populated
 - permanently closed businesses excluded
 - enrichment-owned fields not overwritten
+
+Current operator note: later state runs can be validated the same way by filtering `/leads/scraped` by state. Previously successful batches are inserted as they complete; a later worker failure or Outscraper credit issue does not remove already-created `ScrapedLead` rows.

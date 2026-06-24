@@ -1,8 +1,8 @@
 # Project Knowledge
 
-Last verified: 2026-05-11
+Last verified: 2026-06-23
 Canonical path: `.agents/PROJECT_KNOWLEDGE.md`
-Scope: `/Users/jamal/Documents/JAMALS ADMIN DASH`
+Scope: `/Volumes/CODE/JAMALS ADMIN DASH`
 
 This file is the durable project knowledge file for the Jamals Admin Dashboard / ScaleYourJunk admin repo.
 
@@ -18,7 +18,8 @@ This file is the durable project knowledge file for the Jamals Admin Dashboard /
 
 ## Repository Identity
 
-- Repo path: `/Users/jamal/Documents/JAMALS ADMIN DASH`
+- Repo path at current verification: `/Volumes/CODE/JAMALS ADMIN DASH`
+- Clean publish clone used for the latest documentation verification: `/private/tmp/syj-lead-scraper-deploy.JYBnoI`
 - Git branch at verification: `main`
 - Git remote at verification: `origin https://github.com/iqbalmj00-cpu/syj-admin.git`
 - App identity: private ScaleYourJunk admin operations dashboard.
@@ -26,12 +27,17 @@ This file is the durable project knowledge file for the Jamals Admin Dashboard /
 - Package manager: npm, verified by `package-lock.json`.
 - Package name: `syj-admin`.
 
-Pre-existing dirty working tree at verification:
+Pre-existing dirty working tree at the older 2026-05-11 verification:
 
 - Modified: `scripts/backfill-website-emails.mjs`
 - Untracked: `Ads Template - Content/files.zip`
 - Untracked: `DEV_BRIEF_ROUND_8.md`
 - Untracked: `scripts/verify-round-8.mjs`
+
+2026-06-23 repository-state note:
+
+- The active `/Volumes/CODE/JAMALS ADMIN DASH` checkout is a noisy/unborn local working tree with many generated/untracked files. For clean commits/pushes, use a clean clone and stage only the intended files.
+- The Lead Scraper implementation and documentation updates were verified in the clean clone above, on `main`, against `origin/main`.
 
 ## Source Of Truth Rules
 
@@ -332,7 +338,7 @@ Core agent models:
 - `ResearchReport`: generated research report drafts, PDFs, publishing metadata.
 - Facebook models: `FacebookGroup`, `FacebookScrapedPost`, and `FacebookAccount`.
 
-Primary run flow:
+Primary generic run flow:
 
 1. Dashboard fetches `/api/agents`.
 2. Dashboard triggers `POST /api/agents/[id]` or specialized routes.
@@ -342,19 +348,71 @@ Primary run flow:
 6. External agents report completion through `/api/agents/callback`, `/api/agents/enrichment-results`, `/api/agents/leads`, or other specialized endpoints.
 7. Dashboard shows latest run/status/history through `/api/agents`, `/api/agents/[id]`, and `/api/agents/[id]/runs`.
 
+Important exception:
+
+- `lead_scraper` does not use the generic `POST /api/agents/[id]` run path and does not create `SyjAgentRun` rows. It is controlled only by `src/app/api/agents/lead-scraper/route.ts` plus `AdminSetting` flags and an external worker ledger. The generic trigger route intentionally returns 400 for this slug.
+
 ## Seeded Agents
 
-The active seed endpoint is `src/app/api/agents/seed/route.ts`. It seeds seven agents. The route comment says four default agents, but the current code seeds seven, so the comment is outdated.
+The active seed endpoint is `src/app/api/agents/seed/route.ts`. It currently seeds eight rows:
+
+- `lead_scraper`
+- `cold_outreach`
+- `content_generator`
+- `lead_enrichment`
+- `email_cleaner`
+- `facebook_scraper`
+- `blog_writer`
+- `research_writer`
+
+Do not treat a seeded row as proof that the local/runtime agent is fully built or currently verified. The fully built/currently supported agent set from the verified code/docs is:
+
+- `lead_scraper`
+- `lead_enrichment`
+- `email_cleaner`
+- `cold_outreach`
+- `content_generator`
+- `blog_writer`
+- `research_writer`
+
+`facebook_scraper` has dashboard/API/model surfaces and a seed row, but its local scraper runtime was not verified in the latest readthrough. Do not present it as fully working until that runtime is separately inspected and tested.
 
 ### `lead_scraper`
 
-- Purpose: discovers junk removal companies from Google Places/Yelp style sources, enriches websites, and scores leads.
-- Default schedule: Monday 8 AM.
-- Default config includes markets: Houston, Philadelphia, Phoenix, Dallas.
-- Generic run path: `POST /api/agents/[id]`.
-- External trigger path: `AGENT_GATEWAY_URL/lead_scraper` or `LEAD_SCRAPER_URL/run`.
-- Result ingestion: `/api/agents/leads` supports secret/session auth and bulk upserts `ScrapedLead`.
-- External/polling support: `/api/agents/pending-runs?slug=lead_scraper&secret=...`.
+- Purpose: discovers junk-removal and dumpster-rental businesses from Google Maps via Outscraper, by ZIP, and ingests thin leads into `ScrapedLead` for the existing enrichment pipeline.
+- Operating mode: manual-only. There is no cron, no schedule, and no generic Run Now path. The dashboard Lead Scraper card writes Start/Stop state to `AdminSetting`; the external worker acts only while `lead_scraper_active` is true.
+- Admin control route: `src/app/api/agents/lead-scraper/route.ts`.
+  - `GET` returns `{ active, target, startNonce, progress, agentStatus }`.
+  - session-auth `POST action:"start"` validates a state or `ALL`, compare-and-sets `lead_scraper_active`, writes target/start nonce/progress, and marks the `SyjAgent` row running.
+  - session-auth `POST action:"stop"` clears active and marks the agent idle.
+  - secret-auth `POST action:"progress"` writes progress only for the current nonce.
+  - secret-auth `POST action:"done"` clears active and marks the agent idle.
+- Worker path: `/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker`.
+- Worker startup command:
+  `cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8007`
+- Worker runtime behavior:
+  - expands a selected state to ZIP rows from `worker/simplemaps_uszips_basicv1/uszips.csv` or `worker/data/us_zips.csv`;
+  - processes every ZIP in that state using two terms: `junk removal` and `dumpster rental`;
+  - defaults to `BATCH_ZIP_COUNT=4` ZIPs per Outscraper request group, overridable by worker env;
+  - sends `limit=400` to Outscraper and uses async archive polling;
+  - stores per-ZIP status in local SQLite ledger (`pending|done|empty|error`) so Stop/crash/sleep does not erase completed ZIPs;
+  - posts leads to `/api/agents/leads` in chunks of 50;
+  - records already-ingested leads as soon as each ZIP batch posts, not only after an entire state finishes.
+- Lead fields written: `name`, `market`, `city`, `state`, `source`, `discoveredVia`, `googlePlaceId`, `phone`, `website`, `address`, `categories`, `companyType`, `rating`, `reviewCount`, `googleMapsUrl`, `latitude`, `longitude`.
+- Mapper details verified 2026-06-23:
+  - Outscraper website may arrive as `website` or `site`; the mapper accepts both.
+  - Outscraper address may arrive as `address` or `full_address`; the mapper accepts both.
+  - categories are seeded with the matching search term so website-less leads still pass enrichment relevance checks.
+  - permanently closed businesses are dropped.
+  - enrichment-owned fields such as `email`, `ownerName`, `serviceTypes`, `painTags`, `emailsDiscovered`, etc. are intentionally not written by the scraper.
+- Seed config still includes `batch_zip_count: 12`, but the deployed worker runtime default is now `BATCH_ZIP_COUNT=4` from `worker/scraper/config.py`. Treat the worker env/code as the active runtime setting; the seed value is documentation/config metadata unless the worker is later changed to read agent config dynamically.
+- No schema changes are required for this agent. It uses existing `AdminSetting`, `SyjAgent`, and `ScrapedLead` fields only. Do not run `prisma db push` for this feature.
+- Latest clean verification/publish:
+  - `841fec2` integrated the Lead Scraper.
+  - `d07deeb` fixed website/address mapping and lowered the worker batch default.
+  - Worker tests: 36/36 passed with `python3 -m unittest discover -s tests -v`.
+  - Worker compile check passed with `python3 -m py_compile server.py scraper/*.py tests/*.py`.
+  - `git diff --check` passed.
 
 ### `lead_enrichment`
 
@@ -390,7 +448,8 @@ The active seed endpoint is `src/app/api/agents/seed/route.ts`. It seeds seven a
 
 ### `facebook_scraper`
 
-- Purpose: tracks/scrapes Facebook pages/groups/accounts for lead signals.
+- Status: present in seed/API/UI/model surfaces, but not verified as a fully built/currently working runtime in the latest readthrough. Exclude it from any "fully built working agents" summary until separately validated.
+- Purpose in seed/code: tracks/scrapes Facebook pages/groups/accounts for lead signals.
 - Seed description says it runs locally via terminal.
 - Active API surfaces include:
   - `/api/agents/facebook-groups`
