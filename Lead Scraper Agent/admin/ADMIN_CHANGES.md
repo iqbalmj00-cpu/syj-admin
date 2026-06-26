@@ -1,6 +1,6 @@
 # Lead Scraper Admin Changes
 
-Current status as of 2026-06-23: these dashboard changes are already implemented in the Admin Dashboard repo.
+Current status as of 2026-06-26: these dashboard changes are already implemented in the Admin Dashboard repo.
 
 This folder originally held handoff snippets for applying the Lead Scraper manually. Do not use this file as an instruction to reapply snippets to the current repo. The source of truth is now the live code plus:
 
@@ -33,9 +33,11 @@ This folder originally held handoff snippets for applying the Lead Scraper manua
 ## Current Worker Contract
 
 - Worker path: `/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker`.
-- Default runtime batch size: `BATCH_ZIP_COUNT=4`, overridable in worker env.
+- Default target scheduling pass size: `BATCH_TARGET_COUNT=4`, overridable in worker env.
+- Default provider concurrency: `OUTSCRAPER_JOB_CONCURRENCY=3`, overridable in worker env.
 - Outscraper result limit: `RESULTS_LIMIT=400`.
 - Lead ingest route: `POST /api/agents/leads`.
-- ZIP dataset path in this workspace: `worker/simplemaps_uszips_basicv1/uszips.csv`.
+- ZIP dataset path in this workspace: `worker/simplemaps_uszips_basicv1/uszips.csv`; runtime discovery groups this into city/grid targets.
+- Worker progress now includes target fetching and provider-job counts, so the dashboard can show in-flight provider work instead of looking idle while Outscraper is still polling.
 
 For any future admin change, inspect the live files above and make a fresh diff. Do not copy old snippets from prior chat output or old handoff documents.

@@ -114,12 +114,46 @@ export async function POST(req: NextRequest) {
                 setSetting(KEY_NONCE, nonce),
                 setSetting(KEY_PROGRESS, JSON.stringify({
                     state: target,
+                    discoveryMode: "city",
                     startNonce: nonce,
+                    targetsDone: 0,
+                    targetsTotal: 0,
+                    targetsEmpty: 0,
+                    targetsError: 0,
+                    targetsFetchError: 0,
+                    targetsFetching: 0,
+                    targetsOutboxPending: 0,
+                    targetsOutboxError: 0,
+                    targetsPending: 0,
+                    targetsSkippedBudget: 0,
+                    providerJobsPendingSubmit: 0,
+                    providerJobsSubmitted: 0,
+                    providerJobsInFlight: 0,
+                    providerJobsFinished: 0,
+                    providerJobsProcessed: 0,
+                    providerJobsFetchError: 0,
+                    queriesSubmitted: 0,
+                    rawRowsReturned: 0,
+                    uniqueRowsSeen: 0,
+                    duplicatesSkipped: 0,
+                    filteredRows: 0,
+                    acceptedLeads: 0,
+                    createdLeads: 0,
+                    updatedLeads: 0,
+                    skippedLeads: 0,
+                    estimatedWastedRows: 0,
+                    duplicateRate: 0,
+                    filteredRate: 0,
+                    acceptedRate: 0,
+                    createdRate: 0,
+                    rawToAcceptedRatio: 0,
+                    rawToCreatedRatio: 0,
                     zipsDone: 0,
                     zipsTotal: 0,
                     zipsEmpty: 0,
                     zipsError: 0,
                     leadsFound: 0,
+                    currentActivity: "waiting for worker",
                     updatedAt: nonce,
                 })),
                 prisma.syjAgent.updateMany({
@@ -147,17 +181,21 @@ export async function POST(req: NextRequest) {
             if (!hasSecret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
             const nonceRow = await getSetting(KEY_NONCE);
             const incomingNonce = typeof progress?.startNonce === "string" ? progress.startNonce : undefined;
-            if (incomingNonce && nonceRow?.value && incomingNonce !== nonceRow.value) {
+            if (!incomingNonce) {
+                return NextResponse.json({ ok: true, discarded: "missing-nonce" });
+            }
+            if (nonceRow?.value && incomingNonce !== nonceRow.value) {
                 return NextResponse.json({ ok: true, discarded: "stale-nonce" });
             }
 
             const activeRow = await getSetting(KEY_ACTIVE);
+            if (activeRow?.value !== "true") {
+                return NextResponse.json({ ok: true, discarded: "inactive-run" });
+            }
             await setSetting(KEY_PROGRESS, JSON.stringify(progress ?? {}));
             await prisma.syjAgent.updateMany({
                 where: { slug: "lead_scraper" },
-                data: activeRow?.value === "true"
-                    ? { status: "running", lastRunAt: new Date() }
-                    : { lastRunAt: new Date() },
+                data: { status: "running", lastRunAt: new Date() },
             });
             return NextResponse.json({ ok: true });
         }
@@ -165,7 +203,10 @@ export async function POST(req: NextRequest) {
         if (action === "done") {
             if (!hasSecret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
             const nonceRow = await getSetting(KEY_NONCE);
-            if (startNonce && nonceRow?.value && startNonce !== nonceRow.value) {
+            if (!startNonce) {
+                return NextResponse.json({ ok: true, discarded: "missing-nonce" });
+            }
+            if (nonceRow?.value && startNonce !== nonceRow.value) {
                 return NextResponse.json({ ok: true, discarded: "stale-nonce" });
             }
 

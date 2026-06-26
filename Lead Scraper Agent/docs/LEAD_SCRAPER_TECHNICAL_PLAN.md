@@ -1,16 +1,19 @@
 # Lead Scraper Technical Plan & Contract
 
-Current status as of 2026-06-23: implemented and pushed. This file is the current technical contract for future maintenance.
+Current status as of 2026-06-26: implemented. This file is the current technical contract for future maintenance.
 
 ## Goal
 
-Discover junk-removal and dumpster-rental businesses from Google Maps through Outscraper, by ZIP, for a selected state or `ALL`, and insert thin leads into `ScrapedLead` for the existing enrichment pipeline.
+Discover junk-removal and dumpster-rental businesses from Google Maps through Outscraper, by city/market targets for a selected state or `ALL`, and insert thin leads into `ScrapedLead` for the existing enrichment pipeline.
 
 Success criteria:
 
-- selected state expands to all supported ZIP rows from the SimpleMaps dataset;
-- every pending ZIP is searched for `junk removal` and `dumpster rental`;
+- selected state expands to every unique city/town from the SimpleMaps ZIP dataset, plus selective grid targets for large markets;
+- every pending city target is searched for the primary high-intent term `junk removal`;
+- the secondary city term `dumpster rental` is scheduled adaptively when recall still looks useful;
+- grid targets also search the expansion term `roll off dumpster`;
 - successful leads are posted to `/api/agents/leads` as each batch finishes;
+- paid provider rows are stored locally before dashboard ingest, so ingest failures do not force a paid refetch;
 - new rows have `source="google"`, `discoveredVia="google_maps"`, and `enrichedAt=null`;
 - enrichment-owned fields are not written or clobbered by rediscovery;
 - the dashboard card accurately reflects active/idle/progress state;
@@ -29,7 +32,7 @@ src/app/api/agents/lead-scraper/route.ts
   v
 Lead Scraper worker on port 8007
   |
-  | SimpleMaps ZIPs + local SQLite ledger
+  | SimpleMaps ZIPs -> city/grid targets + local provider/outbox ledger
   v
 Outscraper maps/search-v3
   |
@@ -57,10 +60,13 @@ The scraper does not use `SyjAgentRun` and does not use `/api/agents/pending-run
   "progress": {
     "state": "UT",
     "startNonce": "2026-06-23T00:00:00.000Z",
-    "zipsDone": 10,
-    "zipsTotal": 298,
-    "zipsEmpty": 2,
-    "zipsError": 1,
+    "targetsDone": 10,
+    "targetsTotal": 298,
+    "targetsFetching": 3,
+    "targetsEmpty": 2,
+    "targetsFetchError": 1,
+    "providerJobsInFlight": 3,
+    "providerJobsFetchError": 1,
     "leadsFound": 120,
     "updatedAt": "2026-06-23T00:10:00.000Z"
   },
@@ -116,19 +122,26 @@ Core files:
 - `server.py`: FastAPI app and control loop.
 - `scraper/config.py`: runtime config and env loader.
 - `scraper/control.py`: control-route client.
-- `scraper/region.py`: ZIP dataset loader and target expansion.
+- `scraper/region.py`: ZIP dataset loader and city/grid target expansion.
 - `scraper/ledger.py`: local SQLite ledger.
-- `scraper/outscraper_client.py`: Outscraper async search wrapper.
+- `scraper/outscraper_client.py`: Outscraper submit/poll wrapper.
 - `scraper/mapper.py`: row mapping and dedup.
 - `scraper/ingest.py`: dashboard ingest client.
 
 Runtime defaults:
 
 - `SEARCH_TERMS=["junk removal", "dumpster rental"]`
-- `BATCH_ZIP_COUNT=4` unless overridden by env
+- `BATCH_TARGET_COUNT=4` unless overridden by env
 - `RESULTS_LIMIT=400` unless overridden by env
 - `INGEST_CHUNK_SIZE=50`
 - `POLL_INTERVAL=10` unless overridden by env
+- `OUTSCRAPER_JOB_CONCURRENCY=3` unless overridden by env
+- `OUTSCRAPER_POLL_INTERVAL_SECONDS=25` unless overridden by env
+- `OUTSCRAPER_JOB_TIMEOUT_SECONDS=1800` unless overridden by env
+- `ENABLE_DROP_DUPLICATES=false` unless overridden by env
+- `ADAPTIVE_SECONDARY_TERMS=true` unless overridden by env
+- `SECONDARY_TERM_SKIP_DUPLICATE_RATE=0.80` unless overridden by env
+- `SECONDARY_TERM_SKIP_MIN_RAW_ROWS=20` unless overridden by env
 
 Required env:
 
@@ -149,24 +162,30 @@ The current workspace has `worker/simplemaps_uszips_basicv1/uszips.csv`.
 
 `region.py` filters to the 50 states plus DC and expands:
 
-- one state code -> all ZIP rows for that state;
+- one state code -> every unique city/town target for that state, using ZIP-level aggregation;
+- large markets -> optional coordinate grid targets;
 - `ALL` -> all supported states in sequence.
 
 ## Ledger Semantics
 
-The local SQLite ledger stores each ZIP status:
+The local SQLite ledger stores each target status plus provider jobs and outbox rows:
 
 - `pending`: not yet processed in this sweep;
-- `done`: searched and had at least one mapped result;
-- `empty`: searched successfully and returned no rows;
-- `error`: failed search, mismatched result count, task error, or missing ZIP-row issue.
+- `fetching`: provider jobs are queued/submitted/finished but target ingest is not terminal;
+- `done`: fetched and ingested or terminally skipped valid rows;
+- `empty`: searched successfully and returned no accepted rows;
+- `fetch_error`: one or more provider jobs failed before rows were preserved;
+- `outbox_pending` / `outbox_error`: rows were already fetched and paid for, but dashboard ingest still needs retry;
+- `skipped_budget`: optional run cap stopped before this target was fetched.
 
 Important behavior:
 
 - successful lead batches are already posted before the state finishes;
 - Stop/sleep/crash does not remove posted leads;
 - restarting the worker resumes from the ledger and dashboard active flag;
-- failed ZIPs can be retried in a later sweep.
+- finished provider rows are stored locally before mapping/ingest;
+- outbox rows are retried before new provider fetches on the next Start;
+- failed provider jobs can be retried in a later sweep without re-fetching successful jobs for the same target.
 
 ## Outscraper Contract
 
@@ -180,7 +199,7 @@ Request:
 - `async=true`;
 - `limit=400` by default.
 
-The worker expects one returned result bucket per query. If the returned result count does not match the query count, the whole batch is marked `error` rather than guessing alignment.
+The worker submits provider jobs per target/search term, stores the Outscraper request id/results location, polls on a bounded cadence, and stores finished rows before ingest. City targets start with the primary term; remaining terms are scheduled only when the primary result is useful or uncertain. One slow submitted provider job does not block unrelated targets from submitting or finishing. If one term fails for a target, only that failed provider job is requeued on the next Start.
 
 ## Lead Mapping
 
@@ -218,8 +237,8 @@ Mapping rules:
 - `phone`: row `phone`.
 - `website`: row `website`, else row `site`.
 - `address`: row `address`, else row `full_address`.
-- `categories`: `[matched search term, type, subtypes...]`, deduped.
-- `companyType`: `junk_removal` or `dumpster_rental` from the matched search term.
+- `categories`: real Outscraper/GBP category, type, subtype values only; matched search terms are not injected.
+- `companyType`: `junk_removal` or `dumpster_rental` from real evidence first, with the matched search term used only as an ambiguous-type tiebreaker.
 - `rating`: numeric `rating`.
 - `reviewCount`: integer `reviews`.
 - `googleMapsUrl`: row `location_link`.
@@ -229,6 +248,9 @@ Drop rules:
 
 - missing `name`;
 - `business_status="CLOSED_PERMANENTLY"`.
+- no real name/category/description evidence for the target industry;
+- absolute wrong-industry evidence such as junk-car buyers, auto parts/salvage, U-Haul-only dealers, police/government, or paper mills;
+- conditional off-target labels such as moving, towing, restoration, demolition, excavation, cleaning, lawn/landscape, tree service, or paving when not paired with strong junk/dumpster/debris/waste-container evidence.
 
 Do not send:
 
@@ -271,11 +293,14 @@ Do not run `prisma db push`, migrations, resets, Prisma generate, direct SQL, or
 
 ## Verification
 
-Current verification before this documentation refresh:
+Current verification:
 
-- `python3 -m unittest discover -s tests -v`: 36/36 passed.
-- `python3 -m py_compile server.py scraper/*.py tests/*.py`: passed.
-- `git diff --check`: passed.
+- `PYTHONDONTWRITEBYTECODE=1 venv/bin/python -m unittest discover -s tests -v`: 83/83 worker tests passed.
+- no-write Python syntax compilation passed for 17 worker files.
+- linked enrichment worker: 85/85 tests passed and no-write syntax compilation passed for 13 files.
+- Admin TypeScript `./node_modules/.bin/tsc --noEmit --pretty false --incremental false`: passed.
+- scoped repo `git diff --check`: passed.
+- No Prisma/DB command, schema push, migration, live Outscraper call, or live enrichment/provider call was run.
 
 Recommended verification before future changes:
 

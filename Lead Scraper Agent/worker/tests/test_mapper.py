@@ -37,7 +37,7 @@ class TestMapper(unittest.TestCase):
         self.assertEqual(lead["discoveredVia"], "google_maps")
         self.assertEqual(lead["source"], "google")
         self.assertEqual(lead["googlePlaceId"], "ChIJabc123")
-        self.assertEqual(lead["companyType"], "junk_removal")
+        self.assertEqual(lead["companyType"], "dumpster_rental")
         self.assertEqual(lead["website"], "https://joesjunk.com")
         self.assertEqual(lead["address"], "1 Main St, Boston, MA 02108")
         self.assertEqual(lead["rating"], 4.8)
@@ -51,17 +51,27 @@ class TestMapper(unittest.TestCase):
         self.assertEqual(lead["website"], "https://current.example")
         self.assertEqual(lead["address"], "2 Current St, Boston, MA 02108")
 
-    def test_categories_seeded_with_term(self):
-        lead = mapper.to_lead(_row(), ZIPROW)
-        self.assertEqual(lead["categories"][0], "junk removal")  # relevance-gate guarantee
-        self.assertIn("Garbage collection service", lead["categories"])
-        # subtypes comma-string split
-        self.assertIn("Junk removal service", lead["categories"])
+    def test_categories_are_real_outscraper_values_only(self):
+        lead = mapper.to_lead(_row(type="Dumpster rental service", subtypes="",
+                                   _term="junk removal"), ZIPROW)
+        self.assertEqual(lead["categories"], ["Dumpster rental service"])
+        self.assertNotIn("junk removal", [c.lower() for c in lead["categories"]])
 
-    def test_dumpster_term_company_type(self):
-        lead = mapper.to_lead(_row(_term="dumpster rental"), ZIPROW)
+    def test_dumpster_evidence_company_type(self):
+        lead = mapper.to_lead(_row(name="Acme Roll Off", type="Waste management service",
+                                   subtypes="", _term="junk removal"), ZIPROW)
         self.assertEqual(lead["companyType"], "dumpster_rental")
-        self.assertEqual(lead["categories"][0], "dumpster rental")
+
+    def test_search_term_only_breaks_ambiguous_company_type_tie(self):
+        lead = mapper.to_lead(_row(name="Acme Hauling", type="Garbage collection service",
+                                   subtypes="", _term="dumpster rental"), ZIPROW)
+        self.assertEqual(lead["companyType"], "dumpster_rental")
+
+    def test_search_term_does_not_make_irrelevant_row_valid(self):
+        self.assertIsNone(mapper.to_lead(_row(name="AutoZone Auto Parts",
+                                              type="Auto parts store",
+                                              subtypes="",
+                                              _term="junk removal"), ZIPROW))
 
     def test_drop_nameless(self):
         self.assertIsNone(mapper.to_lead(_row(name=""), ZIPROW))
@@ -105,15 +115,37 @@ class TestDedup(unittest.TestCase):
 
     def test_fallback_name_address_when_no_place_id(self):
         a = _row(place_id=None)
-        b = _row(place_id=None)
+        b = _row(place_id=None, full_address="1 Main Street, Boston MA 02108")
         c = _row(place_id=None, name="Different", full_address="9 Other Rd")
         out = mapper.dedup_by_place_id([a, b, c])
         self.assertEqual(len(out), 2)  # a&b merge, c distinct
+
+    def test_dedup_uses_google_id_fallback(self):
+        a = _row(place_id=None, google_id="0xabc")
+        b = _row(place_id=None, google_id="0xabc", full_address="99 Changed Rd")
+        out = mapper.dedup_by_place_id([a, b])
+        self.assertEqual(len(out), 1)
 
     def test_term_preference_when_only_dumpster(self):
         a = _row(place_id="P9", _term="dumpster rental")
         out = mapper.dedup_by_place_id([a])
         self.assertEqual(out[0]["_term"], "dumpster rental")
+
+    def test_duplicate_keeps_richest_row(self):
+        sparse = _row(place_id="P10", site=None, phone=None, full_address=None, reviews="1",
+                      _term="dumpster rental")
+        rich = _row(place_id="P10", site="https://rich.example", phone="+1 617-555-2222",
+                    full_address="10 Rich St, Boston, MA", reviews="200", _term="junk removal")
+        out = mapper.dedup_by_place_id([sparse, rich])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["site"], "https://rich.example")
+        self.assertEqual(out[0]["phone"], "+1 617-555-2222")
+        self.assertEqual(out[0]["_term"], "junk removal")
+
+    def test_lead_dedup_key_normalizes_address(self):
+        a = {"name": "Joe's Junk Removal", "state": "MA", "address": "1 Main St"}
+        b = {"name": "Joe s Junk Removal", "state": "MA", "address": "1 Main Street"}
+        self.assertEqual(mapper.lead_dedup_key(a), mapper.lead_dedup_key(b))
 
 
 if __name__ == "__main__":

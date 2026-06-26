@@ -84,9 +84,8 @@ const ENRICHMENT_AGENT_START_CMD = `cd "/Volumes/CODE/ENRICHMENT AGENT" && ([ -x
 const LEAD_SCRAPER_AGENT_START_CMD = `cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8007`;
 
 const AVAILABLE_AGENT_START_COMMANDS = [
-    { icon: "LS", label: "Lead Scraper", cmd: LEAD_SCRAPER_AGENT_START_CMD, color: "var(--info)" },
     { icon: "LE", label: "Lead Enrichment", cmd: ENRICHMENT_AGENT_START_CMD, color: "var(--success)" },
-    { icon: "FB", label: "Facebook Lead Scraper", cmd: `cd ~/Documents/"FACEBOOK SCRAPER AGENT" && source venv/bin/activate && caffeinate -dimsu uvicorn main:app --port 8005`, color: "var(--ink)" },
+    { icon: "LS", label: "Lead Scraper", cmd: LEAD_SCRAPER_AGENT_START_CMD, color: "var(--info)" },
 ];
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
@@ -111,7 +110,6 @@ const AGENT_ICONS: Record<string, string> = {
     lead_enrichment: "LE",
     cold_outreach: "CO",
     content_generator: "CG",
-    facebook_scraper: "FB",
     blog_writer: "BW",
     research_writer: "RR",
 };
@@ -598,11 +596,46 @@ interface ScraperControl {
     agentStatus: string;
     progress: {
         state?: string;
+        discoveryMode?: string;
+        targetsDone?: number;
+        targetsTotal?: number;
+        targetsEmpty?: number;
+        targetsError?: number;
+        targetsFetchError?: number;
+        targetsFetching?: number;
+        targetsOutboxPending?: number;
+        targetsOutboxError?: number;
+        targetsPending?: number;
+        targetsSkippedBudget?: number;
+        providerJobsPendingSubmit?: number;
+        providerJobsSubmitted?: number;
+        providerJobsInFlight?: number;
+        providerJobsFinished?: number;
+        providerJobsProcessed?: number;
+        providerJobsFetchError?: number;
+        queriesSubmitted?: number;
+        rawRowsReturned?: number;
+        uniqueRowsSeen?: number;
+        duplicatesSkipped?: number;
+        filteredRows?: number;
+        acceptedLeads?: number;
+        createdLeads?: number;
+        updatedLeads?: number;
+        skippedLeads?: number;
+        estimatedWastedRows?: number;
+        duplicateRate?: number;
+        filteredRate?: number;
+        acceptedRate?: number;
+        createdRate?: number;
+        rawToAcceptedRatio?: number;
+        rawToCreatedRatio?: number;
+        stopReason?: string;
         zipsDone?: number;
         zipsTotal?: number;
         zipsEmpty?: number;
         zipsError?: number;
         leadsFound?: number;
+        currentActivity?: string;
         updatedAt?: string;
     } | null;
 }
@@ -659,11 +692,21 @@ function LeadScraperControls({
 
     const active = !!ctrl?.active;
     const progress = ctrl?.progress;
-    const total = progress?.zipsTotal ?? 0;
-    const processed = (progress?.zipsDone ?? 0) + (progress?.zipsEmpty ?? 0) + (progress?.zipsError ?? 0);
+    const total = progress?.targetsTotal ?? progress?.zipsTotal ?? 0;
+    const outboxPending = progress?.targetsOutboxPending ?? 0;
+    const fetching = progress?.targetsFetching ?? 0;
+    const processed = (progress?.targetsDone ?? progress?.zipsDone ?? 0)
+        + (progress?.targetsEmpty ?? progress?.zipsEmpty ?? 0)
+        + (progress?.targetsError ?? progress?.zipsError ?? 0)
+        + (progress?.targetsSkippedBudget ?? 0)
+        + outboxPending;
     const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
     const staleMin = progress?.updatedAt ? (Date.now() - new Date(progress.updatedAt).getTime()) / 60000 : null;
     const offline = active && staleMin !== null && staleMin > 10;
+    const targetLabel = progress?.discoveryMode === "city" ? "targets" : "ZIPs";
+    const leadsLabel = progress?.createdLeads !== undefined || progress?.updatedLeads !== undefined
+        ? `${progress?.acceptedLeads ?? 0} accepted / ${(progress?.createdLeads ?? 0) + (progress?.updatedLeads ?? 0)} upserted`
+        : `${progress?.leadsFound ?? 0} leads`;
 
     return (
         <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -704,13 +747,41 @@ function LeadScraperControls({
                         <div style={{ width: `${pct}%`, height: "100%", background: offline ? "var(--warn-dark)" : "var(--info)", transition: "width 0.3s" }} />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-light)" }}>
-                        <span>{progress?.state || ctrl?.target || "-"}: {processed}/{total} ZIPs ({pct}%)</span>
-                        <span>{progress?.leadsFound ?? 0} leads</span>
+                        <span>{progress?.state || ctrl?.target || "-"}: {processed}/{total} {targetLabel} ({pct}%)</span>
+                        <span>{leadsLabel}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-faint)" }}>
-                        <span>{progress?.zipsEmpty ?? 0} empty / {progress?.zipsError ?? 0} error</span>
+                        <span>{fetching} fetching / {progress?.targetsEmpty ?? progress?.zipsEmpty ?? 0} empty / {progress?.targetsError ?? progress?.zipsError ?? 0} error / {outboxPending} upload retry / {progress?.duplicatesSkipped ?? 0} dupes</span>
                         <span>{progress?.updatedAt ? `updated ${relTime(progress.updatedAt)}` : ""}</span>
                     </div>
+                    {(progress?.currentActivity || progress?.providerJobsInFlight !== undefined) && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-faint)" }}>
+                            <span>{progress?.currentActivity || "provider queue active"}</span>
+                            <span>{progress?.providerJobsInFlight ?? 0} in flight / {progress?.providerJobsPendingSubmit ?? 0} queued / {progress?.providerJobsFinished ?? 0} ready</span>
+                        </div>
+                    )}
+                    {outboxPending > 0 && (
+                        <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
+                            {outboxPending} paid lead upload batch{outboxPending === 1 ? "" : "es"} preserved locally. Restart the worker/run to retry upload before any new Outscraper fetch.
+                        </div>
+                    )}
+                    {progress?.queriesSubmitted !== undefined && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-faint)" }}>
+                            <span>{progress.queriesSubmitted} queries / {progress.rawRowsReturned ?? 0} raw rows</span>
+                            <span>{progress.filteredRows ?? 0} filtered</span>
+                        </div>
+                    )}
+                    {progress?.estimatedWastedRows !== undefined && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-faint)" }}>
+                            <span>{progress.estimatedWastedRows} non-accepted rows / {Math.round((progress.duplicateRate ?? 0) * 100)}% duplicate</span>
+                            <span>{Math.round((progress.acceptedRate ?? 0) * 100)}% accepted</span>
+                        </div>
+                    )}
+                    {progress?.stopReason && (
+                        <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
+                            Stopped: {progress.stopReason}
+                        </div>
+                    )}
                     {offline && (
                         <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
                             Worker may be offline. No progress in {Math.round(staleMin ?? 0)} min. Check the scraper process or press Stop to reset.
@@ -853,17 +924,6 @@ function ConfigNote({ children }: { children: React.ReactNode }) {
 function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBlog }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void; onRefreshBlog?: () => void; refreshingBlog?: boolean }) {
     const inputStyle = { width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
 
-    /* ── Lead Scraper ── */
-    if (slug === "lead_scraper") {
-        return (
-            <ConfigNote>
-                Manual-only ZIP sweeps are controlled from the Lead Scraper card. The worker uses
-                junk removal and dumpster rental queries, writes thin Google Maps leads, and leaves
-                enrichment-owned fields untouched.
-            </ConfigNote>
-        );
-    }
-
     /* ── Cold Outreach ── */
     if (slug === "cold_outreach") {
         const emailSeq = (config.email_sequence as Array<{ day: number }>) || [{ day: 0 }, { day: 3 }, { day: 7 }];
@@ -985,43 +1045,6 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                 <ConfigField label="Tagline">
                     <ConfigInput value={String((config.brand as Record<string, string>)?.tagline || "Scale Your Junk Removal Business")} onChange={v => onChange("brand", { ...(config.brand as Record<string, string> || {}), tagline: v })} />
                 </ConfigField>
-            </>
-        );
-    }
-
-    /* ── Facebook Scraper ── */
-    if (slug === "facebook_scraper") {
-        const keywords = (config.keywords as string[]) || ["junk removal", "dumpster rental"];
-        const markets = (config.markets as string[]) || [];
-        const [keywordsText, setKeywordsText] = useState(keywords.join("\n"));
-        const [marketsText, setMarketsText] = useState(markets.join("\n"));
-        return (
-            <>
-                <ConfigField label="Search Keywords (one per line)">
-                    <textarea
-                        value={keywordsText}
-                        onChange={e => setKeywordsText(e.target.value)}
-                        onBlur={() => onChange("keywords", keywordsText.split("\n").map(s => s.trim()).filter(Boolean))}
-                        placeholder={"junk removal\ndumpster rental\nhauling service"}
-                        style={{ ...inputStyle, height: 80, resize: "vertical", fontFamily: "monospace" }} />
-                </ConfigField>
-                <ConfigField label="Markets (one per line — e.g. &quot;Houston TX&quot;)">
-                    <textarea
-                        value={marketsText}
-                        onChange={e => setMarketsText(e.target.value)}
-                        onBlur={() => onChange("markets", marketsText.split("\n").map(s => s.trim()).filter(Boolean))}
-                        placeholder={"Houston TX\nDallas TX\nAtlanta GA\nPhoenix AZ"}
-                        style={{ ...inputStyle, height: 100, resize: "vertical", fontFamily: "monospace" }} />
-                </ConfigField>
-                <ConfigField label="Max Results Per Query">
-                    <ConfigInput value={String(config.maxResultsPerQuery || 50)} onChange={v => onChange("maxResultsPerQuery", parseInt(v) || 50)} />
-                </ConfigField>
-                <ConfigField label="Max Follower Count (skip pages above this)">
-                    <ConfigInput value={String(config.maxFollowers || 5000)} onChange={v => onChange("maxFollowers", parseInt(v) || 5000)} />
-                </ConfigField>
-                <ConfigNote>
-                    Each keyword is combined with each market (e.g. &quot;junk removal Houston TX&quot;). If no markets are set, keywords are searched without location targeting. Already-scraped pages are automatically skipped.
-                </ConfigNote>
             </>
         );
     }
@@ -1394,7 +1417,7 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                             })}
                         </tbody>
                     </table>
-                    {leads.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No leads found. Run the Lead Scraper agent to discover leads.</div>}
+                    {leads.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No leads found.</div>}
                 </div>
                 {/* Pagination */}
                 {totalPages > 1 && (

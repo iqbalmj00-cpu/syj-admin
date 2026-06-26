@@ -25,6 +25,33 @@ class TestRegion(unittest.TestCase):
         self.assertEqual({r["zip"] for r in ma}, {"02108", "02109", "01060"})
         self.assertTrue(all(r["state"] == "MA" for r in ma))
 
+    def test_city_targets_include_every_unique_city_once(self):
+        targets = region.city_targets_for_state("MA", FIXTURE)
+        by_city = {t["city"]: t for t in targets}
+        self.assertEqual(set(by_city), {"Boston", "Northampton"})
+        self.assertEqual(by_city["Boston"]["zipCount"], 2)
+        self.assertEqual(by_city["Northampton"]["zipCount"], 1)
+        self.assertEqual(by_city["Boston"]["targetType"], "city")
+
+    def test_discovery_targets_add_grid_only_for_large_market(self):
+        city = {
+            "key": "TX:city:austin",
+            "state": "TX",
+            "city": "Austin",
+            "targetType": "city",
+            "lat": 30.2672,
+            "lng": -97.7431,
+            "population": 500000,
+            "density": 1200.0,
+            "zipCount": 20,
+            "zips": ["73301"],
+            "tier": "large",
+        }
+        grid = region.grid_targets_for_city(city, spacing_miles=10, max_points=5)
+        self.assertEqual(len(grid), 5)
+        self.assertTrue(all(t["targetType"] == "grid" for t in grid))
+        self.assertTrue(all(t["key"].startswith("TX:grid:austin:") for t in grid))
+
     def test_territories_and_military_excluded(self):
         # PR / GU / AE rows in the fixture must never appear, even under ALL.
         all_rows = region.zips_for_target("ALL", FIXTURE)

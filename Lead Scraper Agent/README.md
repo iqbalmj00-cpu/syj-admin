@@ -1,8 +1,8 @@
 # Lead Scraper Agent
 
-Current status: integrated into Jamal's Admin Dashboard and pushed to `main`.
+Current status: integrated into Jamal's Admin Dashboard. Last local verification: 2026-06-26.
 
-The Lead Scraper discovers junk-removal and dumpster-rental businesses on Google Maps through Outscraper, runs by ZIP code for a selected state, and writes thin leads into the existing `ScrapedLead` table for the enrichment -> email cleaner -> outreach pipeline. It is manual-start-only from the dashboard.
+The Lead Scraper discovers junk-removal and dumpster-rental businesses on Google Maps through Outscraper, runs by city/market targets for a selected state, and writes thin leads into the existing `ScrapedLead` table for the enrichment -> email cleaner -> outreach pipeline. It is manual-start-only from the dashboard.
 
 ## Current Architecture
 
@@ -17,7 +17,7 @@ src/app/api/agents/lead-scraper/route.ts
         | polls every ~10s
         v
 Lead Scraper Agent/worker/server.py
-  SimpleMaps ZIPs -> Outscraper maps/search-v3 -> mapper -> ingest
+  SimpleMaps ZIPs -> city/grid targets -> provider job queue -> mapper -> ingest
         |
         v
 POST /api/agents/leads
@@ -40,13 +40,13 @@ Lead Scraper Agent/
 |   |-- scraper/
 |   |   |-- config.py                      # runtime defaults and env loader
 |   |   |-- control.py                     # dashboard control route client
-|   |   |-- region.py                      # state/ALL -> ZIP rows
-|   |   |-- ledger.py                      # local SQLite per-ZIP ledger
+|   |   |-- region.py                      # state/ALL -> city/grid targets from ZIP rows
+|   |   |-- ledger.py                      # local SQLite target/provider/outbox ledger
 |   |   |-- outscraper_client.py           # Outscraper maps/search-v3 wrapper
 |   |   |-- mapper.py                      # Outscraper row -> ScrapedLead payload
 |   |   `-- ingest.py                      # POST chunks to /api/agents/leads
 |   |-- simplemaps_uszips_basicv1/uszips.csv
-|   |-- tests/                             # 36 pure-logic tests
+|   |-- tests/                             # pure-logic tests; no network or DB
 |   |-- requirements.txt
 |   `-- README.md
 |-- admin/                                 # historical handoff snippets
@@ -60,13 +60,14 @@ Lead Scraper Agent/
 ## Current Runtime Behavior
 
 - The dashboard card lets the operator select one state or `ALL` and press Start.
-- The worker expands that target into ZIP rows using the SimpleMaps ZIP file.
-- Each ZIP is searched with two terms: `junk removal` and `dumpster rental`.
-- Default worker batch size is `BATCH_ZIP_COUNT=4` ZIPs per batch, overridable in the worker environment.
-- Outscraper is called with `async=true` and `limit=400`.
-- Successful ZIP batches are ingested immediately through `/api/agents/leads`; they do not wait for the full state to finish.
-- The local SQLite ledger tracks `pending`, `done`, `empty`, and `error` ZIPs so Stop, sleep, or a crash does not erase previous successful work.
-- If credits run out or a batch fails, already ingested leads remain in `ScrapedLead`; failed ZIPs are marked `error` for retry on a future sweep.
+- The worker groups the SimpleMaps ZIP file into every unique city/town for the selected state.
+- Every city/town is searched at least once with `junk removal`. The secondary city term, `dumpster rental`, is scheduled when the primary result is not clearly duplicate-only or when the primary search already found accepted leads; this preserves recall while avoiding obvious duplicate spend. Large markets can receive extra coordinate-grid targets and the expansion term `roll off dumpster`.
+- Default scheduling pass size is `BATCH_TARGET_COUNT=4`; provider fetches are bounded by `OUTSCRAPER_JOB_CONCURRENCY=3`.
+- Outscraper is called with `async=true` and `limit=400`; `dropDuplicates` defaults off.
+- Finished provider rows are stored in local SQLite before mapping/ingest, so paid rows survive dashboard ingest failures.
+- Successful targets are ingested immediately through `/api/agents/leads`; they do not wait for the full state to finish.
+- The local SQLite ledger tracks target status plus individual provider jobs and the ingest outbox so Stop, sleep, or a crash does not erase previous successful work.
+- If credits run out or a provider job fails, already ingested leads remain in `ScrapedLead`; a later Start retries only failed provider jobs. If dashboard ingest fails after rows were fetched, the outbox is retried before any refetch.
 
 ## Lead Payload Contract
 
@@ -94,12 +95,14 @@ Do not run `prisma db push`, migrations, reset commands, or direct shared-DB mut
 
 ## Verification
 
-Latest clean verification before this documentation refresh:
+Latest clean local verification:
 
-- `python3 -m unittest discover -s tests -v`: 36/36 worker tests passed.
-- `python3 -m py_compile server.py scraper/*.py tests/*.py`: passed.
-- `git diff --check`: passed.
-- Latest functional fix commit: `d07deeb` (`Fix lead scraper website mapping`).
+- `PYTHONDONTWRITEBYTECODE=1 venv/bin/python -m unittest discover -s tests -v`: 83/83 worker tests passed.
+- no-write Python syntax compilation: 17 worker files passed.
+- linked enrichment worker: 85/85 tests passed and 13 files compiled.
+- Admin TypeScript: `./node_modules/.bin/tsc --noEmit --pretty false --incremental false` passed.
+- scoped repo `git diff --check`: passed.
+- No Prisma/DB command, schema push, migration, live Outscraper call, or live enrichment/provider call was run.
 
 ## Operator Entry Points
 

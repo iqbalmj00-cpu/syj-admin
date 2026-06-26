@@ -1,6 +1,6 @@
 # Project Knowledge
 
-Last verified: 2026-06-23
+Last verified: 2026-06-26
 Canonical path: `.agents/PROJECT_KNOWLEDGE.md`
 Scope: `/Volumes/CODE/JAMALS ADMIN DASH`
 
@@ -379,7 +379,7 @@ Do not treat a seeded row as proof that the local/runtime agent is fully built o
 
 ### `lead_scraper`
 
-- Purpose: discovers junk-removal and dumpster-rental businesses from Google Maps via Outscraper, by ZIP, and ingests thin leads into `ScrapedLead` for the existing enrichment pipeline.
+- Purpose: discovers junk-removal and dumpster-rental businesses from Google Maps via Outscraper, by city/market targets with selective grid expansion, and ingests thin leads into `ScrapedLead` for the existing enrichment pipeline.
 - Operating mode: manual-only. There is no cron, no schedule, and no generic Run Now path. The dashboard Lead Scraper card writes Start/Stop state to `AdminSetting`; the external worker acts only while `lead_scraper_active` is true.
 - Admin control route: `src/app/api/agents/lead-scraper/route.ts`.
   - `GET` returns `{ active, target, startNonce, progress, agentStatus }`.
@@ -391,28 +391,43 @@ Do not treat a seeded row as proof that the local/runtime agent is fully built o
 - Worker startup command:
   `cd "/Volumes/CODE/JAMALS ADMIN DASH/Lead Scraper Agent/worker" && ([ -x venv/bin/python ] && venv/bin/python -m pip --version >/dev/null 2>&1 || /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv) && (venv/bin/python -c 'import fastapi, uvicorn, httpx, dotenv, pydantic' || venv/bin/python -m pip install -r requirements.txt) && caffeinate -dimsu venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8007`
 - Worker runtime behavior:
-  - expands a selected state to ZIP rows from `worker/simplemaps_uszips_basicv1/uszips.csv` or `worker/data/us_zips.csv`;
-  - processes every ZIP in that state using two terms: `junk removal` and `dumpster rental`;
-  - defaults to `BATCH_ZIP_COUNT=4` ZIPs per Outscraper request group, overridable by worker env;
-  - sends `limit=400` to Outscraper and uses async archive polling;
-  - stores per-ZIP status in local SQLite ledger (`pending|done|empty|error`) so Stop/crash/sleep does not erase completed ZIPs;
+  - reads ZIP rows from `worker/simplemaps_uszips_basicv1/uszips.csv` or `worker/data/us_zips.csv`, groups them into every unique city/town, and searches each city/town at least once;
+  - uses population/density/ZIP count only to decide which large markets get coordinate grid expansion; small towns are not dropped;
+  - processes every city target at least once with the primary term `junk removal`; with `ADAPTIVE_SECONDARY_TERMS=true`, the secondary city term `dumpster rental` is scheduled only when the primary result found accepted leads, was too sparse to judge, or was not duplicate-heavy; grid targets still include all configured terms plus expansion terms such as `roll off dumpster`;
+  - defaults to `BATCH_TARGET_COUNT=4` city/grid targets per worker batch, overridable by worker env;
+  - sends explicit `limit=400` to Outscraper, defaults provider-side `dropDuplicates` off, and uses async submit/poll provider jobs;
+  - stores one local `provider_jobs` row per target/search term, including request id/results location, status, finished raw rows, and fetch error details;
+  - submits provider jobs with bounded concurrency so one slow/pending city does not block the rest of the state;
+  - dedupes rows per target and across the run, keeps the richest duplicate row, seeds partial retry dedup from already-processed provider rows for that target, then runs a local real-evidence relevance gate before upload;
+  - stores city/grid target status in local SQLite ledger (`pending|fetching|done|empty|fetch_error|outbox_pending|outbox_error|skipped_budget`) so Stop/crash/sleep does not erase completed targets;
+  - stores paid leads in local `lead_outbox` when dashboard ingest fails after rows were fetched, retries that outbox before any new Outscraper fetch on the next Start, and only re-fetches failed provider jobs where no paid rows were preserved;
   - posts leads to `/api/agents/leads` in chunks of 50;
-  - records already-ingested leads as soon as each ZIP batch posts, not only after an entire state finishes.
+  - records already-ingested leads as soon as each target posts, not only after an entire state finishes.
 - Lead fields written: `name`, `market`, `city`, `state`, `source`, `discoveredVia`, `googlePlaceId`, `phone`, `website`, `address`, `categories`, `companyType`, `rating`, `reviewCount`, `googleMapsUrl`, `latitude`, `longitude`.
-- Mapper details verified 2026-06-23:
+- Mapper/relevance details verified 2026-06-26:
   - Outscraper website may arrive as `website` or `site`; the mapper accepts both.
   - Outscraper address may arrive as `address` or `full_address`; the mapper accepts both.
-  - categories are seeded with the matching search term so website-less leads still pass enrichment relevance checks.
+  - `scraper/relevance.py` accepts only real name/category/description evidence for junk removal, dumpster rental, roll-off/waste-container rental, trash/debris removal, cleanout, appliance/furniture removal, generic waste companies with matching waste categories, or clearly related junk/waste hauling.
+  - evidence-ranked relevance lets strong junk/dumpster/debris evidence beat conditional terms such as moving, tree service, restoration, demolition, and excavation, while still rejecting standalone off-target businesses.
+  - storage-container-only and dumpster-cleaning-only rows are rejected unless the row has real waste/dumpster-rental context.
+  - search terms are not relevance proof and are not injected into `categories`.
+  - categories are real Outscraper/GBP type/category/subtype values only.
+  - `companyType` comes from real evidence first, with the matched search term used only as an ambiguous-type tiebreaker.
+  - worker logs include raw rows, deduped rows, accepted rows, filtered rows, and small rejected-row samples with reasons.
+  - dashboard progress now includes non-accepted row counts plus duplicate, filtered, accepted, created, and raw-to-accepted/raw-to-created rates for cost/yield monitoring.
   - permanently closed businesses are dropped.
   - enrichment-owned fields such as `email`, `ownerName`, `serviceTypes`, `painTags`, `emailsDiscovered`, etc. are intentionally not written by the scraper.
-- Seed config still includes `batch_zip_count: 12`, but the deployed worker runtime default is now `BATCH_ZIP_COUNT=4` from `worker/scraper/config.py`. Treat the worker env/code as the active runtime setting; the seed value is documentation/config metadata unless the worker is later changed to read agent config dynamically.
+- Seed config may still include legacy `batch_zip_count`, but the worker runtime uses city/market `BATCH_TARGET_COUNT` from `worker/scraper/config.py`. Treat the worker env/code as the active runtime setting; seed values are documentation/config metadata unless the worker is later changed to read agent config dynamically.
 - No schema changes are required for this agent. It uses existing `AdminSetting`, `SyjAgent`, and `ScrapedLead` fields only. Do not run `prisma db push` for this feature.
-- Latest clean verification/publish:
+- Latest verification/publish notes:
   - `841fec2` integrated the Lead Scraper.
   - `d07deeb` fixed website/address mapping and lowered the worker batch default.
-  - Worker tests: 36/36 passed with `python3 -m unittest discover -s tests -v`.
-  - Worker compile check passed with `python3 -m py_compile server.py scraper/*.py tests/*.py`.
-  - `git diff --check` passed.
+  - 2026-06-26 local worker tests: 83/83 passed with `PYTHONDONTWRITEBYTECODE=1 venv/bin/python -m unittest discover -s tests -v`.
+  - 2026-06-26 linked enrichment-worker tests: 85/85 passed with `PYTHONDONTWRITEBYTECODE=1 venv/bin/python -m unittest discover -s tests -v` in `/Volumes/CODE/ENRICHMENT AGENT`.
+  - 2026-06-26 no-write Python syntax compilation passed for 17 Lead Scraper worker files and 13 linked enrichment-worker files.
+  - 2026-06-26 Admin TypeScript check passed with `./node_modules/.bin/tsc --noEmit --pretty false --incremental false`.
+  - 2026-06-26 scoped repo `git diff --check` passed.
+  - 2026-06-26 no Prisma command, DB command, schema push, migration, deploy, live Outscraper call, or live enrichment/provider call was run.
 
 ### `lead_enrichment`
 

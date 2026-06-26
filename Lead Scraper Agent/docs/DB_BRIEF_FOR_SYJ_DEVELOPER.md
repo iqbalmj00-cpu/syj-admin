@@ -5,7 +5,7 @@
 No database schema additions are required for the Lead Scraper implementation.
 Do not run `prisma db push`, migrations, reset, or generated-schema changes for this feature unless the SYJ database owner independently finds schema drift.
 
-Current as of 2026-06-23: the latest Lead Scraper changes only adjusted worker runtime behavior and mapping compatibility (`website`/`site`, `address`/`full_address`, default worker batch size). They do not add any table, column, index, enum, relation, or schema-level requirement.
+Current as of 2026-06-26: the latest Lead Scraper changes adjusted worker runtime behavior only. City/grid targets, provider-job state, finished raw rows, and ingest outbox retries live in the worker's local SQLite file (`scraper_ledger.db`), not in the shared Neon database. They do not add any table, column, index, enum, relation, or schema-level requirement.
 
 The Lead Scraper uses existing shared database surfaces:
 
@@ -106,4 +106,4 @@ First live validation should be a Massachusetts pilot batch. Inspect new leads b
 - permanently closed businesses excluded
 - enrichment-owned fields not overwritten
 
-Current operator note: later state runs can be validated the same way by filtering `/leads/scraped` by state. Previously successful batches are inserted as they complete; a later worker failure or Outscraper credit issue does not remove already-created `ScrapedLead` rows.
+Current operator note: later state runs can be validated the same way by filtering `/leads/scraped` by state. Previously successful targets are inserted as they complete; a later worker failure or Outscraper credit issue does not remove already-created `ScrapedLead` rows. If dashboard ingest fails after paid rows are fetched, the worker retries those rows from its local outbox before any paid refetch.
