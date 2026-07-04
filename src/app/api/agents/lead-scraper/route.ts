@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, verifyAgentSecret } from "@/lib/auth";
+import { maybeRunLeadCleanerAfterScrape } from "@/lib/lead-cleaner-db";
+
+// The scraper "done" action is a third Lead Cleaner entry point (via after()):
+// give it the same 300s budget the other two entry points have, so a chained
+// cleaner run has room to finish within the platform function duration.
+export const maxDuration = 300;
 
 const KEY_ACTIVE = "lead_scraper_active";
 const KEY_TARGET = "lead_scraper_target";
@@ -217,6 +224,17 @@ export async function POST(req: NextRequest) {
                     data: { status: "idle" },
                 }),
             ]);
+            // Platform-tracked post-response work (next/server `after`):
+            // unlike a detached `void` promise, the runtime keeps the
+            // invocation alive until this completes. Still best-effort — the
+            // pre-enrichment gate remains the correctness boundary.
+            after(async () => {
+                try {
+                    await maybeRunLeadCleanerAfterScrape();
+                } catch (error) {
+                    console.warn("Lead Cleaner auto-trigger after scrape failed:", error);
+                }
+            });
             return NextResponse.json({ ok: true });
         }
 

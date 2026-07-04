@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "types": ["node"]
+    },
+    "include": ["src/lib/__tests__/**/*.ts", "src/lib/lead-classify.ts", "src/lib/lead-cleaner-util.ts"],
+    "exclude": ["node_modules"]
+}

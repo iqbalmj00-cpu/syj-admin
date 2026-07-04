@@ -472,24 +472,38 @@ export default function ScrapedLeadsPage() {
     const handleDragEnd = () => setIsDragging(false);
     useEffect(() => { window.addEventListener("mouseup", handleDragEnd); return () => window.removeEventListener("mouseup", handleDragEnd); }, []);
 
+    // Default "Discard" is a reversible soft archive that excludes leads from
+    // the active enrichment pool while keeping them restorable.
     const deleteSelected = async () => {
-        if (selectedIds.size === 0 || !confirm(`Delete ${selectedIds.size} lead(s)? This cannot be undone.`)) return;
+        if (selectedIds.size === 0 || !confirm(`Archive ${selectedIds.size} lead(s)? They'll be excluded from enrichment but can be restored.`)) return;
         setDeleting(true);
         try {
-            const res = await fetch("/api/agents/leads", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: Array.from(selectedIds) }) });
-            if (res.ok) { showToast(`Deleted leads`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
-        } catch { showToast("Failed to delete leads", "error"); }
+            const res = await fetch("/api/agents/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archive: true, ids: Array.from(selectedIds) }) });
+            if (res.ok) { showToast(`Archived leads`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
+            else { const d = await res.json().catch(() => ({})); showToast(d.error || "Failed to archive leads", "error"); }
+        } catch { showToast("Failed to archive leads", "error"); }
         setDeleting(false);
     };
 
-    const enrichSelected = async () => {
+    const restoreSelected = async () => {
+        if (selectedIds.size === 0 || !confirm(`Restore ${selectedIds.size} lead(s) back into the active enrichment pool?`)) return;
+        setDeleting(true);
+        try {
+            const res = await fetch("/api/agents/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restore: true, ids: Array.from(selectedIds) }) });
+            if (res.ok) { const d = await res.json().catch(() => ({})); showToast(`Restored ${d.restored ?? ""} lead(s)`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
+            else { const d = await res.json().catch(() => ({})); showToast(d.error || "Failed to restore leads", "error"); }
+        } catch { showToast("Failed to restore leads", "error"); }
+        setDeleting(false);
+    };
+
+    const enrichSelected = async (force = false) => {
         if (selectedIds.size === 0) return;
         setEnriching(true);
         try {
             const res = await fetch("/api/agents/enrichment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+                body: JSON.stringify({ leadIds: Array.from(selectedIds), force }),
             });
             const data = await res.json();
             if (res.ok) {
@@ -498,6 +512,13 @@ export default function ScrapedLeadsPage() {
                 setSelectAllMatching(false);
                 // Refresh leads after a short delay so the enriched state starts showing
                 setTimeout(() => fetchLeads(), 2000);
+            } else if (res.status === 409 && data.leadCleanerGate) {
+                const blocked = data.leadCleanerGate.selectedBlocked || 0;
+                if (confirm(`${blocked} selected lead(s) are archived or have not passed the Lead Cleaner. Enrich them anyway (spends enrichment budget)?`)) {
+                    setEnriching(false);
+                    return enrichSelected(true);
+                }
+                showToast("Enrichment cancelled", "error");
             } else {
                 showToast(data.error || "Enrichment failed to queue", "error");
             }
@@ -1691,7 +1712,7 @@ export default function ScrapedLeadsPage() {
                     <>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{selectedIds.size} selected</span>
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
-                        <button onClick={enrichSelected} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
+                        <button onClick={() => enrichSelected()} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
                         <button onClick={cleanSelectedEmails} disabled={cleaningEmails} title="Verify selected lead emails with Emailable; archive hard failures and keep uncertain emails for review" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: cleaningEmails ? "wait" : "pointer" }}>{cleaningEmails ? "Cleaning..." : "Clean List"}</button>
                         <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "Trigger Campaign"}</button>
                         <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--info-border)", borderRadius: 4, background: "var(--info-bg)", color: "var(--info)", cursor: "pointer" }}>Copy Emails</button>
@@ -1724,7 +1745,10 @@ export default function ScrapedLeadsPage() {
                                 </div>
                             )}
                         </div>
-                        <button onClick={deleteSelected} disabled={deleting} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Deleting..." : "Discard"}</button>
+                        {archivedFilter !== "active" && (
+                            <button onClick={restoreSelected} disabled={deleting} title="Clear archive and cleaner fields, then return to the active enrichment pool" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>{deleting ? "Restoring..." : "Restore"}</button>
+                        )}
+                        <button onClick={deleteSelected} disabled={deleting} title="Soft archive: excluded from enrichment but restorable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Archiving..." : "Discard"}</button>
                     </>
                 ) : (
                     <span style={{ fontSize: 12, color: "var(--text-light)" }}>Select rows to trigger outreach or discard.</span>

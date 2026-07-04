@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 
 // GET /api/agents/leads — List scraped leads with filtering (dashboard or agent with secret)
 export async function GET(req: NextRequest) {
@@ -693,12 +694,51 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// PATCH /api/agents/leads — Update a lead's outreach status (dashboard only)
+// PATCH /api/agents/leads — Update a lead's outreach status, archive, or
+// restore (dashboard only).
 export async function PATCH(req: NextRequest) {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
-        const { id, outreachStatus, outreachNotes } = body;
+        const { id, ids, outreachStatus, outreachNotes } = body;
+        const targetIds: string[] = Array.isArray(ids) && ids.length
+            ? ids.map((value: unknown) => String(value)).filter(Boolean)
+            : id ? [String(id)] : [];
+
+        // Soft-archive: excludes leads from the active enrichment pool while
+        // keeping them restorable for manual review mistakes.
+        if (body.archive === true) {
+            if (!targetIds.length) return NextResponse.json({ error: "id or ids is required" }, { status: 400 });
+            const result = await prisma.scrapedLead.updateMany({
+                where: { id: { in: targetIds }, archivedAt: null },
+                data: { archivedAt: new Date(), archiveReason: "manual_discard", archiveSource: "manual" },
+            });
+            return NextResponse.json({ ok: true, archived: result.count });
+        }
+
+        // Restore clears the archive triplet always. Once the Lead Cleaner
+        // schema is live, also clear cleaner audit fields so restored leads are
+        // eligible to be judged again.
+        if (body.restore === true) {
+            if (!targetIds.length) return NextResponse.json({ error: "id or ids is required" }, { status: 400 });
+            const schemaCapable = await isLeadCleanerSchemaReady();
+            const data: Record<string, unknown> = { archivedAt: null, archiveReason: null, archiveSource: null };
+            if (schemaCapable) {
+                Object.assign(data, {
+                    cleanerVerdict: null,
+                    cleanerReason: null,
+                    cleanerDecidedBy: null,
+                    cleanerConfidence: null,
+                    cleanerRunId: null,
+                    cleanedAt: null,
+                });
+            }
+            const loose = prisma.scrapedLead as unknown as {
+                updateMany(args: Record<string, unknown>): Promise<{ count: number }>;
+            };
+            const result = await loose.updateMany({ where: { id: { in: targetIds } }, data });
+            return NextResponse.json({ ok: true, restored: result.count });
+        }
 
         if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
@@ -720,7 +760,7 @@ export async function PATCH(req: NextRequest) {
     }
 }
 
-// DELETE /api/agents/leads — Bulk delete leads by IDs (dashboard only)
+// DELETE /api/agents/leads — Soft-archive leads by IDs (dashboard only)
 export async function DELETE(req: NextRequest) {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
@@ -731,11 +771,12 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "ids array is required" }, { status: 400 });
         }
 
-        const result = await prisma.scrapedLead.deleteMany({
-            where: { id: { in: ids } },
+        const result = await prisma.scrapedLead.updateMany({
+            where: { id: { in: ids }, archivedAt: null },
+            data: { archivedAt: new Date(), archiveReason: "manual_discard", archiveSource: "manual" },
         });
 
-        return NextResponse.json({ deleted: result.count });
+        return NextResponse.json({ archived: result.count, deleted: result.count });
     } catch (err) {
         console.error("DELETE /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to delete leads" }, { status: 500 });

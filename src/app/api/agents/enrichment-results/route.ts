@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 
 /**
  * POST /api/agents/enrichment-results
@@ -94,6 +95,124 @@ const CLEARABLE_FIELDS = new Set([
 
 function isV2Payload(data: Record<string, unknown>, version?: unknown) {
     return version === "v2" || data.enrichmentVersion === "v2";
+}
+
+function configForceApprovesLead(config: unknown, leadId: string): boolean {
+    if (!config || typeof config !== "object") return false;
+    const c = config as Record<string, unknown>;
+    return c.forcedLeadCleanerGate === true
+        && Array.isArray(c.leadIds)
+        && c.leadIds.map(id => String(id)).includes(leadId);
+}
+
+/**
+ * Writes to archived leads are allowed only when a running selected-enrichment
+ * run carries a recorded operator force approval covering this lead (see
+ * /api/agents/enrichment force handling).
+ *
+ * Prefers the run the worker claims to be processing (claimedRunId); falls
+ * back to any running forced run that covers the lead by CONTENT. This is not
+ * recency-based, so a concurrent non-forced run cannot cause a legitimate
+ * force-approved write to be rejected.
+ */
+async function runForceApprovalCoversLead(leadId: string, claimedRunId: string | null): Promise<boolean> {
+    try {
+        if (claimedRunId) {
+            const run = await prisma.syjAgentRun.findUnique({
+                where: { id: claimedRunId },
+                select: { status: true, config: true, agent: { select: { slug: true } } },
+            });
+            if (run && run.agent.slug === "lead_enrichment") {
+                // The claimed run's verdict is FINAL: another run's force
+                // approval must never authorize a write this run performs.
+                // It must also be currently running — a completed run's config
+                // snapshot keeps forcedLeadCleanerGate=true forever, so without
+                // the status check a late/replay callback could authorize a
+                // blocked write with no forced run actually running.
+                return run.status === "running" && configForceApprovesLead(run.config, leadId);
+            }
+            // Unresolvable claimed id: fall through to the content fallback
+            // (warn-first worker contract).
+        }
+        const runs = await prisma.syjAgentRun.findMany({
+            where: { status: "running", agent: { slug: "lead_enrichment" } },
+            orderBy: { startedAt: "desc" },
+            take: 25,
+            select: { config: true },
+        });
+        return runs.some(run => configForceApprovesLead(run.config, leadId));
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Validate the target lead's state before any write (previously this route
+ * wrote by raw leadId with no checks): archived leads are hard-rejected unless
+ * force-approved; a claimed run id that doesn't resolve to a lead_enrichment
+ * run is logged (warn-first while the worker contract phases in); uncleaned
+ * leads (once the cleaner schema is live) are logged for observability.
+ */
+async function validateTargetLead(leadId: string, claimedRunId: string | null) {
+    const schemaCapable = await isLeadCleanerSchemaReady();
+    const loose = prisma.scrapedLead as unknown as {
+        findUnique(args: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+    };
+    const target = await loose.findUnique({
+        where: { id: leadId },
+        select: schemaCapable
+            ? { id: true, archivedAt: true, cleanedAt: true }
+            : { id: true, archivedAt: true },
+    });
+    if (!target) {
+        return { ok: false as const, status: 404, body: { ok: false, skipped: "not_found", leadId, error: "Lead not found" } };
+    }
+    if (target.archivedAt) {
+        const forced = await runForceApprovalCoversLead(leadId, claimedRunId);
+        if (!forced) {
+            return {
+                ok: false as const,
+                status: 409,
+                body: {
+                    ok: false,
+                    skipped: "archived",
+                    leadId,
+                    error: "Lead is archived; enrichment write rejected. Restore the lead or re-run selected enrichment with force=true.",
+                },
+            };
+        }
+    }
+    if (claimedRunId) {
+        const run = await prisma.syjAgentRun.findUnique({
+            where: { id: claimedRunId },
+            select: { id: true, agent: { select: { slug: true } } },
+        });
+        if (!run || run.agent.slug !== "lead_enrichment") {
+            console.warn("POST /api/agents/enrichment-results: payload references an unknown enrichment run", { leadId, claimedRunId });
+        }
+    }
+    // Hard gate (mirrors enrichment-data): once the cleaner schema is live,
+    // results may not be written to a lead that never passed the Lead Cleaner
+    // unless a durable run force-approval covers it. Every action (enrich,
+    // delete, skip) writes lead state — "delete" even stamps enrichedAt, which
+    // would remove the lead from the cleaner candidate pool — so the gate
+    // applies uniformly.
+    if (schemaCapable && !target.archivedAt && target.cleanedAt == null) {
+        const forced = await runForceApprovalCoversLead(leadId, claimedRunId);
+        if (!forced) {
+            return {
+                ok: false as const,
+                status: 409,
+                body: {
+                    ok: false,
+                    skipped: "uncleaned",
+                    leadId,
+                    error: "Lead has not passed the Lead Cleaner; enrichment write rejected. Run the Lead Cleaner over it or re-run selected enrichment with force=true.",
+                },
+            };
+        }
+    }
+    return { ok: true as const };
 }
 
 const DATE_FIELDS = new Set([
@@ -191,6 +310,17 @@ export async function POST(req: NextRequest) {
 
         if (!leadId || !action) {
             return NextResponse.json({ error: "leadId and action are required" }, { status: 400 });
+        }
+
+        // B8 guard: never write to archived (or unknown) leads by raw leadId.
+        const claimedRunId = typeof body.runId === "string" && body.runId
+            ? body.runId
+            : (data && typeof data === "object" && typeof (data as Record<string, unknown>).enrichmentRunId === "string"
+                ? String((data as Record<string, unknown>).enrichmentRunId)
+                : null);
+        const validation = await validateTargetLead(String(leadId), claimedRunId);
+        if (!validation.ok) {
+            return NextResponse.json(validation.body, { status: validation.status });
         }
 
         // Update agent progress description (non-blocking)

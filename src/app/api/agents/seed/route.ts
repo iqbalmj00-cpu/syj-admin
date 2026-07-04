@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_EMAIL_CLEAN_POLICY } from "@/lib/emailable";
+import { DEFAULT_LEAD_CLEAN_POLICY } from "@/lib/lead-classify";
 
 // POST /api/agents/seed — Seed dashboard agents (dashboard only)
 export async function POST() {
@@ -132,14 +133,27 @@ export async function POST() {
                     ],
                 },
             },
+            {
+                slug: "lead_cleaner",
+                name: "Lead Cleaner",
+                description: "Pre-enrichment relevance gate for scraped leads. Archives irrelevant or franchise leads before paid enrichment.",
+                schedule: null,
+                config: {
+                    policy: DEFAULT_LEAD_CLEAN_POLICY,
+                },
+            },
         ];
 
         const results = [];
         for (const agent of agents) {
             const config = agent.config as unknown as Prisma.InputJsonValue;
+            // Preserve tuned Lead Cleaner policy when this seed endpoint is rerun.
+            const update = agent.slug === "lead_cleaner"
+                ? { name: agent.name, description: agent.description }
+                : { name: agent.name, description: agent.description, schedule: agent.schedule, config };
             const result = await prisma.syjAgent.upsert({
                 where: { slug: agent.slug },
-                update: { name: agent.name, description: agent.description, schedule: agent.schedule, config },
+                update,
                 create: { ...agent, config },
             });
             results.push(result);

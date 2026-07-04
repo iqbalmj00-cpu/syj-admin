@@ -1867,6 +1867,13 @@ model ScrapedLead {
   archivedAt      DateTime?
   archiveReason   String?
   archiveSource   String?
+  // ── Lead Cleaner audit/idempotency layer ──
+  cleanerVerdict     String?    // "keep" | "reject"
+  cleanerReason      String?    // e.g. "franchise:Junk King", "category_deny:scrap_yard", "llm_reject:unrelated_business"
+  cleanerDecidedBy   String?    // "rule" | "llm"
+  cleanerConfidence  Float?     // LLM confidence 0..1; null for rule decisions
+  cleanerRunId       String?    // SyjAgentRun.id that judged the lead
+  cleanedAt          DateTime?  // null = never judged by Lead Cleaner
   outreachLogs    OutreachLog[]
   outreachQueue   OutreachQueue[]
   createdAt       DateTime     @default(now())
@@ -1889,6 +1896,8 @@ model ScrapedLead {
   @@index([emailDeliverable])
   @@index([emailVerificationState])
   @@index([archivedAt])
+  @@index([cleanedAt])
+  @@index([enrichedAt, archivedAt, isExistingClient, cleanedAt])
   groupMemberships LeadGroupMember[]
 }
 

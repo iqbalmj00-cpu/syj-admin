@@ -107,6 +107,7 @@ const OUTREACH_MAP: Record<string, { bg: string; color: string; label: string }>
 
 const AGENT_ICONS: Record<string, string> = {
     lead_scraper: "LS",
+    lead_cleaner: "LC",
     lead_enrichment: "LE",
     cold_outreach: "CO",
     content_generator: "CG",
@@ -301,14 +302,44 @@ export default function AgentsPage() {
                 return;
             }
 
+            // Lead Cleaner — always an EXPLICIT preview run from this button.
+            // Enforce runs are only available from the reviewed Enforce action
+            // in the agent's config panel.
+            if (agent.slug === "lead_cleaner") {
+                showToast("Running Lead Cleaner preview...");
+                const res = await fetch(`/api/agents/${agent.id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ mode: "preview" }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.summary) {
+                    const s = data.summary;
+                    showToast(`Preview done: ${s.checked} checked, ${s.kept} kept, ${s.archivedFranchise + s.archivedCategory + s.archivedLlm} would archive, ${s.failed || 0} unjudged`);
+                } else {
+                    showToast(data.message || data.error || "Lead Cleaner run failed", "error");
+                }
+                fetchAgents();
+                return;
+            }
+
             // All other agents — trigger via standard run endpoint
             const res = await fetch(`/api/agents/${agent.id}`, { method: "POST" });
             if (res.ok) {
-                showToast("Run triggered");
+                const data = await res.json().catch(() => ({}));
+                if (data.leadCleanerGateWarning) {
+                    showToast(`Run triggered — Lead Cleaner warning: ${data.leadCleanerGateWarning}`);
+                } else {
+                    showToast("Run triggered");
+                }
                 fetchAgents();
             } else {
                 const data = await res.json();
-                showToast(data.error || "Failed to trigger run", "error");
+                if (data.leadCleanerGate) {
+                    showToast(`Blocked by Lead Cleaner gate: ${data.leadCleanerGate.message || data.error}`, "error");
+                } else {
+                    showToast(data.error || "Failed to trigger run", "error");
+                }
             }
         } catch { showToast("Failed to trigger run", "error"); }
     };
@@ -506,6 +537,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                             <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-light)", background: "var(--bg-subtle, rgba(0,0,0,0.02))" }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>Configuration</div>
                                 <AgentConfigFields slug={a.slug} config={editConfig} onChange={updateField} onRefreshBlog={a.slug === "blog_writer" ? refreshBlogConfig : undefined} refreshingBlog={refreshingBlog} />
+                                {a.slug === "lead_cleaner" && <LeadCleanerReviewPanel agent={a} showToast={showToast} onRefresh={onRefresh} />}
                                 <ScheduleEditor schedule={editSchedule} onChange={setEditSchedule} />
                                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                                     <button className="btn btn-xs btn-primary" onClick={() => saveConfig(a.id)} disabled={saving}
@@ -534,11 +566,19 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                                             Stop
                                         </button>
                                     )}
-                                    {/* Reset button for all agents — fixes stuck "running" status */}
+                                    {/* Reset button for all agents — fixes stuck "running" status.
+                                        Lead Cleaner uses cleaner-aware recovery (also clears the
+                                        run lock and reconciles stuck runs). */}
                                     <button className="btn btn-xs" onClick={async (e) => {
                                         e.stopPropagation();
-                                        await fetch(`/api/agents/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "idle", lastError: null }) });
-                                        showToast("Agent status reset");
+                                        if (a.slug === "lead_cleaner") {
+                                            const res = await fetch("/api/agents/lead-cleaner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recover: true }) });
+                                            const data = await res.json().catch(() => ({}));
+                                            showToast(res.ok ? `Lead Cleaner recovered (lock cleared, ${data.reconciledRuns || 0} stuck run(s) reconciled)` : (data.error || "Recovery failed"));
+                                        } else {
+                                            await fetch(`/api/agents/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "idle", lastError: null }) });
+                                            showToast("Agent status reset");
+                                        }
                                         onRefresh();
                                     }} style={{ color: "var(--text-faint)", background: "var(--neutral-bg)", border: "1px solid var(--neutral-border)", fontSize: 10, padding: "3px 8px" }}>
                                         Reset
@@ -886,6 +926,133 @@ function ScheduleEditor({ schedule, onChange }: { schedule: string | null; onCha
     );
 }
 
+/* ─── Lead Cleaner Preview Review + Enforce ─────────────────────────── */
+
+function LeadCleanerReviewPanel({ agent, showToast, onRefresh }: { agent: Agent; showToast: (m: string, t?: string) => void; onRefresh: () => void }) {
+    const [running, setRunning] = useState(false);
+    const [gate, setGate] = useState<{ schemaReady: boolean } | null>(null);
+
+    useEffect(() => {
+        let alive = true;
+        fetch("/api/agents/lead-cleaner").then(r => r.json()).then(d => { if (alive) setGate(d); }).catch(() => {});
+        return () => { alive = false; };
+    }, [agent.lastRunAt]);
+
+    const policy = ((agent.config?.policy as Record<string, unknown>) || {});
+    const results = (agent.lastRun?.results as Record<string, unknown> | null) || null;
+    const summary = (results?.summary as Record<string, unknown> | undefined);
+    const sampleRejects = (results?.sampleRejects as Array<{ id: string; name: string; reason: string; decidedBy: string }> | undefined) || [];
+    const lastRunId = agent.lastRun?.id;
+    const lastMode = results?.mode as string | undefined;
+    // Only a FULL preview (LLM enabled) can be reviewed for enforcement: a
+    // rules-only preview contains no LLM rejects, so reviewing it must not
+    // unlock enforce (the backend independently enforces the same rule).
+    const isRulesOnlyPreview = lastMode === "preview" && results?.skipLlm === true;
+    const isPreviewRun = lastMode === "preview" && agent.lastRun?.status === "completed" && results?.skipLlm !== true;
+    const reviewedRunId = policy.lastReviewedRunId as string | undefined;
+    const previewReviewed = !!lastRunId && reviewedRunId === lastRunId && isPreviewRun;
+
+    const schemaReady = gate?.schemaReady === true;
+    const archiveEnabled = policy.archiveEnabled === true;
+    const enforceReady = schemaReady && archiveEnabled && previewReviewed;
+
+    const runPreview = async (skipLlm: boolean) => {
+        setRunning(true);
+        try {
+            const res = await fetch("/api/agents/lead-cleaner", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "preview", skipLlm }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.summary) {
+                const s = data.summary;
+                showToast(`Preview: ${s.checked} checked · ${s.kept} kept · ${s.archivedFranchise + s.archivedCategory + s.archivedLlm} would archive · ${s.failed || 0} unjudged`);
+            } else {
+                showToast(data.message || data.error || "Preview failed", "error");
+            }
+            onRefresh();
+        } catch { showToast("Preview failed", "error"); }
+        setRunning(false);
+    };
+
+    const markReviewed = async () => {
+        if (!lastRunId) return;
+        const nextPolicy = { ...policy, lastReviewedRunId: lastRunId, reviewedAt: new Date().toISOString() };
+        const res = await fetch(`/api/agents/${agent.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ config: { ...(agent.config || {}), policy: nextPolicy } }),
+        });
+        showToast(res.ok ? "Preview marked reviewed — Enforce is now unlocked" : "Failed to record review", res.ok ? "success" : "error");
+        onRefresh();
+    };
+
+    const runEnforce = async () => {
+        const willArchive = summary ? Number(summary.archivedFranchise || 0) + Number(summary.archivedCategory || 0) + Number(summary.archivedLlm || 0) : 0;
+        if (!confirm(`Enforce mode will ARCHIVE approximately ${willArchive} lead(s) based on the reviewed preview. Archived leads are excluded from enrichment (restorable). Continue?`)) return;
+        setRunning(true);
+        try {
+            const res = await fetch("/api/agents/lead-cleaner", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "enforce" }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.summary) {
+                const s = data.summary;
+                showToast(`Enforce done: ${s.appliedArchived || 0} archived · ${s.appliedKept || 0} kept · ${s.staleSkipped || 0} skipped (changed since preview)`);
+            } else {
+                showToast(data.message || data.error || "Enforce failed", "error");
+            }
+            onRefresh();
+        } catch { showToast("Enforce failed", "error"); }
+        setRunning(false);
+    };
+
+    return (
+        <div style={{ marginTop: 14, marginBottom: 10, padding: "12px 14px", border: "1px solid var(--border-light)", borderRadius: 8, background: "var(--white)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>Preview Review &amp; Enforce</div>
+
+            {summary ? (
+                <div style={{ fontSize: 11, color: "var(--text-light)", lineHeight: 1.6, marginBottom: 8 }}>
+                    <div>Latest {lastMode || "run"}: <strong>{String(summary.checked)}</strong> checked · <strong>{String(summary.kept)}</strong> kept · <strong>{Number(summary.archivedFranchise || 0) + Number(summary.archivedCategory || 0) + Number(summary.archivedLlm || 0)}</strong> reject decisions · <strong>{String(summary.failed || 0)}</strong> unjudged{Number(summary.llmTruncated || 0) > 0 ? ` · ${String(summary.llmTruncated)} truncated` : ""}</div>
+                    {lastMode === "enforce" && <div>Applied: {String(summary.appliedArchived || 0)} archived · {String(summary.appliedKept || 0)} kept · {String(summary.staleSkipped || 0)} skipped</div>}
+                </div>
+            ) : (
+                <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>No completed run yet. Run a preview to see what would be archived.</div>
+            )}
+
+            {sampleRejects.length > 0 && (
+                <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-light)", borderRadius: 6, marginBottom: 8 }}>
+                    {sampleRejects.slice(0, 50).map(r => (
+                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 8px", fontSize: 10, borderBottom: "1px solid var(--border-light)" }}>
+                            <span style={{ color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name || r.id}</span>
+                            <span style={{ color: "var(--text-faint)", whiteSpace: "nowrap" }}>{r.reason} ({r.decidedBy})</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <button className="btn btn-xs btn-primary" disabled={running} onClick={() => runPreview(false)}>{running ? "Running..." : "Preview run"}</button>
+                <button className="btn btn-xs btn-ghost" disabled={running} onClick={() => runPreview(true)} title="Deterministic rules only — no LLM calls, no Anthropic spend">Preview (rules only)</button>
+                <button className="btn btn-xs" disabled={!isPreviewRun || previewReviewed} onClick={markReviewed}
+                    title={isRulesOnlyPreview ? "Rules-only previews cannot be reviewed for enforcement — run a full preview (LLM enabled) first" : previewReviewed ? "This preview is reviewed" : "Approve the latest full preview for enforcement"}
+                    style={{ background: previewReviewed ? "var(--info-bg)" : "var(--neutral-bg)", color: previewReviewed ? "var(--info)" : "var(--text-light)", border: "1px solid var(--neutral-border)" }}>
+                    {previewReviewed ? "✓ Reviewed" : "Mark preview reviewed"}
+                </button>
+                <button className="btn btn-xs" disabled={!enforceReady || running} onClick={runEnforce}
+                    title={!schemaReady ? "Cleaner schema not ready (LEAD_CLEANER_SCHEMA_READY)" : !archiveEnabled ? "Enable 'Allow live archiving' first" : !previewReviewed ? "Review the latest preview first" : "Run enforce (archives leads)"}
+                    style={{ background: enforceReady ? "var(--danger-bg)" : "var(--neutral-bg)", color: enforceReady ? "var(--danger)" : "var(--text-faint)", border: `1px solid ${enforceReady ? "var(--danger-border)" : "var(--neutral-border)"}`, opacity: enforceReady ? 1 : 0.6 }}>
+                    Enforce (archive)
+                </button>
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6 }}>
+                Enforce readiness: schema {schemaReady ? "✓" : "✗"} · archiving {archiveEnabled ? "✓" : "✗"} · full preview reviewed {previewReviewed ? "✓" : "✗"}
+                {" "}— enforce applies exactly the reviewed preview&apos;s decisions (server-verified)
+            </div>
+        </div>
+    );
+}
+
 /* ─── Per-Agent Config Fields ───────────────────────────────────────── */
 
 function ConfigField({ label, children }: { label: string; children: React.ReactNode }) {
@@ -923,6 +1090,48 @@ function ConfigNote({ children }: { children: React.ReactNode }) {
 
 function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBlog }: { slug: string; config: Record<string, unknown>; onChange: (key: string, value: unknown) => void; onRefreshBlog?: () => void; refreshingBlog?: boolean }) {
     const inputStyle = { width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", color: "var(--text)", outline: "none" };
+
+    if (slug === "lead_cleaner") {
+        const policy = (config.policy as Record<string, unknown>) || {};
+        const updatePolicy = (key: string, value: unknown) => onChange("policy", { ...policy, [key]: value });
+        return (
+            <>
+                <ConfigField label="Mode">
+                    <select value={String(policy.mode || "preview")} onChange={e => updatePolicy("mode", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="preview">Preview only</option>
+                        <option value="enforce">Enforce archive decisions</option>
+                    </select>
+                </ConfigField>
+                <ConfigField label="Enrichment Gate">
+                    <select value={String(policy.gateMode || "warn")} onChange={e => updatePolicy("gateMode", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                        <option value="off">Off</option>
+                        <option value="warn">Warn only</option>
+                        <option value="block">Block uncleaned full-pool enrichment</option>
+                    </select>
+                </ConfigField>
+                <ConfigToggle label="Allow live archiving" checked={policy.archiveEnabled === true} onChange={v => updatePolicy("archiveEnabled", v)} />
+                <ConfigToggle label="Auto-run after Lead Scraper finishes" checked={policy.autoTriggerEnabled === true} onChange={v => updatePolicy("autoTriggerEnabled", v)} />
+                <ConfigField label="Max Candidates Per Run">
+                    <ConfigInput value={String(policy.maxCandidatesPerRun || 1000)} onChange={v => updatePolicy("maxCandidatesPerRun", parseInt(v) || 1000)} />
+                </ConfigField>
+                <ConfigField label="Max Ambiguous LLM Leads Per Run">
+                    <ConfigInput value={String(policy.maxAmbiguousPerRun || 500)} onChange={v => updatePolicy("maxAmbiguousPerRun", parseInt(v) || 500)} />
+                </ConfigField>
+                <ConfigField label="LLM Batch Size">
+                    <ConfigInput value={String(policy.llmBatchSize || 30)} onChange={v => updatePolicy("llmBatchSize", parseInt(v) || 30)} />
+                </ConfigField>
+                <ConfigField label="LLM Model">
+                    <ConfigInput value={String(policy.llmModel || "claude-haiku-4-5")} onChange={v => updatePolicy("llmModel", v)} />
+                </ConfigField>
+                <ConfigNote>
+                    The <strong>Run Now</strong> button always runs a <strong>preview</strong>. Enforce (live archiving) is only
+                    available from the reviewed Enforce action below, and requires all of: the shared-DB cleaner fields,
+                    a deployed Prisma Client that includes them, <code>LEAD_CLEANER_SCHEMA_READY=true</code>,
+                    the &ldquo;Allow live archiving&rdquo; toggle, and a reviewed preview run.
+                </ConfigNote>
+            </>
+        );
+    }
 
     /* ── Cold Outreach ── */
     if (slug === "cold_outreach") {

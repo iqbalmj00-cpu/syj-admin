@@ -37,6 +37,7 @@
     ],
     "exclude": [
         "node_modules",
-        "prisma"
+        "prisma",
+        "src/lib/__tests__"
     ]
 }
