@@ -17,6 +17,8 @@ import {
     listInstantlyWebhooks,
 } from "@/lib/instantly";
 
+export const maxDuration = 300;
+
 async function handle(req: NextRequest) {
     if (!verifyColdEmailCronRequest(req)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

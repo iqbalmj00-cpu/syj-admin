@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { evaluateAndPersistColdEmailHealthAlerts, isColdEmailDeliverabilityStoreReady } from "@/lib/cold-email-deliverability-store";
 import { verifyColdEmailCronRequest } from "@/lib/cold-email-cron-auth";
 
+export const maxDuration = 300;
+
 async function handle(req: NextRequest) {
     if (!verifyColdEmailCronRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (!isColdEmailDeliverabilityStoreReady()) return NextResponse.json({ error: "Deliverability persistence is not ready" }, { status: 503 });

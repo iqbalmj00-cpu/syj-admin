@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/cold-email-accounts",
+      "schedule": "1,16,31,46 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-health-sync",
+      "schedule": "4,19,34,49 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-health",
+      "schedule": "7,22,37,52 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-capabilities",
+      "schedule": "10 */6 * * *"
+    }
+  ]
+}
