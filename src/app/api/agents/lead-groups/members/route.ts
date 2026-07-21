@@ -49,26 +49,18 @@ export async function POST(req: NextRequest) {
         const group = await prisma.leadGroup.findUnique({ where: { id: groupId } });
         if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
 
-        let added = 0;
-        let skipped = 0;
+        // Bulk insert; skipDuplicates handles the @@unique([groupId, leadId]) constraint
+        // (and any repeats within the input) via ON CONFLICT DO NOTHING — far faster than
+        // the prior per-lead create() loop for large segments.
+        const uniqueLeadIds = Array.from(new Set(leadIds.filter(Boolean)));
+        const result = await prisma.leadGroupMember.createMany({
+            data: uniqueLeadIds.map((leadId) => ({ groupId, leadId })),
+            skipDuplicates: true,
+        });
+        const added = result.count;
+        const skipped = uniqueLeadIds.length - added;
 
-        for (const leadId of leadIds) {
-            try {
-                await prisma.leadGroupMember.create({
-                    data: { groupId, leadId },
-                });
-                added++;
-            } catch (e: unknown) {
-                // Skip duplicates (unique constraint on groupId + leadId)
-                if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
-                    skipped++;
-                } else {
-                    throw e;
-                }
-            }
-        }
-
-        return NextResponse.json({ ok: true, added, skipped, total: leadIds.length });
+        return NextResponse.json({ ok: true, added, skipped, total: uniqueLeadIds.length });
     } catch (error) {
         console.error("POST /api/agents/lead-groups/members error:", error);
         return NextResponse.json({ error: "Failed to add members" }, { status: 500 });

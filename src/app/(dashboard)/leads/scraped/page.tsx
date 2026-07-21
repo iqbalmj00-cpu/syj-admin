@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Kpi } from "@/components/ui/Kpi";
 import { painTagsByCategory, praiseTagsByCategory } from "@/lib/pain-taxonomy";
+import { PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
 
 interface Lead {
     id: string; name: string; phone: string | null; email: string | null; website: string | null;
@@ -163,11 +164,13 @@ export default function ScrapedLeadsPage() {
     const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
     const [showGroupSelect, setShowGroupSelect] = useState(false);
     const [newGroupName, setNewGroupName] = useState("");
+    const [lastQuery, setLastQuery] = useState(""); // last leads filter query — reused to save a dynamic email segment
     // Manual add lead
     const [showAddLead, setShowAddLead] = useState(false);
     const [addingLead, setAddingLead] = useState(false);
     const [newLead, setNewLead] = useState({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
     const [archivedFilter, setArchivedFilter] = useState("active");
+    const [canPermanentlyDelete, setCanPermanentlyDelete] = useState(false);
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -265,7 +268,8 @@ export default function ScrapedLeadsPage() {
             params.set("limit", String(LEADS_PER_PAGE));
             params.set("sortBy", sortBy);
             params.set("sortOrder", sortOrder);
-            
+            setLastQuery(params.toString());
+
             const res = await fetch(`/api/agents/leads?${params}`);
             if (res.ok) {
                 const data = await res.json();
@@ -274,6 +278,7 @@ export default function ScrapedLeadsPage() {
                 setFunnel(data.funnel);
                 if (data.markets) setAvailableMarkets(data.markets);
                 if (data.states) setAvailableStates(data.states);
+                setCanPermanentlyDelete(data.permissions?.canPermanentlyDelete === true);
             }
         } catch { /* ignore */ }
         setLoading(false);
@@ -312,6 +317,40 @@ export default function ScrapedLeadsPage() {
             // Refresh groups list
             fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {});
         } catch { showToast("Failed to create group", "error"); }
+        setAddingToGroup(false);
+    };
+
+    // Create a DYNAMIC EMAIL segment from the CURRENT filter (not just the page selection):
+    // saves the filter as the group's filterDefinition and auto-includes every matching lead.
+    // Membership can be re-evaluated later from the Cold Email console (refresh).
+    const createEmailSegment = async () => {
+        if (!newGroupName.trim()) return;
+        setAddingToGroup(true);
+        try {
+            const qp = new URLSearchParams(lastQuery);
+            ["page", "limit", "sortBy", "sortOrder"].forEach(k => qp.delete(k));
+            const filterDefinition = Object.fromEntries(qp.entries());
+
+            const createRes = await fetch("/api/agents/lead-groups", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newGroupName.trim(), channel: "email", filterDefinition }),
+            });
+            if (!createRes.ok) { showToast("Failed to create segment", "error"); setAddingToGroup(false); return; }
+            const group = await createRes.json();
+
+            const idsRes = await fetch(`/api/agents/leads?${lastQuery}&idsOnly=true`);
+            const idsData = await idsRes.json();
+            const ids: string[] = Array.isArray(idsData.ids) ? idsData.ids : [];
+            if (ids.length > 0) {
+                await fetch("/api/agents/lead-groups/members", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ groupId: group.id, leadIds: ids }),
+                });
+            }
+            showToast(`Created email segment "${group.name}" with ${ids.length} lead(s)`);
+            setNewGroupName("");
+            fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {});
+        } catch { showToast("Failed to create email segment", "error"); }
         setAddingToGroup(false);
     };
 
@@ -472,8 +511,8 @@ export default function ScrapedLeadsPage() {
     const handleDragEnd = () => setIsDragging(false);
     useEffect(() => { window.addEventListener("mouseup", handleDragEnd); return () => window.removeEventListener("mouseup", handleDragEnd); }, []);
 
-    // Default "Discard" is a reversible soft archive that excludes leads from
-    // the active enrichment pool while keeping them restorable.
+    // Default "Discard" is now a reversible soft-archive (excludes leads from
+    // the active enrichment pool but keeps them restorable via PATCH restore).
     const deleteSelected = async () => {
         if (selectedIds.size === 0 || !confirm(`Archive ${selectedIds.size} lead(s)? They'll be excluded from enrichment but can be restored.`)) return;
         setDeleting(true);
@@ -485,6 +524,9 @@ export default function ScrapedLeadsPage() {
         setDeleting(false);
     };
 
+    // Restore soft-archived leads back into the active pool. Clears the archive
+    // triplet (and, once the cleaner schema is live, the Lead Cleaner audit
+    // fields) so a restored lead is re-judged from scratch.
     const restoreSelected = async () => {
         if (selectedIds.size === 0 || !confirm(`Restore ${selectedIds.size} lead(s) back into the active enrichment pool?`)) return;
         setDeleting(true);
@@ -493,6 +535,37 @@ export default function ScrapedLeadsPage() {
             if (res.ok) { const d = await res.json().catch(() => ({})); showToast(`Restored ${d.restored ?? ""} lead(s)`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
             else { const d = await res.json().catch(() => ({})); showToast(d.error || "Failed to restore leads", "error"); }
         } catch { showToast("Failed to restore leads", "error"); }
+        setDeleting(false);
+    };
+
+    const permanentlyDeleteSelected = async () => {
+        if (selectedIds.size === 0 || archivedFilter !== "true" || !canPermanentlyDelete) return;
+        const confirmation = prompt(
+            `This permanently deletes ${selectedIds.size} archived lead(s) and cannot be undone. Type ${PERMANENT_LEAD_DELETE_CONFIRMATION} to continue.`,
+        );
+        if (confirmation !== PERMANENT_LEAD_DELETE_CONFIRMATION) {
+            if (confirmation !== null) showToast("Permanent deletion cancelled: confirmation did not match", "error");
+            return;
+        }
+        setDeleting(true);
+        try {
+            const res = await fetch("/api/agents/leads", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: Array.from(selectedIds), confirmation }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showToast(`Permanently deleted ${data.deleted ?? 0} archived lead(s)`);
+                setSelectedIds(new Set());
+                setSelectAllMatching(false);
+                fetchLeads();
+            } else {
+                showToast(data.error || "Failed to permanently delete leads", "error");
+            }
+        } catch {
+            showToast("Failed to permanently delete leads", "error");
+        }
         setDeleting(false);
     };
 
@@ -513,6 +586,8 @@ export default function ScrapedLeadsPage() {
                 // Refresh leads after a short delay so the enriched state starts showing
                 setTimeout(() => fetchLeads(), 2000);
             } else if (res.status === 409 && data.leadCleanerGate) {
+                // Lead Cleaner gate blocked some selected leads (archived or
+                // not yet cleaned). Confirm the force override explicitly.
                 const blocked = data.leadCleanerGate.selectedBlocked || 0;
                 if (confirm(`${blocked} selected lead(s) are archived or have not passed the Lead Cleaner. Enrich them anyway (spends enrichment budget)?`)) {
                     setEnriching(false);
@@ -677,7 +752,7 @@ export default function ScrapedLeadsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                     <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", fontFamily: "var(--font-heading)" }}>Outbound Scraped Leads</h1>
-                    <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review, curate, and trigger campaigns for leads discovered by the AI Lead Scraper.</p>
+                    <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review, curate, enrich, and trigger campaigns for outbound leads.</p>
                 </div>
                 <button className="btn btn-sm btn-primary" onClick={() => setShowAddLead(!showAddLead)}>
                     {showAddLead ? "Cancel" : "+ Add Lead"}
@@ -775,7 +850,6 @@ export default function ScrapedLeadsPage() {
                     style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
                     <option value="all">All Sources</option>
                     <option value="google_maps">Google Maps</option>
-                    <option value="facebook_group">Facebook</option>
                     <option value="manual">Manual</option>
                 </select>
                 <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
@@ -1740,15 +1814,19 @@ export default function ScrapedLeadsPage() {
                                                 style={{ flex: 1, padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, outline: "none" }}
                                                 onKeyDown={e => e.key === "Enter" && createGroupAndAdd()} />
                                             <button className="btn btn-xs btn-primary" onClick={createGroupAndAdd} disabled={!newGroupName.trim()} style={{ fontSize: 10, padding: "3px 8px" }}>Create</button>
+                                            <button className="btn btn-xs" onClick={createEmailSegment} disabled={!newGroupName.trim()} title="Create a dynamic EMAIL segment from the current filter — auto-includes all matching leads and is refreshable from the Cold Email console" style={{ fontSize: 10, padding: "3px 8px" }}>+ Email segment</button>
                                         </div>
                                     </div>
                                 </div>
                             )}
                         </div>
                         {archivedFilter !== "active" && (
-                            <button onClick={restoreSelected} disabled={deleting} title="Clear archive and cleaner fields, then return to the active enrichment pool" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>{deleting ? "Restoring..." : "Restore"}</button>
+                            <button onClick={restoreSelected} disabled={deleting} title="Clear archive + cleaner fields and return to the active enrichment pool" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>{deleting ? "Restoring..." : "Restore"}</button>
                         )}
-                        <button onClick={deleteSelected} disabled={deleting} title="Soft archive: excluded from enrichment but restorable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Archiving..." : "Discard"}</button>
+                        {archivedFilter === "true" && canPermanentlyDelete && (
+                            <button onClick={permanentlyDeleteSelected} disabled={deleting} title="Super Admin only: permanently delete selected archived leads" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, border: "1px solid var(--danger)", borderRadius: 4, background: "var(--danger)", color: "#fff", cursor: deleting ? "wait" : "pointer" }}>{deleting ? "Deleting..." : "Permanently Delete"}</button>
+                        )}
+                        <button onClick={deleteSelected} disabled={deleting} title="Soft-archive: excluded from enrichment but restorable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Archiving..." : "Discard"}</button>
                     </>
                 ) : (
                     <span style={{ fontSize: 12, color: "var(--text-light)" }}>Select rows to trigger outreach or discard.</span>
@@ -1914,8 +1992,8 @@ export default function ScrapedLeadsPage() {
                                     {l.usingCompetitor ? <span style={{ color: "var(--danger)", fontWeight: 600 }}>{l.competitorPlatform || "Yes"}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}
                                 </td>
                                 <td><Badge status={l.outreachStatus} /></td>
-                                <td style={{ fontSize: 10, fontWeight: 600, color: (l as any).discoveredVia === "facebook_group" ? "#1877F2" : (l as any).discoveredVia === "manual" ? "var(--text-faint)" : "var(--success)" }}>
-                                    {(l as any).discoveredVia === "facebook_group" ? "FB" : (l as any).discoveredVia === "manual" ? "Manual" : "GMaps"}
+                                <td style={{ fontSize: 10, fontWeight: 600, color: (l as any).discoveredVia === "manual" ? "var(--text-faint)" : (l as any).discoveredVia === "google_maps" ? "var(--success)" : "var(--text-light)" }}>
+                                    {(l as any).discoveredVia === "manual" ? "Manual" : (l as any).discoveredVia === "google_maps" ? "GMaps" : "Other"}
                                 </td>
                                 <td style={{ fontSize: 11, color: l.enrichedAt ? "var(--success)" : "var(--text-faint)" }}>{l.enrichedAt ? "✓" : "—"}</td>
                             </tr>
@@ -1962,7 +2040,7 @@ export default function ScrapedLeadsPage() {
                                                 ["  ↳ Last Name", (l as any).ownerLastName],
                                                 ["  ↳ LinkedIn", (l as any).ownerLinkedInUrl],
                                                 ["  ↳ Direct Contact", (l as any).isDirectContact ? "🎯 Yes" : null],
-                                                ["Owner Source", (l as any).ownerNameSource ? ({ website: "Website", reviews: "Google Reviews", google_ai_mode: "Google AI Mode", web_search: "Web Search", facebook: "Facebook" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
+                                                ["Owner Source", (l as any).ownerNameSource && (l as any).ownerNameSource !== "facebook" ? ({ website: "Website", reviews: "Google Reviews", google_ai_mode: "Google AI Mode", web_search: "Web Search" } as Record<string, string>)[(l as any).ownerNameSource] || (l as any).ownerNameSource : null],
                                                 ["Owner Source URL", (l as any).ownerNameSourceUrl],
                                                 ["Owner Bio", (l as any).ownerBio],
                                                 ["Founded", (l as any).foundedYear],

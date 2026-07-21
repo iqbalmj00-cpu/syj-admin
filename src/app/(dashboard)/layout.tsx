@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const NAV_GROUPS = [
     {
@@ -16,7 +16,6 @@ const NAV_GROUPS = [
         items: [
             { id: "/leads/demo", label: "Demo Leads", icon: "bell" },
             { id: "/leads/scraped", label: "Scraped Leads", icon: "cpu" },
-            { id: "/leads/facebook", label: "Facebook Leads", icon: "users" },
             { id: "/cold-email", label: "Cold Email", icon: "mail" },
             { id: "/demo-scheduler", label: "Demo Scheduler", icon: "calendar" },
         ],
@@ -62,7 +61,6 @@ const TITLES: Record<string, string> = {
     "/clients": "Client Accounts",
     "/leads/demo": "Demo Leads Pipeline",
     "/leads/scraped": "Outbound Scraped Leads",
-    "/leads/facebook": "Facebook Leads",
     "/cold-email": "Cold Email Campaigns",
     "/billing": "Billing & Payments",
     "/revenue": "Revenue & Billing",
@@ -85,7 +83,6 @@ const SUBTITLES: Record<string, string> = {
     "/clients": "Account status, lifecycle progress, and service configuration.",
     "/leads/demo": "Inbound demo requests and qualification activity.",
     "/leads/scraped": "Outbound lead review, enrichment signals, and campaign readiness.",
-    "/leads/facebook": "Facebook-sourced lead intake and follow-up queue.",
     "/cold-email": "Instantly campaign control, lead selection, performance rates, and reply handling.",
     "/billing": "Invoices, payment status, and customer billing operations.",
     "/revenue": "MRR, plan mix, churn pressure, and growth signals.",
@@ -174,18 +171,22 @@ function ChevronIcon({ direction }: { direction: "left" | "right" }) {
 
 function getPageTitle(pathname: string) {
     if (pathname.startsWith("/clients/")) return "Client Detail";
+    if (pathname.startsWith("/cold-email/")) {
+        const section = pathname.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") || "Operations";
+        return `Cold Email · ${section.replace(/\b\w/g, (letter) => letter.toUpperCase())}`;
+    }
     return TITLES[pathname] || "Dashboard";
 }
 
 function getPageSubtitle(pathname: string) {
     if (pathname.startsWith("/clients/")) return "Client profile, account activity, billing status, and operational controls.";
+    if (pathname.startsWith("/cold-email/")) return "Canonical cold email operations, evidence, and recovery controls.";
     return SUBTITLES[pathname] || "Operational workspace for ScaleYourJunk administration.";
 }
 
 function SearchModal({ onClose }: { onClose: () => void }) {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<Array<{ id: string; company: string; name: string; email: string; plan: string }>>([]);
     const [allClients, setAllClients] = useState<Array<{ id: string; company: string; name: string; email: string; plan: string }>>([]);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -194,20 +195,17 @@ function SearchModal({ onClose }: { onClose: () => void }) {
         fetch("/api/clients").then(r => r.json()).then(setAllClients).catch(() => {});
     }, []);
 
-    useEffect(() => {
+    const results = useMemo(() => {
         const trimmed = query.trim();
-        if (!trimmed) {
-            setResults([]);
-            return;
-        }
+        if (!trimmed) return [];
 
         const q = trimmed.toLowerCase();
-        setResults(allClients.filter(c =>
+        return allClients.filter(c =>
             c.company?.toLowerCase().includes(q) ||
             c.name?.toLowerCase().includes(q) ||
             c.email?.toLowerCase().includes(q) ||
             c.id.includes(q)
-        ).slice(0, 8));
+        ).slice(0, 8);
     }, [query, allClients]);
 
     const openClient = useCallback((clientId: string) => {

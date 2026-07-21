@@ -1,0 +1,16 @@
+export const COLD_EMAIL_SOURCE_OF_TRUTH = [
+    { field: "campaign identity and immutable policy", authority: "admin", providerRole: "projection" },
+    { field: "campaign sending state", authority: "instantly", providerRole: "authoritative after reconciliation" },
+    { field: "audience membership and eligibility", authority: "admin", providerRole: "accepted enrollment evidence" },
+    { field: "manual do not contact", authority: "admin_operator", providerRole: "email and domain block projection when certified" },
+    { field: "provider unsubscribe", authority: "instantly", providerRole: "observed state only; never fabricates manual DNC" },
+    { field: "sending account status and limits", authority: "instantly", providerRole: "authoritative observation" },
+    { field: "sending pools, domain caps, and reservations", authority: "admin", providerRole: "input facts only" },
+    { field: "message and reply facts", authority: "instantly", providerRole: "webhook and polling projection" },
+    { field: "conversation workflow and disposition", authority: "admin_operator", providerRole: "review suggestions only" },
+    { field: "meeting event state", authority: "google_calendar", providerRole: "authoritative after read-back" },
+    { field: "opportunity stage and closed won", authority: "admin_operator", providerRole: "not inferred from payment" },
+    { field: "activation and customer identity", authority: "scaleyourjunk", providerRole: "cross-system projection" },
+    { field: "payment and subscription state", authority: "stripe", providerRole: "event-ID-deduplicated projection" },
+    { field: "delivered and complaint metrics", authority: "unavailable", providerRole: "must not be fabricated" },
+] as const;

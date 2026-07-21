@@ -8,6 +8,7 @@ import {
     buildSyntheticEmailResult,
     createEmailableBatch,
     getEmailableApiKey,
+    isPersonalEmailDomain,
     isPlausibleEmail,
     mergeEmailCleanPolicy,
     normalizeEmail,
@@ -55,6 +56,7 @@ function buildCleanTargets(leads: LeadForCleaning[]) {
     const missingLeadIds: string[] = [];
     const invalidLeadIds: string[] = [];
     const duplicateLeadIds: string[] = [];
+    const skippedPersonalEmails = new Set<string>();
 
     for (const lead of leads) {
         const candidates = normalizeEmailCandidatesForLead(lead);
@@ -69,13 +71,19 @@ function buildCleanTargets(leads: LeadForCleaning[]) {
             continue;
         }
 
-        emailCandidatesByLead[lead.id] = validCandidates;
+        let hasVerificationTarget = false;
         for (const candidate of validCandidates) {
             const email = normalizeEmail(candidate.email);
             if (!email) continue;
+            if (isPersonalEmailDomain(email)) {
+                skippedPersonalEmails.add(email);
+                continue;
+            }
             if (!emailToLeadIds[email]) emailToLeadIds[email] = [];
             if (!emailToLeadIds[email].includes(lead.id)) emailToLeadIds[email].push(lead.id);
+            hasVerificationTarget = true;
         }
+        if (hasVerificationTarget) emailCandidatesByLead[lead.id] = validCandidates;
     }
 
     return {
@@ -84,6 +92,7 @@ function buildCleanTargets(leads: LeadForCleaning[]) {
         missingLeadIds,
         invalidLeadIds,
         duplicateLeadIds,
+        skippedPersonalEmail: skippedPersonalEmails.size,
         validEmails: Object.keys(emailToLeadIds),
     };
 }
@@ -149,6 +158,7 @@ export async function POST(req: NextRequest) {
             missingEmail: targets.missingLeadIds.length,
             invalidEmail: targets.invalidLeadIds.length,
             duplicateEmail: targets.duplicateLeadIds.length,
+            skippedPersonalEmail: targets.skippedPersonalEmail,
         };
 
         if (body.dryRun) {

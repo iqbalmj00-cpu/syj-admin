@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const STUCK_THRESHOLD_MS = 150 * 60 * 1000; // 150 minutes (2.5 hours — allows for 2h scraper timeout + buffer)
+const STUCK_THRESHOLD_MS = 150 * 60 * 1000; // 150 minutes (2.5 hours)
 
-// GET /api/agents/pending-runs?slug=lead_scraper&secret=xxx
+// GET /api/agents/pending-runs?slug=agent_slug&secret=xxx
 // Returns the oldest unclaimed run for polling-based agents.
 // Also auto-fails runs stuck for > 150 minutes (2.5 hours).
 export async function GET(req: NextRequest) {
@@ -28,12 +28,18 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Agent not found" }, { status: 404 });
         }
 
-        // Auto-fail stuck runs (running for > 150 minutes with trigger still "manual")
+        // Auto-fail stuck runs: only UNCLAIMED runs (trigger still "manual")
+        // older than the threshold. A run a worker is actively processing has
+        // been claimed (trigger flipped to "polling" below), so it is never
+        // swept — this prevents killing a long but healthy in-progress run,
+        // which would otherwise expire the Lead Cleaner force-approval that
+        // depends on the run still being "running".
         const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
         const stuckRuns = await prisma.syjAgentRun.findMany({
             where: {
                 agentId: agent.id,
                 status: "running",
+                trigger: "manual",
                 startedAt: { lt: stuckCutoff },
             },
         });
@@ -43,7 +49,7 @@ export async function GET(req: NextRequest) {
                 where: { id: stuck.id },
                 data: {
                     status: "failed",
-                    error: "Auto-failed: run exceeded 45-minute timeout (likely crashed or hung)",
+                    error: "Auto-failed: unclaimed run exceeded the 150-minute timeout (likely never picked up by a worker)",
                     completedAt: new Date(),
                     durationMs: Date.now() - stuck.startedAt.getTime(),
                 },
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
                 where: { id: agent.id },
                 data: {
                     status: "error",
-                    lastError: "Last run auto-failed: exceeded 150-minute timeout",
+                    lastError: "Last run auto-failed: unclaimed run exceeded the 150-minute timeout",
                 },
             });
         }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { Kpi } from "@/components/ui/Kpi";
 import { Avatar } from "@/components/ui/Avatar";
@@ -1427,25 +1428,25 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
         }
     };
 
-    const deleteSelected = async () => {
+    const archiveSelected = async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Delete ${selectedIds.size} lead(s)? This cannot be undone.`)) return;
+        if (!confirm(`Archive ${selectedIds.size} lead(s)? They can be restored from Scraped Leads.`)) return;
         setDeleting(true);
         try {
             const res = await fetch("/api/agents/leads", {
-                method: "DELETE",
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ids: Array.from(selectedIds) }),
+                body: JSON.stringify({ archive: true, ids: Array.from(selectedIds) }),
             });
             if (res.ok) {
                 const data = await res.json();
-                showToast(`Deleted ${data.deleted} lead(s)`);
+                showToast(`Archived ${data.archived} lead(s)`);
                 setSelectedIds(new Set());
                 onRefresh();
             } else {
-                showToast("Failed to delete leads", "error");
+                showToast("Failed to archive leads", "error");
             }
-        } catch { showToast("Failed to delete leads", "error"); }
+        } catch { showToast("Failed to archive leads", "error"); }
         setDeleting(false);
     };
 
@@ -1527,12 +1528,12 @@ function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, 
                         }}>
                         {sendingOutreach ? "Sending..." : "Send to Outreach"}
                     </button>
-                    <button onClick={deleteSelected} disabled={deleting}
+                    <button onClick={archiveSelected} disabled={deleting}
                         style={{
                             padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
                             background: "var(--danger)", color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1,
                         }}>
-                        {deleting ? "Deleting..." : "Delete"}
+                        {deleting ? "Archiving..." : "Archive"}
                     </button>
                 </div>
             )}
@@ -2197,7 +2198,7 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
         try {
             const res = await fetch("/api/agents/lead-groups/send", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ groupId: selectedGroupId }),
+                body: JSON.stringify({ groupId: selectedGroupId, confirm: true }),
             });
             const data = await res.json();
             if (res.ok) { showToast(data.message || `Sent ${data.sent} messages`); fetchGroups(); fetchMembers(selectedGroupId); }
@@ -2290,11 +2291,17 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                                 style={{ background: editTemplate ? "rgba(255,107,0,0.08)" : "var(--surface)", border: "1px solid var(--border)", color: editTemplate ? "var(--orange)" : "var(--text-light)" }}>
                                 {editTemplate ? "Cancel Edit" : "Edit Template"}
                             </button>
-                            <button className="btn btn-xs btn-primary" onClick={sendToGroup}
-                                disabled={sending || !selectedGroup.templateBody || selectedGroup.memberCount === 0}
-                                style={{ opacity: !selectedGroup.templateBody || selectedGroup.memberCount === 0 ? 0.4 : 1 }}>
-                                {sending ? "Sending..." : `Send to ${selectedGroup.memberCount} Leads`}
-                            </button>
+                            {selectedGroup.channel === "email" ? (
+                                <Link className="btn btn-xs btn-primary" href="/cold-email/campaigns/new">
+                                    Build Cold Email Campaign
+                                </Link>
+                            ) : (
+                                <button className="btn btn-xs btn-primary" onClick={sendToGroup}
+                                    disabled={sending || !selectedGroup.templateBody || selectedGroup.memberCount === 0}
+                                    style={{ opacity: !selectedGroup.templateBody || selectedGroup.memberCount === 0 ? 0.4 : 1 }}>
+                                    {sending ? "Sending..." : `Send to ${selectedGroup.memberCount} Leads`}
+                                </button>
+                            )}
                             <button className="btn btn-xs" onClick={() => deleteGroup(selectedGroup.id)}
                                 style={{ color: "var(--danger)", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>Delete</button>
                         </div>

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
+import { canPermanentlyDeleteLeads, PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
 
 // GET /api/agents/leads — List scraped leads with filtering (dashboard or agent with secret)
 export async function GET(req: NextRequest) {
@@ -9,7 +11,8 @@ export async function GET(req: NextRequest) {
     const secret = searchParams.get("secret");
     const expected = process.env.AGENT_CALLBACK_SECRET;
     const hasSecret = expected && secret === expected;
-    const hasSession = !!(await getSession());
+    const session = await getSession();
+    const hasSession = !!session;
     if (!hasSecret && !hasSession) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const idsOnly = searchParams.get("idsOnly") === "true"; // returns { ids: [...] } for "select all across pages"
     const grade = searchParams.get("grade"); // "A" or "A,B"
@@ -571,7 +574,19 @@ export async function GET(req: NextRequest) {
         });
         const companyTypes = typeGroups.map(t => ({ type: t.companyType, count: t._count }));
 
-        return NextResponse.json({ leads, total, page, limit, funnel, markets, states, companyTypes });
+        return NextResponse.json({
+            leads,
+            total,
+            page,
+            limit,
+            funnel,
+            markets,
+            states,
+            companyTypes,
+            permissions: {
+                canPermanentlyDelete: canPermanentlyDeleteLeads(session?.user?.email, process.env.ADMIN_EMAIL),
+            },
+        });
     } catch (err) {
         console.error("GET /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 });
@@ -595,6 +610,151 @@ const LIST_FIELD_DEFAULTS: Record<string, string[]> = {
     reasons: [],
     painPoints: [],
 };
+
+const LEAD_WRITE_FIELDS = new Set([
+    "name", "phone", "email", "website", "address", "city", "state", "market",
+    "source", "categories", "rating", "reviewCount", "googlePlaceId", "googleMapsUrl",
+    "yelpUrl", "companyType", "discoveredVia", "ownerName", "notesFlags",
+    "latitude", "longitude",
+]);
+
+const STRING_ARRAY_FIELDS = new Set(Object.keys(LIST_FIELD_DEFAULTS));
+const NUMBER_FIELDS = new Set(["rating", "reviewCount", "latitude", "longitude"]);
+
+type LeadIngestResult = {
+    index: number;
+    name?: string;
+    status: "created" | "updated" | "skipped";
+    id?: string;
+    reason?: string;
+    error?: string;
+};
+
+function normalizeKeyText(value: unknown) {
+    const streetMap: Record<string, string> = {
+        st: "street", rd: "road", ave: "avenue", av: "avenue", blvd: "boulevard",
+        dr: "drive", ln: "lane", ct: "court", cir: "circle", hwy: "highway",
+        pkwy: "parkway", ste: "suite",
+    };
+    return String(value ?? "")
+        .toLowerCase()
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(token => streetMap[token] ?? token)
+        .join(" ");
+}
+
+function phoneDigits(value: unknown) {
+    return String(value ?? "").replace(/\D+/g, "");
+}
+
+function sanitizeLeadPayload(input: unknown): { data?: Record<string, unknown>; error?: string } {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return { error: "lead must be an object" };
+    }
+
+    const raw = input as Record<string, unknown>;
+    const data: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(raw)) {
+        if (!LEAD_WRITE_FIELDS.has(key)) continue;
+        if (value === undefined) continue;
+
+        if (STRING_ARRAY_FIELDS.has(key)) {
+            if (value == null || value === "") continue;
+            if (!Array.isArray(value)) return { error: `${key} must be an array` };
+            data[key] = value.map(item => String(item).trim()).filter(Boolean);
+            continue;
+        }
+
+        if (NUMBER_FIELDS.has(key)) {
+            if (value == null || value === "") continue;
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return { error: `${key} must be numeric` };
+            data[key] = key === "reviewCount" ? Math.trunc(numeric) : numeric;
+            continue;
+        }
+
+        if (value === null) {
+            data[key] = null;
+        } else if (typeof value === "string") {
+            data[key] = value.trim();
+        } else {
+            data[key] = value;
+        }
+    }
+
+    if (typeof data.name !== "string" || data.name.trim() === "") return { error: "name is required" };
+    if (typeof data.market !== "string" || data.market.trim() === "") return { error: "market is required" };
+    if (typeof data.state === "string") data.state = data.state.trim().toUpperCase();
+
+    return { data };
+}
+
+function buildUpdateData(lead: Record<string, unknown>, agentRunId: string | null) {
+    const updateData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(lead)) {
+        if (value === null || value === undefined || value === "") continue;
+        if (Array.isArray(value) && value.length === 0) continue;
+        updateData[key] = value;
+    }
+    if (agentRunId) updateData.agentRunId = agentRunId;
+    return updateData;
+}
+
+function nonEmptyString(value: unknown) {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+async function findExistingLead(lead: Record<string, unknown>) {
+    const googlePlaceId = nonEmptyString(lead.googlePlaceId) ? String(lead.googlePlaceId) : "";
+    if (googlePlaceId) {
+        const existing = await prisma.scrapedLead.findUnique({ where: { googlePlaceId } });
+        if (existing) return existing;
+    }
+
+    const name = String(lead.name || "");
+    const state = nonEmptyString(lead.state) ? String(lead.state) : undefined;
+    const city = nonEmptyString(lead.city) ? String(lead.city) : undefined;
+    const market = nonEmptyString(lead.market) ? String(lead.market) : undefined;
+    const address = nonEmptyString(lead.address) ? String(lead.address) : undefined;
+    const phone = nonEmptyString(lead.phone) ? String(lead.phone) : undefined;
+
+    const candidateClauses: Record<string, unknown>[] = [];
+    if (state && address) candidateClauses.push({ state, name, address });
+    if (state && phone) candidateClauses.push({ state, name, phone });
+    if (state && city && address) candidateClauses.push({ state, city, name, address });
+    if (state && market && !address && !phone) candidateClauses.push({ state, market, name });
+    if (state && (address || phone || market)) candidateClauses.push({ state, name });
+    if (!candidateClauses.length) return null;
+
+    const candidates = await prisma.scrapedLead.findMany({
+        where: { OR: candidateClauses },
+        take: 50,
+    });
+
+    const nameKey = normalizeKeyText(name);
+    const stateKey = normalizeKeyText(state);
+    const addressKey = normalizeKeyText(address);
+    const phoneKey = phoneDigits(phone);
+    const cityKey = normalizeKeyText(city);
+    const marketKey = normalizeKeyText(market);
+
+    for (const candidate of candidates) {
+        const candidateName = normalizeKeyText(candidate.name);
+        const candidateState = normalizeKeyText(candidate.state);
+        if (candidateName !== nameKey || (stateKey && candidateState !== stateKey)) continue;
+
+        if (addressKey && normalizeKeyText(candidate.address) === addressKey) return candidate;
+        if (phoneKey && phoneDigits(candidate.phone) === phoneKey) return candidate;
+        if (cityKey && addressKey && normalizeKeyText(candidate.city) === cityKey && normalizeKeyText(candidate.address) === addressKey) return candidate;
+        if (!addressKey && !phoneKey && marketKey && normalizeKeyText(candidate.market) === marketKey) return candidate;
+    }
+    return null;
+}
 
 // POST /api/agents/leads — Bulk upsert leads from approved lead discovery workflows or manual add.
 export async function POST(req: NextRequest) {
@@ -625,69 +785,48 @@ export async function POST(req: NextRequest) {
         let created = 0;
         let updated = 0;
         let skipped = 0;
+        const results: LeadIngestResult[] = [];
 
-        for (const lead of leads) {
+        for (let index = 0; index < leads.length; index++) {
+            const rawLead = leads[index];
+            const sanitized = sanitizeLeadPayload(rawLead);
+            if (!sanitized.data) {
+                skipped++;
+                results.push({
+                    index,
+                    name: typeof rawLead?.name === "string" ? rawLead.name : undefined,
+                    status: "skipped",
+                    reason: sanitized.error || "invalid_lead",
+                });
+                continue;
+            }
+            const lead = sanitized.data;
             try {
-                // Build update data — only include non-null fields to preserve existing data
-                const updateData: Record<string, unknown> = {};
-                const createData = { ...LIST_FIELD_DEFAULTS, ...lead, agentRunId: validRunId };
+                const createData = { ...LIST_FIELD_DEFAULTS, ...lead, agentRunId: validRunId } as unknown as Prisma.ScrapedLeadUncheckedCreateInput;
+                const updateData = buildUpdateData(lead, validRunId) as Prisma.ScrapedLeadUncheckedUpdateInput;
+                const existing = await findExistingLead(lead);
 
-                // Only overwrite fields that have real values (don't null out existing data)
-                for (const [key, value] of Object.entries(lead)) {
-                    if (value !== null && value !== undefined && value !== "") {
-                        updateData[key] = value;
-                    }
-                }
-                if (validRunId) updateData.agentRunId = validRunId;
-
-                if (lead.googlePlaceId) {
-                    // Upsert by googlePlaceId
-                    const existing = await prisma.scrapedLead.findUnique({ where: { googlePlaceId: lead.googlePlaceId } });
-                    if (existing) {
-                        await prisma.scrapedLead.update({
-                            where: { googlePlaceId: lead.googlePlaceId },
-                            data: updateData,
-                        });
-                        updated++;
-                    } else {
-                        // Also check by name+market in case googlePlaceId changed format
-                        const byName = await prisma.scrapedLead.findFirst({
-                            where: { name: lead.name, market: lead.market },
-                        });
-                        if (byName) {
-                            await prisma.scrapedLead.update({
-                                where: { id: byName.id },
-                                data: updateData,
-                            });
-                            updated++;
-                        } else {
-                            await prisma.scrapedLead.create({ data: createData });
-                            created++;
-                        }
-                    }
-                } else {
-                    // No googlePlaceId — check by name + market to avoid duplicates
-                    const existing = await prisma.scrapedLead.findFirst({
-                        where: { name: lead.name, market: lead.market },
+                if (existing) {
+                    const saved = await prisma.scrapedLead.update({
+                        where: { id: existing.id },
+                        data: updateData,
                     });
-                    if (existing) {
-                        await prisma.scrapedLead.update({
-                            where: { id: existing.id },
-                            data: updateData,
-                        });
-                        updated++;
-                    } else {
-                        await prisma.scrapedLead.create({ data: createData });
-                        created++;
-                    }
+                    updated++;
+                    results.push({ index, name: String(lead.name), status: "updated", id: saved.id });
+                } else {
+                    const saved = await prisma.scrapedLead.create({ data: createData });
+                    created++;
+                    results.push({ index, name: String(lead.name), status: "created", id: saved.id });
                 }
             } catch (leadErr) {
-                console.warn("Lead upsert failed:", (leadErr as Error).message, "Lead:", lead.name);
+                const message = (leadErr as Error).message;
+                console.warn("Lead upsert failed:", message, "Lead:", lead.name);
                 skipped++;
+                results.push({ index, name: String(lead.name), status: "skipped", reason: "write_failed", error: message });
             }
         }
 
-        return NextResponse.json({ created, updated, skipped, total: leads.length });
+        return NextResponse.json({ created, updated, skipped, total: leads.length, results });
     } catch (err) {
         console.error("POST /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to upsert leads" }, { status: 500 });
@@ -705,8 +844,8 @@ export async function PATCH(req: NextRequest) {
             ? ids.map((value: unknown) => String(value)).filter(Boolean)
             : id ? [String(id)] : [];
 
-        // Soft-archive: excludes leads from the active enrichment pool while
-        // keeping them restorable for manual review mistakes.
+        // Soft-archive (safer default than hard delete): excludes the leads
+        // from the active enrichment pool while keeping them restorable.
         if (body.archive === true) {
             if (!targetIds.length) return NextResponse.json({ error: "id or ids is required" }, { status: 400 });
             const result = await prisma.scrapedLead.updateMany({
@@ -716,9 +855,9 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ ok: true, archived: result.count });
         }
 
-        // Restore clears the archive triplet always. Once the Lead Cleaner
-        // schema is live, also clear cleaner audit fields so restored leads are
-        // eligible to be judged again.
+        // Restore: clears the archive triplet always, plus the Lead Cleaner
+        // audit fields once the cleaner schema is live (per the DB handoff's
+        // restore contract), so a restored lead is re-judged from scratch.
         if (body.restore === true) {
             if (!targetIds.length) return NextResponse.json({ error: "id or ids is required" }, { status: 400 });
             const schemaCapable = await isLeadCleanerSchemaReady();
@@ -760,23 +899,30 @@ export async function PATCH(req: NextRequest) {
     }
 }
 
-// DELETE /api/agents/leads — Soft-archive leads by IDs (dashboard only)
+// DELETE /api/agents/leads — Permanently delete archived leads (configured Super Admin only).
 export async function DELETE(req: NextRequest) {
-    if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canPermanentlyDeleteLeads(session.user?.email, process.env.ADMIN_EMAIL)) {
+        return NextResponse.json({ error: "Only the Super Admin can permanently delete leads" }, { status: 403 });
+    }
     try {
         const body = await req.json();
-        const { ids } = body;
+        const rawIds: unknown[] = Array.isArray(body.ids) ? body.ids : [];
+        const ids = Array.from(new Set(rawIds.map((value) => String(value).trim()).filter(Boolean)));
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        if (ids.length === 0) {
             return NextResponse.json({ error: "ids array is required" }, { status: 400 });
         }
+        if (body.confirmation !== PERMANENT_LEAD_DELETE_CONFIRMATION) {
+            return NextResponse.json({ error: `Type ${PERMANENT_LEAD_DELETE_CONFIRMATION} to confirm permanent deletion` }, { status: 400 });
+        }
 
-        const result = await prisma.scrapedLead.updateMany({
-            where: { id: { in: ids }, archivedAt: null },
-            data: { archivedAt: new Date(), archiveReason: "manual_discard", archiveSource: "manual" },
+        const result = await prisma.scrapedLead.deleteMany({
+            where: { id: { in: ids }, archivedAt: { not: null } },
         });
 
-        return NextResponse.json({ archived: result.count, deleted: result.count });
+        return NextResponse.json({ deleted: result.count, skipped: ids.length - result.count });
     } catch (err) {
         console.error("DELETE /api/agents/leads error:", err);
         return NextResponse.json({ error: "Failed to delete leads" }, { status: 500 });

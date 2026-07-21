@@ -817,6 +817,21 @@ export function replaceVariables(template: string, lead: LeadData): string {
     return result;
 }
 
+// Extract the [bracket] variable tokens referenced in a template (subject or body).
+export function extractTemplateVariables(template: string): string[] {
+    const matches = template.match(/\[[a-zA-Z0-9_]+\]/g) || [];
+    return Array.from(new Set(matches));
+}
+
+// Validate that every [bracket] token in a template exists in VARIABLE_MAP. Returns the
+// tokens used and any unknown ones, so the Templates editor can block saving copy that
+// would render literally / empty. Case-sensitive — Instantly custom_variables are too.
+export function validateTemplateVariables(template: string): { used: string[]; unknownTokens: string[] } {
+    const used = extractTemplateVariables(template);
+    const known = new Set(Object.keys(VARIABLE_MAP));
+    return { used, unknownTokens: used.filter((token) => !known.has(token)) };
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // PREVIEW_LEAD — fake lead populated across every field so the template editor's
 // live preview can show realistic substituted output for any variable the

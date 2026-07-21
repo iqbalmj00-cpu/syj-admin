@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { setLeadGroupFilter } from "@/lib/cold-email-db";
 
 /**
  * GET  /api/agents/lead-groups — list all groups with member counts
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
-        const { name, description, channel, templateSubject, templateBody } = body;
+        const { name, description, channel, templateSubject, templateBody, filterDefinition } = body;
 
         if (!name?.trim()) return NextResponse.json({ error: "Group name is required" }, { status: 400 });
 
@@ -47,6 +48,12 @@ export async function POST(req: NextRequest) {
                 templateBody: templateBody?.trim() || null,
             },
         });
+
+        // Dynamic segment: persist the originating Scraped-Leads filter (raw SQL — the
+        // generated client predates the column) so membership can re-evaluate on refresh.
+        if (filterDefinition && typeof filterDefinition === "object") {
+            await setLeadGroupFilter(group.id, filterDefinition);
+        }
 
         return NextResponse.json(group, { status: 201 });
     } catch (error) {

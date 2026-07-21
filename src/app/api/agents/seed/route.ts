@@ -75,20 +75,6 @@ export async function POST() {
                 },
             },
             {
-                slug: "facebook_scraper",
-                name: "Facebook Lead Scraper",
-                description: "Searches Facebook Pages for junk removal and dumpster rental businesses, extracts contact info (phone, email, website, owner name) from each page. Runs locally via terminal.",
-                schedule: null,
-                config: {
-                    keywords: ["junk removal", "dumpster rental"],
-                    maxResultsPerQuery: 200,
-                    scrollDelayMin: 2000,
-                    scrollDelayMax: 5000,
-                    pageDelayMin: 3000,
-                    pageDelayMax: 6000,
-                },
-            },
-            {
                 slug: "blog_writer",
                 name: "Blog Writer",
                 description: "Researches trending topics via Perplexity and writes SEO-optimized blog posts for scaleyourjunk.com using Claude AI.",

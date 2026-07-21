@@ -104,6 +104,7 @@ model User {
   messageTemplates     MessageTemplate[]
   communications       Communication[]
   followUpTasks        FollowUpTask[]
+  coldEmailCustomerLink ColdEmailCustomerLink?
   // ── Onboarding Wizard relations ──
   websiteConfig        WebsiteConfig?
   stripeConnectAccount StripeConnectAccount?
@@ -1544,8 +1545,8 @@ model PhoneConfig {
 
 model SyjAgent {
   id          String      @id @default(cuid())
-  slug        String      @unique       // "lead_scraper" | "cold_outreach" | "content_generator" | "blog_writer"
-  name        String                    // "Lead Scraper"
+  slug        String      @unique       // "cold_outreach" | "content_generator" | "blog_writer" | etc.
+  name        String                    // display name
   description String?     @db.Text
   status      String      @default("idle") // idle | running | error | paused
   schedule    String?                   // cron expression or null for manual-only
@@ -1808,7 +1809,7 @@ model ScrapedLead {
   isFamilyBusiness     Boolean   @default(false)
   ownerBio             String?   @db.Text
   // ── Owner name source tracking (for traceability) ──
-  ownerNameSource      String?                   // "website" | "reviews" | "web_search" | "facebook"
+  ownerNameSource      String?                   // "website" | "reviews" | "web_search"
   ownerNameSourceUrl   String?                   // URL where the owner name was verified (especially for web_search)
   // ── Owner refinement (Phase 5) ──
   ownerFirstName       String?                   // derived from ownerName split
@@ -1841,11 +1842,7 @@ model ScrapedLead {
   phoneVerifiedAt              DateTime?
   // ── Service Area NLP ──
   serviceAreaDescription String? @db.Text        // natural language description
-  // ── Facebook Group Source ──
-  facebookPostUrl      String?                   // link to original Facebook post
-  facebookGroupName    String?                   // which group it came from
-  facebookLastPostAt   String?                   // date text of most recent Facebook post (activity signal)
-  discoveredVia        String?                   // "google_maps" | "yelp" | "facebook_group" | "manual"
+  discoveredVia        String?                   // "google_maps" | "yelp" | "manual"
   // ── Qualification ──
   websiteScore    Int          @default(0)
   leadScore       Int          @default(0)
@@ -1867,7 +1864,7 @@ model ScrapedLead {
   archivedAt      DateTime?
   archiveReason   String?
   archiveSource   String?
-  // ── Lead Cleaner audit/idempotency layer ──
+  // Lead Cleaner audit/idempotency layer
   cleanerVerdict     String?    // "keep" | "reject"
   cleanerReason      String?    // e.g. "franchise:Junk King", "category_deny:scrap_yard", "llm_reject:unrelated_business"
   cleanerDecidedBy   String?    // "rule" | "llm"
@@ -1876,6 +1873,8 @@ model ScrapedLead {
   cleanedAt          DateTime?  // null = never judged by Lead Cleaner
   outreachLogs    OutreachLog[]
   outreachQueue   OutreachQueue[]
+  coldEmailContact ColdEmailContact?
+  coldEmailAudienceMembers ColdEmailAudienceMember[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -1910,9 +1909,14 @@ model LeadGroup {
   templateSubject String?           // email subject template
   templateBody    String?           @db.Text // message body template with [variables]
   lastSentAt      DateTime?
+  // ── Dynamic segments (admin cold-email console) ──
+  filterDefinition Json?            // saved Scraped-Leads filter params; non-null = dynamic segment, re-evaluatable
+  lastRefreshedAt  DateTime?        // last dynamic-membership reconcile
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   members         LeadGroupMember[]
+  campaignLaunches CampaignLaunch[]
+  coldEmailAudienceSnapshots ColdEmailAudienceSnapshot[]
 }
 
 model LeadGroupMember {
@@ -1928,49 +1932,1606 @@ model LeadGroupMember {
   @@index([leadId])
 }
 
-// ── Facebook Group Scraping ─────────────────────────────────────────────────
-model FacebookGroup {
-  id              String               @id @default(cuid())
-  url             String               @unique
-  name            String
-  status          String               @default("active") // active | paused
-  accountId       String?
-  account         FacebookAccount?     @relation(fields: [accountId], references: [id])
-  lastScrapedAt   DateTime?
-  postsFound      Int                  @default(0)
-  adsFound        Int                  @default(0)
-  posts           FacebookScrapedPost[]
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+// ── Email Templates & Campaign Launches (admin cold-email console) ───────────
+// Admin-only tables on the SHARED database. The authoritative migration is
+// authored & pushed from the scaleyourjunk repo (it owns prisma/migrations);
+// this block is the PARITY MIRROR only. No DB command was run from this repo.
+// Admin code reads/writes these via raw SQL ($queryRawUnsafe/$executeRawUnsafe)
+// until the operator regenerates the client AFTER the upstream push.
+model EmailTemplate {
+  id            String           @id @default(cuid())
+  name          String
+  subject       String
+  bodyHtml      String           @db.Text
+  bodyText      String?          @db.Text
+  variablesUsed String[]                            // [bracket] variable keys used; validated vs VARIABLE_MAP at save
+  isArchived    Boolean          @default(false)    // soft-delete; past launches keep their own copied sequence
+  createdBy     String?                             // admin operator email
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  campaignLaunches CampaignLaunch[]
+  coldEmailTemplateVersions ColdEmailTemplateVersion[]
+
+  @@index([isArchived])
 }
 
-model FacebookScrapedPost {
-  id          String        @id @default(cuid())
-  postUrl     String        @unique
-  groupId     String
-  group       FacebookGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  authorName  String?
-  companyName String?
-  phone       String?
-  isMatch     Boolean       @default(false)
-  capturedAt  DateTime      @default(now())
+model CampaignLaunch {
+  id                  String         @id @default(cuid())
+  instantlyCampaignId String?        @unique         // set after createCampaign; null only while status=pending
+  campaignName        String
+  leadGroupId         String?
+  leadGroup           LeadGroup?     @relation(fields: [leadGroupId], references: [id], onDelete: SetNull)
+  emailTemplateId     String?
+  emailTemplate       EmailTemplate? @relation(fields: [emailTemplateId], references: [id], onDelete: SetNull)
+  accountEmails       String[]                       // sending mailboxes (eaccounts) chosen at launch
+  status              String         @default("pending") // pending | created | active | paused | failed | archived
+  attemptedCount      Int            @default(0)
+  acceptedCount       Int            @default(0)
+  skippedCount        Int            @default(0)
+  acceptedLeadIds     String[]                       // distinct ScrapedLead ids accepted (enables distinct per-group rollups)
+  skippedReasons      Json?                          // [{leadId, name, reason}]
+  reContactWindowDays Int            @default(21)
+  operator            String?                        // admin who launched
+  error               String?        @db.Text        // failure detail when status=failed
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  canonicalCampaign   ColdEmailCampaign?
 
-  @@index([groupId])
-  @@index([capturedAt])
+  @@index([leadGroupId])
+  @@index([emailTemplateId])
+  @@index([status])
 }
 
-model FacebookAccount {
-  id              String          @id @default(cuid())
-  name            String
-  email           String?
-  status          String          @default("active") // active | expired | banned
-  sessionFile     String?         // path to Playwright session JSON
-  dailyGroupLimit Int             @default(40)
-  dailyPostLimit  Int             @default(500)
-  lastActiveAt    DateTime?
-  groups          FacebookGroup[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+// ── Cold Email Platform — canonical campaign/reliability foundation ─────────
+// PARITY MIRROR ONLY. ScaleYourJunk owns migration, database application, and
+// Prisma client generation. No database or Prisma command may run from Admin.
+
+model ColdEmailCompany {
+  id               String   @id @default(cuid())
+  name             String
+  normalizedName   String?
+  website          String?
+  domain           String?
+  normalizedDomain String?
+  market           String?
+  timezone         String?
+  lifecycle        String   @default("prospect") // prospect | customer | inactive
+  recordVersion    Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contacts             ColdEmailContact[]
+  doNotContactRecords  ColdEmailDoNotContact[]
+  temporaryHolds       ColdEmailTemporaryHold[]
+  audienceMembers      ColdEmailAudienceMember[]
+  eligibilityDecisions ColdEmailEligibilityDecision[]
+  affiliations         ColdEmailAffiliation[]
+  conversations        ColdEmailConversation[]
+  opportunities        ColdEmailOpportunity[]
+  meetings             ColdEmailMeeting[]
+  attributionTokens    ColdEmailAttributionToken[]
+  attributionTouches   ColdEmailAttributionTouch[]
+  customerLinks        ColdEmailCustomerLink[]
+
+  @@index([normalizedName])
+  @@index([normalizedDomain])
+  @@index([lifecycle])
+}
+
+model ColdEmailContact {
+  id              String   @id @default(cuid())
+  companyId       String?
+  company         ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sourceLeadId    String?  @unique
+  sourceLead      ScrapedLead? @relation(fields: [sourceLeadId], references: [id], onDelete: SetNull)
+  fullName        String?
+  firstName       String?
+  lastName        String?
+  title           String?
+  timezone        String?
+  disposition     String   @default("unclassified")
+  mergeState      String   @default("canonical") // canonical | review_required | merged
+  mergedIntoId    String?
+  mergedInto      ColdEmailContact? @relation("ColdEmailContactMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedContacts  ColdEmailContact[] @relation("ColdEmailContactMerge")
+  recordVersion   Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  emailIdentities     ColdEmailEmailIdentity[]
+  doNotContactRecords ColdEmailDoNotContact[]
+  temporaryHolds      ColdEmailTemporaryHold[]
+  audienceMembers     ColdEmailAudienceMember[]
+  enrollments         ColdEmailEnrollment[]
+  eligibilityDecisions ColdEmailEligibilityDecision[]
+  affiliations        ColdEmailAffiliation[]
+  primaryConversations ColdEmailConversation[]
+  opportunities        ColdEmailOpportunity[]
+  meetings             ColdEmailMeeting[]
+  messages             ColdEmailMessage[]
+  attributionTokens    ColdEmailAttributionToken[]
+  attributionTouches   ColdEmailAttributionTouch[]
+  customerLinks        ColdEmailCustomerLink[]
+  tasks                ColdEmailTask[]
+
+  @@index([companyId])
+  @@index([mergeState])
+  @@index([disposition])
+}
+
+model ColdEmailEmailIdentity {
+  id                           String   @id @default(cuid())
+  contactId                    String
+  contact                      ColdEmailContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  email                        String
+  normalizedEmail              String
+  isPrimary                    Boolean  @default(false)
+  deliverabilityState          String   @default("unknown")
+  verifiedAt                   DateTime?
+  hardBouncedAt                DateTime?
+  providerUnsubscribedAt       DateTime?
+  providerObservedStatus       String?
+  providerObservedStatusAt     DateTime?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  doNotContactRecords  ColdEmailDoNotContact[]
+  temporaryHolds       ColdEmailTemporaryHold[]
+  audienceMembers      ColdEmailAudienceMember[]
+  enrollments          ColdEmailEnrollment[]
+  eligibilityDecisions ColdEmailEligibilityDecision[]
+  primaryConversations ColdEmailConversation[]
+  messages             ColdEmailMessage[]
+
+  @@unique([contactId, normalizedEmail])
+  @@index([normalizedEmail])
+  @@index([contactId, isPrimary])
+  @@index([deliverabilityState])
+  @@index([providerObservedStatus])
+}
+
+model ColdEmailDoNotContact {
+  id                   String   @id @default(cuid())
+  activeKey            String?  @unique // deterministic scope+target while active; null after release
+  scope                String   // email | contact | company | domain
+  emailIdentityId      String?
+  emailIdentity        ColdEmailEmailIdentity? @relation(fields: [emailIdentityId], references: [id], onDelete: SetNull)
+  contactId            String?
+  contact              ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  companyId            String?
+  company              ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  normalizedEmail      String?
+  normalizedDomain     String?
+  reason               String
+  note                 String?  @db.Text
+  source               String   @default("manual")
+  active               Boolean  @default(true)
+  createdBy            String
+  createdAt            DateTime @default(now())
+  releasedAt           DateTime?
+  releasedBy           String?
+  releaseReason        String?  @db.Text
+  providerBlockState   String   @default("not_requested") // not_requested | pending | confirmed | unavailable | failed | reconciliation_required
+  providerBlockRef     String?
+  lastProviderSyncAt   DateTime?
+
+  @@index([active, scope])
+  @@index([normalizedEmail, active])
+  @@index([normalizedDomain, active])
+  @@index([contactId, active])
+  @@index([companyId, active])
+}
+
+model ColdEmailAffiliation {
+  id               String   @id @default(cuid())
+  contactId        String
+  contact          ColdEmailContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  companyId        String
+  company          ColdEmailCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  relationshipType String   @default("employment")
+  title            String?
+  isPrimary        Boolean  @default(false)
+  confidence       Float?
+  provenance       Json?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([contactId, companyId, relationshipType])
+  @@index([companyId, isPrimary])
+}
+
+model ColdEmailIdentityReview {
+  id                  String   @id @default(cuid())
+  reviewType          String   // possible_duplicate | shared_address | company_match | contact_match | merge_conflict
+  sourceLeadIds       String[]
+  candidateCompanyIds String[]
+  candidateContactIds String[]
+  status              String   @default("open") // open | resolved | dismissed
+  confidence          Float?
+  evidence            Json?
+  resolution          Json?
+  createdAt           DateTime @default(now())
+  resolvedAt          DateTime?
+  resolvedBy          String?
+
+  @@index([status, createdAt])
+  @@index([reviewType, status])
+}
+
+model ColdEmailTemporaryHold {
+  id              String   @id @default(cuid())
+  scope           String   // email | contact | company
+  emailIdentityId String?
+  emailIdentity   ColdEmailEmailIdentity? @relation(fields: [emailIdentityId], references: [id], onDelete: SetNull)
+  contactId       String?
+  contact         ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  companyId       String?
+  company         ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  reason          String
+  startsAt        DateTime @default(now())
+  endsAt          DateTime?
+  active          Boolean  @default(true)
+  createdBy       String
+  createdAt       DateTime @default(now())
+  releasedAt      DateTime?
+  releasedBy      String?
+  releaseReason   String?  @db.Text
+
+  @@index([active, endsAt])
+  @@index([emailIdentityId, active])
+  @@index([contactId, active])
+  @@index([companyId, active])
+}
+
+model ColdEmailTemplateVersion {
+  id               String   @id @default(cuid())
+  sourceTemplateId String?
+  sourceTemplate   EmailTemplate? @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  version          Int
+  name             String
+  subject          String
+  bodyHtml         String   @db.Text
+  bodyText         String?  @db.Text
+  variablesUsed    String[]
+  immutableHash    String   @unique
+  createdBy        String
+  createdAt        DateTime @default(now())
+
+  sequenceSteps ColdEmailSequenceStep[]
+  variants      ColdEmailVariant[]
+
+  @@index([sourceTemplateId, version])
+  @@index([createdAt])
+}
+
+model ColdEmailSequenceVersion {
+  id            String   @id @default(cuid())
+  name          String
+  version       Int
+  immutableHash String   @unique
+  status        String   @default("draft") // draft | approved | retired
+  createdBy     String
+  createdAt     DateTime @default(now())
+  approvedAt    DateTime?
+  approvedBy    String?
+
+  steps            ColdEmailSequenceStep[]
+  campaignVersions ColdEmailCampaignVersion[]
+
+  @@unique([name, version])
+  @@index([status])
+}
+
+model ColdEmailSequenceStep {
+  id                String   @id @default(cuid())
+  sequenceVersionId String
+  sequenceVersion   ColdEmailSequenceVersion @relation(fields: [sequenceVersionId], references: [id], onDelete: Cascade)
+  templateVersionId String?
+  templateVersion   ColdEmailTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: SetNull)
+  stepOrder         Int
+  delayDays         Int      @default(0)
+  delayHours        Int      @default(0)
+  stopOnReply       Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  variants ColdEmailVariant[]
+
+  @@unique([sequenceVersionId, stepOrder])
+  @@index([templateVersionId])
+}
+
+model ColdEmailVariant {
+  id                String   @id @default(cuid())
+  sequenceStepId    String
+  sequenceStep      ColdEmailSequenceStep @relation(fields: [sequenceStepId], references: [id], onDelete: Cascade)
+  templateVersionId String
+  templateVersion   ColdEmailTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  label             String
+  weight            Int      @default(100)
+  providerVariantId String?
+  createdAt         DateTime @default(now())
+
+  assignments ColdEmailVariantAssignment[]
+
+  @@unique([sequenceStepId, label])
+  @@index([templateVersionId])
+}
+
+model ColdEmailCampaign {
+  id                     String   @id @default(cuid())
+  legacyCampaignLaunchId String?  @unique
+  legacyCampaignLaunch   CampaignLaunch? @relation(fields: [legacyCampaignLaunchId], references: [id], onDelete: SetNull)
+  name                   String
+  objective              String?
+  ownerId                String
+  priority               Int      @default(100)
+  status                 String   @default("draft") // draft | scheduled | active | paused | completed | archived
+  health                 String   @default("unknown") // healthy | warning | blocked | reconciliation_required | unknown
+  activeVersionId        String?  @unique
+  activeVersion          ColdEmailCampaignVersion? @relation("ColdEmailActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  recordVersion          Int      @default(1)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  archivedAt             DateTime?
+
+  versions       ColdEmailCampaignVersion[] @relation("ColdEmailCampaignVersions")
+  alerts         ColdEmailAlert[]
+  auditEvents    ColdEmailAuditEvent[]
+  blackoutDates  ColdEmailBlackoutDate[]
+  metricSnapshots ColdEmailMetricSnapshot[]
+
+  @@index([status, updatedAt])
+  @@index([ownerId, status])
+  @@index([health])
+}
+
+model ColdEmailCampaignVersion {
+  id                 String   @id @default(cuid())
+  campaignId         String
+  campaign           ColdEmailCampaign @relation("ColdEmailCampaignVersions", fields: [campaignId], references: [id], onDelete: Cascade)
+  activeForCampaign  ColdEmailCampaign? @relation("ColdEmailActiveVersion")
+  sequenceVersionId  String?
+  sequenceVersion    ColdEmailSequenceVersion? @relation(fields: [sequenceVersionId], references: [id], onDelete: SetNull)
+  version            Int
+  status             String   @default("draft") // draft | approved | scheduled | active | retired
+  immutableHash      String
+  campaignName       String
+  objective          String?
+  timezone           String
+  scheduleSnapshot   Json
+  stopRuleSnapshot   Json
+  trackingSnapshot   Json?
+  senderSnapshot     Json?
+  operationalRules   Json
+  startAt            DateTime?
+  endAt              DateTime?
+  approvedAt         DateTime?
+  approvedBy         String?
+  testState          String   @default("not_requested") // not_requested | pending | confirmed | reconciliation_required | failed
+  testedFingerprint  String?
+  testRecipientHash  String?
+  lastTestedAt       DateTime?
+  lastTestedBy       String?
+  activationApprovedAt DateTime?
+  activationApprovedBy String?
+  createdBy          String
+  createdAt          DateTime @default(now())
+
+  audienceSnapshot    ColdEmailAudienceSnapshot?
+  enrollments         ColdEmailEnrollment[]
+  eligibilityDecisions ColdEmailEligibilityDecision[]
+  capacityReservations ColdEmailCapacityReservation[]
+  providerOperations  ColdEmailProviderOperation[]
+  opportunities       ColdEmailOpportunity[]
+  attributionTokens   ColdEmailAttributionToken[]
+  attributionTouches  ColdEmailAttributionTouch[]
+  messages            ColdEmailMessage[]
+  timezoneGroups      ColdEmailCampaignTimezoneGroup[]
+
+  @@unique([campaignId, version])
+  @@unique([campaignId, immutableHash])
+  @@index([status, startAt])
+  @@index([sequenceVersionId])
+}
+
+model ColdEmailCampaignTimezoneGroup {
+  id                String   @id @default(cuid())
+  campaignVersionId String
+  campaignVersion   ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  timezone          String
+  status            String   @default("pending") // pending | creating | enrolling | ready | active | paused | completed | blocked | reconciliation_required
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  enrollments ColdEmailEnrollment[]
+
+  @@unique([campaignVersionId, timezone])
+  @@index([campaignVersionId, status])
+}
+
+model ColdEmailAudienceSnapshot {
+  id                String   @id @default(cuid())
+  campaignVersionId String   @unique
+  campaignVersion   ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  sourceLeadGroupId String?
+  sourceLeadGroup   LeadGroup? @relation(fields: [sourceLeadGroupId], references: [id], onDelete: SetNull)
+  sourceDefinition  Json?
+  sourceHash        String
+  totalCount        Int      @default(0)
+  eligibleCount     Int      @default(0)
+  excludedCount     Int      @default(0)
+  frozenAt          DateTime @default(now())
+  frozenBy          String
+
+  members ColdEmailAudienceMember[]
+
+  @@index([sourceLeadGroupId])
+  @@index([frozenAt])
+}
+
+model ColdEmailAudienceMember {
+  id                 String   @id @default(cuid())
+  audienceSnapshotId String
+  audienceSnapshot   ColdEmailAudienceSnapshot @relation(fields: [audienceSnapshotId], references: [id], onDelete: Cascade)
+  sourceLeadId       String?
+  sourceLead         ScrapedLead? @relation(fields: [sourceLeadId], references: [id], onDelete: SetNull)
+  companyId          String?
+  company            ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contactId          String?
+  contact            ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailIdentityId    String?
+  emailIdentity      ColdEmailEmailIdentity? @relation(fields: [emailIdentityId], references: [id], onDelete: SetNull)
+  status             String   @default("pending") // pending | eligible | excluded | enrolled | stopped
+  decisionCode       String?
+  variablesSnapshot Json?
+  evaluationAttemptCount Int  @default(0)
+  evaluationLeaseOwner String?
+  evaluationLeaseExpiresAt DateTime?
+  evaluatedAt        DateTime?
+  createdAt          DateTime @default(now())
+
+  enrollments         ColdEmailEnrollment[]
+  eligibilityDecisions ColdEmailEligibilityDecision[]
+
+  @@index([audienceSnapshotId, sourceLeadId])
+  @@unique([audienceSnapshotId, sourceLeadId])
+  @@index([audienceSnapshotId, status])
+  @@index([status, evaluationLeaseExpiresAt])
+  @@index([contactId])
+  @@index([emailIdentityId])
+}
+
+model ColdEmailEnrollment {
+  id                String   @id @default(cuid())
+  campaignVersionId String
+  campaignVersion   ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  audienceMemberId  String?
+  audienceMember    ColdEmailAudienceMember? @relation(fields: [audienceMemberId], references: [id], onDelete: SetNull)
+  contactId         String
+  contact           ColdEmailContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  emailIdentityId   String
+  emailIdentity     ColdEmailEmailIdentity @relation(fields: [emailIdentityId], references: [id], onDelete: Restrict)
+  timezoneGroupId   String?
+  timezoneGroup     ColdEmailCampaignTimezoneGroup? @relation(fields: [timezoneGroupId], references: [id], onDelete: SetNull)
+  timezoneSource    String   @default("campaign_fallback") // contact | company | state | campaign_fallback
+  sendingAccountId  String?
+  sendingAccount    ColdEmailSendingAccount? @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
+  providerLeadId    String?
+  providerStatus    String?
+  status            String   @default("pending") // pending | upload_pending | enrolled | active | replied | stopped | completed | failed | reconciliation_required
+  scheduledAt       DateTime?
+  enrolledAt        DateTime?
+  stoppedAt         DateTime?
+  stopReason        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  variantAssignments ColdEmailVariantAssignment[]
+
+  @@unique([campaignVersionId, emailIdentityId])
+  @@index([status, scheduledAt])
+  @@index([providerLeadId])
+  @@index([sendingAccountId, status])
+  @@index([timezoneGroupId, status])
+}
+
+model ColdEmailVariantAssignment {
+  id                String   @id @default(cuid())
+  enrollmentId      String
+  enrollment        ColdEmailEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  variantId         String
+  variant            ColdEmailVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  providerVariantId String?
+  observedAt        DateTime @default(now())
+  source            String   @default("provider") // provider | local_test
+
+  @@unique([enrollmentId, variantId])
+  @@index([providerVariantId])
+}
+
+model ColdEmailEligibilityDecision {
+  id                String   @id @default(cuid())
+  campaignVersionId String?
+  campaignVersion   ColdEmailCampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  audienceMemberId  String?
+  audienceMember    ColdEmailAudienceMember? @relation(fields: [audienceMemberId], references: [id], onDelete: Cascade)
+  companyId         String?
+  company           ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contactId         String?
+  contact           ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailIdentityId   String?
+  emailIdentity     ColdEmailEmailIdentity? @relation(fields: [emailIdentityId], references: [id], onDelete: SetNull)
+  outcome           String   // allow | block | warn
+  category          String   // manual_dnc | customer | data_quality | cooldown | concurrency | temporary_hold | capacity | provider_observed | warning
+  ruleCode          String
+  evidence          Json?
+  evaluatedAt       DateTime @default(now())
+  evaluatedBy       String   @default("system")
+  overrideBy        String?
+  overrideReason    String?  @db.Text
+
+  @@index([campaignVersionId, outcome])
+  @@index([audienceMemberId])
+  @@index([ruleCode, evaluatedAt])
+  @@index([contactId, evaluatedAt])
+  @@index([emailIdentityId, evaluatedAt])
+}
+
+model ColdEmailSendingDomain {
+  id               String   @id @default(cuid())
+  provider         String   @default("instantly")
+  workspaceId      String
+  domain           String
+  normalizedDomain String
+  status           String   @default("unknown")
+  readiness        String   @default("unknown")
+  dailyCap         Int?
+  errorMessage     String?  @db.Text
+  providerUpdatedAt DateTime?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  accounts             ColdEmailSendingAccount[]
+  capacityReservations ColdEmailCapacityReservation[]
+  healthSnapshots      ColdEmailHealthSnapshot[]
+
+  @@unique([provider, workspaceId, normalizedDomain])
+  @@index([status, readiness])
+}
+
+model ColdEmailSendingAccount {
+  id                    String   @id @default(cuid())
+  provider              String   @default("instantly")
+  workspaceId           String
+  providerAccountId     String
+  email                 String
+  normalizedEmail       String
+  sendingDomainId       String?
+  sendingDomain         ColdEmailSendingDomain? @relation(fields: [sendingDomainId], references: [id], onDelete: SetNull)
+  status                String   @default("unknown")
+  readiness             String   @default("unknown")
+  warmupStatus          String?
+  warmupScore           Float?
+  dailyLimit            Int?
+  sendingGapMinutes     Int?
+  slowRampEnabled       Boolean?
+  replyTo               String?
+  signature             String?  @db.Text
+  trackingDomain        String?
+  trackingDomainStatus  String?
+  providerStatusMessage String?  @db.Text
+  localBlockReason      String?
+  localBlockedAt        DateTime?
+  localBlockedBy        String?
+  localReviewRequired   Boolean  @default(false)
+  localReviewedAt       DateTime?
+  localReviewedBy       String?
+  localReviewNote       String?  @db.Text
+  providerUpdatedAt     DateTime?
+  lastSyncedAt          DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  poolMemberships      ColdEmailSendingPoolMembership[]
+  capacityReservations ColdEmailCapacityReservation[]
+  healthSnapshots      ColdEmailHealthSnapshot[]
+  enrollments          ColdEmailEnrollment[]
+  threads              ColdEmailThread[]
+  scheduledReplies     ColdEmailScheduledReply[]
+
+  @@unique([provider, workspaceId, providerAccountId])
+  @@unique([provider, workspaceId, normalizedEmail])
+  @@index([status, readiness])
+  @@index([sendingDomainId])
+}
+
+model ColdEmailSendingPool {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  description       String?
+  active            Boolean  @default(true)
+  priority          Int      @default(100)
+  readinessPolicy   Json?
+  fallbackPolicy    Json?
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  memberships         ColdEmailSendingPoolMembership[]
+  capacityReservations ColdEmailCapacityReservation[]
+
+  @@index([active, priority])
+}
+
+model ColdEmailSendingPoolMembership {
+  id               String   @id @default(cuid())
+  sendingPoolId    String
+  sendingPool      ColdEmailSendingPool @relation(fields: [sendingPoolId], references: [id], onDelete: Cascade)
+  sendingAccountId String
+  sendingAccount   ColdEmailSendingAccount @relation(fields: [sendingAccountId], references: [id], onDelete: Cascade)
+  priority         Int      @default(100)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([sendingPoolId, sendingAccountId])
+  @@index([sendingAccountId, active])
+}
+
+model ColdEmailCapacityReservation {
+  id                    String   @id @default(cuid())
+  reservationKey        String   @unique
+  campaignVersionId     String
+  campaignVersion       ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  sendingPoolId         String
+  sendingPool           ColdEmailSendingPool @relation(fields: [sendingPoolId], references: [id], onDelete: Restrict)
+  sendingAccountId      String?
+  sendingAccount        ColdEmailSendingAccount? @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
+  sendingDomainId       String?
+  sendingDomain         ColdEmailSendingDomain? @relation(fields: [sendingDomainId], references: [id], onDelete: SetNull)
+  reservationDate       DateTime
+  reservedFollowUpCount Int      @default(0)
+  reservedNewLeadCount  Int      @default(0)
+  uncertainCount        Int      @default(0)
+  status                String   @default("reserved") // reserved | consumed | released | expired
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([reservationDate, status])
+  @@index([sendingPoolId, reservationDate])
+  @@index([sendingAccountId, reservationDate])
+  @@index([sendingDomainId, reservationDate])
+  @@index([campaignVersionId, reservationDate])
+}
+
+model ColdEmailHealthSnapshot {
+  id                   String   @id @default(cuid())
+  snapshotKey          String   @unique
+  sendingAccountId     String?
+  sendingAccount       ColdEmailSendingAccount? @relation(fields: [sendingAccountId], references: [id], onDelete: Cascade)
+  sendingDomainId      String?
+  sendingDomain        ColdEmailSendingDomain? @relation(fields: [sendingDomainId], references: [id], onDelete: Cascade)
+  status               String
+  sentCount            Int?
+  warmupSentCount      Int?
+  otherCampaignSentCount Int?
+  bouncedCount         Int?
+  repliedCount         Int?
+  warmupScore          Float?
+  placementScore       Float?
+  evidence             Json?
+  observedAt           DateTime
+  createdAt            DateTime @default(now())
+
+  @@index([sendingAccountId, observedAt])
+  @@index([sendingDomainId, observedAt])
+  @@index([status, observedAt])
+}
+
+model ColdEmailProviderMapping {
+  id                String   @id @default(cuid())
+  provider          String
+  workspaceId       String
+  providerObjectType String
+  providerObjectId  String
+  providerParentId  String?
+  localObjectType   String
+  localObjectId     String
+  sourceOfTruth     String
+  providerState     String?
+  fieldProvenance   Json?
+  schemaVersion     Int      @default(1)
+  payloadFingerprint String?
+  providerUpdatedAt DateTime?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, workspaceId, providerObjectType, providerObjectId])
+  @@unique([provider, workspaceId, localObjectType, localObjectId])
+  @@index([localObjectType, localObjectId])
+  @@index([lastSyncedAt])
+}
+
+model ColdEmailProviderCapability {
+  id            String   @id @default(cuid())
+  provider      String
+  workspaceId   String
+  capabilityKey String
+  status        String   // available | unavailable | degraded | unknown
+  source        String   // configured_probe | controlled_test | official_documentation | operator
+  evidence      Json?
+  observedAt    DateTime
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, workspaceId, capabilityKey])
+  @@index([status, observedAt])
+}
+
+model ColdEmailProviderOperation {
+  id                     String   @id @default(cuid())
+  campaignVersionId      String?
+  campaignVersion        ColdEmailCampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: SetNull)
+  provider               String
+  workspaceId            String
+  operationType          String
+  aggregateType          String
+  aggregateId            String
+  idempotencyKey         String   @unique
+  requestFingerprint     String
+  redactedRequestPayload Json?
+  state                  String   @default("pending") // pending | executing | provider_accepted | confirmed | reconciliation_required | retry_eligible | permanently_failed | canceled | compensated
+  providerReference      String?
+  attemptCount           Int      @default(0)
+  maxAttempts            Int      @default(8)
+  nextAttemptAt          DateTime?
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  heartbeatAt            DateTime?
+  responseMetadata       Json?
+  redactedError          String?  @db.Text
+  reconciliationStrategy String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  completedAt            DateTime?
+
+  deadLetters ColdEmailDeadLetter[]
+  scheduledReply ColdEmailScheduledReply?
+
+  @@index([state, nextAttemptAt])
+  @@index([leaseExpiresAt])
+  @@index([aggregateType, aggregateId])
+  @@index([campaignVersionId, state])
+}
+
+model ColdEmailProviderEvent {
+  id                  String   @id @default(cuid())
+  provider            String
+  workspaceId         String
+  providerEventId     String?
+  fingerprint         String   @unique
+  eventType           String
+  providerObjectType  String?
+  providerObjectId    String?
+  providerParentId    String?
+  payloadSchemaVersion Int     @default(1)
+  payload             Json
+  payloadExpiresAt    DateTime
+  payloadPurgedAt     DateTime?
+  processingState     String   @default("received") // received | processing | processed | ignored | failed | dead_lettered
+  processingAttemptCount Int   @default(0)
+  processingLeaseOwner String?
+  processingLeaseExpiresAt DateTime?
+  processingHeartbeatAt DateTime?
+  nextProcessingAttemptAt DateTime?
+  occurredAt          DateTime?
+  providerRecordedAt  DateTime?
+  receivedAt          DateTime @default(now())
+  processedAt         DateTime?
+  projectionUpdatedAt DateTime?
+  redactedError       String?  @db.Text
+
+  @@index([provider, workspaceId, providerEventId])
+  @@index([processingState, receivedAt])
+  @@index([processingState, nextProcessingAttemptAt])
+  @@index([processingLeaseExpiresAt])
+  @@index([payloadExpiresAt, payloadPurgedAt])
+  @@index([providerObjectType, providerObjectId])
+  @@index([eventType, occurredAt])
+}
+
+model ColdEmailSyncCursor {
+  id                 String   @id @default(cuid())
+  provider           String
+  workspaceId        String
+  resourceType       String
+  partitionKey       String   @default("default")
+  cursor             String?
+  watermarkAt        DateTime?
+  overlapSeconds     Int      @default(300)
+  status             String   @default("ready") // ready | running | stale | error
+  leaseOwner         String?
+  leaseExpiresAt     DateTime?
+  lastAttemptAt      DateTime?
+  lastSuccessfulAt   DateTime?
+  redactedError      String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([provider, workspaceId, resourceType, partitionKey])
+  @@index([status, lastSuccessfulAt])
+  @@index([leaseExpiresAt])
+}
+
+model ColdEmailReconciliationRun {
+  id                 String   @id @default(cuid())
+  provider           String
+  workspaceId        String
+  resourceType       String
+  partitionKey       String?
+  trigger            String   // scheduled | webhook | manual | repair
+  status             String   @default("running") // running | completed | partial | failed
+  cursorBefore       String?
+  cursorAfter        String?
+  scannedCount       Int      @default(0)
+  createdCount       Int      @default(0)
+  updatedCount       Int      @default(0)
+  ignoredCount       Int      @default(0)
+  failedCount        Int      @default(0)
+  redactedError      String?  @db.Text
+  startedAt          DateTime @default(now())
+  completedAt        DateTime?
+
+  @@index([provider, resourceType, startedAt])
+  @@index([status, startedAt])
+}
+
+model ColdEmailDeadLetter {
+  id                  String   @id @default(cuid())
+  dedupeKey           String   @unique
+  providerOperationId String?
+  providerOperation   ColdEmailProviderOperation? @relation(fields: [providerOperationId], references: [id], onDelete: SetNull)
+  sourceType          String
+  sourceId            String?
+  reason              String
+  redactedPayload     Json?
+  attemptCount        Int      @default(0)
+  status              String   @default("open") // open | replay_pending | resolved | ignored
+  firstFailedAt       DateTime @default(now())
+  lastFailedAt        DateTime @default(now())
+  resolvedAt          DateTime?
+  resolvedBy          String?
+  resolution          String?  @db.Text
+
+  @@index([status, lastFailedAt])
+  @@index([sourceType, sourceId])
+  @@index([providerOperationId])
+}
+
+model ColdEmailAlert {
+  id             String   @id @default(cuid())
+  dedupeKey      String?  @unique
+  campaignId     String?
+  campaign       ColdEmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  alertType      String
+  severity       String
+  status         String   @default("open") // open | acknowledged | resolved | muted
+  title          String
+  message        String   @db.Text
+  evidence       Json?
+  scopeType      String?
+  scopeId        String?
+  ownerId        String?
+  directActionHref String?
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  snoozedUntil   DateTime?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?  @db.Text
+
+  @@index([status, severity, lastSeenAt])
+  @@index([campaignId, status])
+  @@index([alertType, status])
+  @@index([ownerId, status, severity])
+  @@index([snoozedUntil, status])
+}
+
+model ColdEmailAuditEvent {
+  id            String   @id @default(cuid())
+  idempotencyKey String? @unique
+  campaignId    String?
+  campaign      ColdEmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  actorId       String
+  actorRole     String
+  action        String
+  aggregateType String
+  aggregateId   String
+  beforeState   Json?
+  afterState    Json?
+  evidence      Json?
+  occurredAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([aggregateType, aggregateId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+// ── Cold Email Platform — local Inbox, CRM, conversion, and operations ──────
+// PARITY MIRROR ONLY. This package is additive and remains unapplied until the
+// ScaleYourJunk database owner reviews, migrates, and regenerates clients.
+
+model ColdEmailOperator {
+  id              String   @id @default(cuid())
+  email           String
+  normalizedEmail String   @unique
+  displayName     String?
+  role            String   @default("viewer") // super_admin | campaign_manager | sales_rep | viewer
+  active          Boolean  @default(true)
+  lastSeenAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  savedViews ColdEmailSavedView[]
+  exportJobs ColdEmailExportJob[]
+
+  @@index([active, role])
+}
+
+model ColdEmailConversation {
+  id                     String   @id @default(cuid())
+  companyId              String?
+  company                ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  primaryContactId       String?
+  primaryContact         ColdEmailContact? @relation(fields: [primaryContactId], references: [id], onDelete: SetNull)
+  primaryEmailIdentityId String?
+  primaryEmailIdentity   ColdEmailEmailIdentity? @relation(fields: [primaryEmailIdentityId], references: [id], onDelete: SetNull)
+  ownerId                String?
+  workflowState          String   @default("needs_review") // needs_review | needs_reply | reply_scheduled | waiting_on_lead | reminder_due | snoozed | resolved
+  disposition            String   @default("unclassified")
+  priority               Int      @default(100)
+  recordVersion          Int      @default(1)
+  lastMessageAt          DateTime?
+  lastInboundAt          DateTime?
+  lastOutboundAt         DateTime?
+  nextActionAt           DateTime?
+  resolvedAt             DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  threads       ColdEmailThread[]
+  opportunities ColdEmailOpportunity[]
+  reminders     ColdEmailReminder[]
+  snoozes       ColdEmailSnooze[]
+  assignments   ColdEmailAssignment[]
+  tasks         ColdEmailTask[]
+
+  @@index([workflowState, nextActionAt])
+  @@index([ownerId, workflowState])
+  @@index([companyId, updatedAt])
+  @@index([primaryContactId])
+}
+
+model ColdEmailThread {
+  id               String   @id @default(cuid())
+  conversationId   String
+  conversation     ColdEmailConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sendingAccountId String?
+  sendingAccount   ColdEmailSendingAccount? @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
+  provider         String   @default("instantly")
+  workspaceId      String
+  providerThreadId String
+  subject          String?
+  providerReadState String  @default("unknown")
+  localReadState   String   @default("unread")
+  workflowState    String   @default("needs_review")
+  assignedToId     String?
+  lastMessageAt    DateTime?
+  lastInboundAt    DateTime?
+  lastOutboundAt   DateTime?
+  openedAt         DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  messages         ColdEmailMessage[]
+  drafts           ColdEmailDraft[]
+  scheduledReplies ColdEmailScheduledReply[]
+
+  @@unique([provider, workspaceId, providerThreadId])
+  @@index([conversationId, lastMessageAt])
+  @@index([localReadState, lastInboundAt])
+  @@index([workflowState, lastMessageAt])
+  @@index([assignedToId, workflowState])
+  @@index([sendingAccountId])
+}
+
+model ColdEmailMessage {
+  id                  String   @id @default(cuid())
+  threadId            String
+  thread              ColdEmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  contactId           String?
+  contact             ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailIdentityId     String?
+  emailIdentity       ColdEmailEmailIdentity? @relation(fields: [emailIdentityId], references: [id], onDelete: SetNull)
+  campaignVersionId   String?
+  campaignVersion     ColdEmailCampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: SetNull)
+  provider            String   @default("instantly")
+  workspaceId         String
+  providerMessageId   String?
+  fingerprint         String   @unique
+  direction           String   // inbound | outbound
+  messageType         String   @default("human") // human | automatic | system
+  sender              Json
+  recipients          Json
+  subject             String?
+  bodyText            String?  @db.Text
+  bodyHtml            String?  @db.Text
+  quotedHistory       String?  @db.Text
+  providerStatus      String?
+  sentAt              DateTime?
+  receivedAt          DateTime?
+  providerRecordedAt  DateTime?
+  contentExpiresAt    DateTime
+  retentionState      String   @default("retained") // retained | purge_pending | purged | legal_hold
+  purgedAt            DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  attachments ColdEmailAttachmentMetadata[]
+  drafts      ColdEmailDraft[]
+
+  @@index([provider, workspaceId, providerMessageId])
+  @@index([threadId, receivedAt])
+  @@index([direction, receivedAt])
+  @@index([contentExpiresAt, retentionState])
+  @@index([contactId, receivedAt])
+  @@index([emailIdentityId, receivedAt])
+  @@index([campaignVersionId, sentAt])
+}
+
+model ColdEmailAttachmentMetadata {
+  id                   String   @id @default(cuid())
+  fingerprint          String   @unique
+  messageId            String
+  message              ColdEmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  providerAttachmentId String?
+  filename             String?
+  mimeType             String?
+  sizeBytes            Int?
+  providerUrl          String?
+  contentExpiresAt     DateTime
+  purgedAt             DateTime?
+  createdAt            DateTime @default(now())
+
+  @@index([messageId])
+  @@index([contentExpiresAt, purgedAt])
+}
+
+model ColdEmailDraft {
+  id               String   @id @default(cuid())
+  threadId         String
+  thread           ColdEmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sourceMessageId  String?
+  sourceMessage    ColdEmailMessage? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  subject          String
+  bodyText         String?  @db.Text
+  bodyHtml         String?  @db.Text
+  cc               String[] @default([])
+  bcc              String[] @default([])
+  status           String   @default("draft") // draft | approved | scheduled | sent | discarded
+  createdBy        String
+  aiGenerated      Boolean  @default(false)
+  modelVersion     String?
+  promptVersion    String?
+  confidence       Float?
+  acceptedAsIs     Boolean?
+  approvedAt       DateTime?
+  approvedBy       String?
+  contentExpiresAt DateTime
+  purgedAt         DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  scheduledReply ColdEmailScheduledReply?
+
+  @@index([threadId, status])
+  @@index([contentExpiresAt, purgedAt])
+}
+
+model ColdEmailScheduledReply {
+  id                       String   @id @default(cuid())
+  threadId                 String
+  thread                   ColdEmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  draftId                  String?  @unique
+  draft                    ColdEmailDraft? @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  sendingAccountId         String
+  sendingAccount           ColdEmailSendingAccount @relation(fields: [sendingAccountId], references: [id], onDelete: Restrict)
+  providerOperationId      String?  @unique
+  providerOperation        ColdEmailProviderOperation? @relation(fields: [providerOperationId], references: [id], onDelete: SetNull)
+  replyToProviderMessageId String
+  subject                  String
+  bodyText                 String?  @db.Text
+  bodyHtml                 String?  @db.Text
+  cc                       String[] @default([])
+  bcc                      String[] @default([])
+  status                   String   @default("scheduled") // scheduled | executing | provider_accepted | sent | canceled | failed | reconciliation_required
+  scheduledAt              DateTime
+  leaseOwner               String?
+  leaseExpiresAt           DateTime?
+  attemptCount             Int      @default(0)
+  redactedError            String?  @db.Text
+  createdBy                String
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  canceledAt               DateTime?
+  canceledBy               String?
+  cancelReason             String?
+  sentAt                   DateTime?
+  contentExpiresAt         DateTime
+  purgedAt                 DateTime?
+
+  @@index([status, scheduledAt])
+  @@index([leaseExpiresAt])
+  @@index([threadId, status])
+  @@index([sendingAccountId, status])
+  @@index([contentExpiresAt, purgedAt])
+}
+
+model ColdEmailReminder {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   ColdEmailConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  title          String
+  note           String?  @db.Text
+  dueAt          DateTime
+  status         String   @default("open") // open | completed | canceled
+  assignedToId   String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+  completedBy    String?
+
+  @@index([status, dueAt])
+  @@index([assignedToId, status, dueAt])
+  @@index([conversationId, status])
+}
+
+model ColdEmailSnooze {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   ColdEmailConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  startsAt       DateTime @default(now())
+  until          DateTime
+  reason         String?
+  active         Boolean  @default(true)
+  createdBy      String
+  createdAt      DateTime @default(now())
+  releasedAt     DateTime?
+  releasedBy     String?
+
+  @@index([active, until])
+  @@index([conversationId, active])
+}
+
+model ColdEmailAssignment {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   ColdEmailConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assignedToId   String?
+  previousOwnerId String?
+  assignedBy     String
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([assignedToId, createdAt])
+}
+
+model ColdEmailOpportunity {
+  id                      String   @id @default(cuid())
+  openKey                 String?  @unique // company:<id> while open; null after close
+  companyId               String
+  company                 ColdEmailCompany @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  primaryContactId        String?
+  primaryContact          ColdEmailContact? @relation(fields: [primaryContactId], references: [id], onDelete: SetNull)
+  conversationId          String?
+  conversation            ColdEmailConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  sourceCampaignVersionId String?
+  sourceCampaignVersion   ColdEmailCampaignVersion? @relation(fields: [sourceCampaignVersionId], references: [id], onDelete: SetNull)
+  name                    String
+  ownerId                 String
+  stage                   String   @default("qualification")
+  status                  String   @default("open") // open | won | lost
+  valueCents              Int?
+  currency                String   @default("usd")
+  plan                    String?
+  probability             Int?
+  nextActionAt            DateTime?
+  recordVersion           Int      @default(1)
+  openedAt                DateTime @default(now())
+  closedAt                DateTime?
+  wonAt                   DateTime?
+  lostAt                  DateTime?
+  lossReason              String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  stageHistory      ColdEmailOpportunityStageHistory[]
+  tasks             ColdEmailTask[]
+  meetings          ColdEmailMeeting[]
+  proposals         ColdEmailProposal[]
+  attributionTokens ColdEmailAttributionToken[]
+  attributionTouches ColdEmailAttributionTouch[]
+  customerLinks     ColdEmailCustomerLink[]
+  paymentProjections ColdEmailPaymentProjection[]
+  manualPaymentEvidence ColdEmailManualPaymentEvidence[]
+
+  @@index([status, stage, nextActionAt])
+  @@index([ownerId, status])
+  @@index([companyId, status])
+  @@index([sourceCampaignVersionId])
+}
+
+model ColdEmailOpportunityStageHistory {
+  id            String   @id @default(cuid())
+  opportunityId String
+  opportunity   ColdEmailOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  fromStage     String?
+  toStage       String
+  fromStatus    String?
+  toStatus      String
+  reason        String?
+  changedBy     String
+  changedAt     DateTime @default(now())
+
+  @@index([opportunityId, changedAt])
+  @@index([toStage, changedAt])
+}
+
+model ColdEmailTask {
+  id             String   @id @default(cuid())
+  opportunityId  String?
+  opportunity    ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   ColdEmailConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  contactId      String?
+  contact        ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?  @db.Text
+  taskType       String   @default("follow_up")
+  status         String   @default("open") // open | completed | canceled
+  priority       Int      @default(100)
+  assignedToId   String?
+  dueAt          DateTime?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+  completedBy    String?
+
+  @@index([status, dueAt])
+  @@index([assignedToId, status, dueAt])
+  @@index([opportunityId, status])
+  @@index([conversationId])
+  @@index([contactId])
+}
+
+model ColdEmailMeeting {
+  id              String   @id @default(cuid())
+  opportunityId   String?
+  opportunity     ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  companyId       String?
+  company         ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contactId       String?
+  contact         ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  demoBookingId   String?  @unique
+  demoBooking     DemoBooking? @relation(fields: [demoBookingId], references: [id], onDelete: SetNull)
+  provider        String   @default("google_calendar")
+  calendarEventId String?
+  meetUrl         String?
+  status          String   @default("scheduled") // scheduled | rescheduled | completed | no_show | canceled
+  syncState       String   @default("pending") // pending | confirmed | reconciliation_required | failed
+  startsAt        DateTime
+  endsAt          DateTime
+  timezone        String
+  canceledAt      DateTime?
+  cancelReason    String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([provider, calendarEventId])
+  @@index([status, startsAt])
+  @@index([opportunityId, startsAt])
+  @@index([companyId, startsAt])
+  @@index([contactId, startsAt])
+}
+
+model ColdEmailProposal {
+  id              String   @id @default(cuid())
+  opportunityId   String
+  opportunity     ColdEmailOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  version         Int
+  status          String   @default("draft") // draft | sent | viewed | accepted | declined | expired
+  title           String
+  amountCents     Int?
+  currency        String   @default("usd")
+  documentUrl     String?
+  immutableHash   String
+  expiresAt       DateTime?
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  attributionTokens ColdEmailAttributionToken[]
+
+  @@unique([opportunityId, version])
+  @@unique([opportunityId, immutableHash])
+  @@index([status, sentAt])
+}
+
+model ColdEmailAttributionToken {
+  id                String   @id @default(cuid())
+  tokenHash         String   @unique
+  campaignVersionId String
+  campaignVersion   ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Restrict)
+  companyId         String?
+  company           ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contactId         String?
+  contact           ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunityId     String?
+  opportunity       ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  proposalId        String?
+  proposal          ColdEmailProposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  purpose           String
+  expiresAt         DateTime
+  redeemedAt        DateTime?
+  redemptionType    String?
+  redemptionId      String?
+  revokedAt         DateTime?
+  revokedBy         String?
+  createdAt         DateTime @default(now())
+
+  touches ColdEmailAttributionTouch[]
+
+  @@index([campaignVersionId, createdAt])
+  @@index([expiresAt, redeemedAt])
+  @@index([opportunityId])
+  @@index([proposalId])
+}
+
+model ColdEmailAttributionTouch {
+  id                String   @id @default(cuid())
+  sourceEventId     String?  @unique
+  campaignVersionId String
+  campaignVersion   ColdEmailCampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Restrict)
+  attributionTokenId String?
+  attributionToken  ColdEmailAttributionToken? @relation(fields: [attributionTokenId], references: [id], onDelete: SetNull)
+  companyId         String?
+  company           ColdEmailCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contactId         String?
+  contact           ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunityId     String?
+  opportunity       ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  customerLinkId    String?
+  customerLink      ColdEmailCustomerLink? @relation(fields: [customerLinkId], references: [id], onDelete: SetNull)
+  touchType         String
+  matchMethod       String
+  confidence        Float?
+  evidence          Json?
+  isFirstTouch      Boolean  @default(false)
+  isLastTouch       Boolean  @default(false)
+  isPrimary         Boolean  @default(false)
+  occurredAt        DateTime
+  createdAt         DateTime @default(now())
+
+  @@index([campaignVersionId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([customerLinkId, occurredAt])
+  @@index([isPrimary, occurredAt])
+}
+
+model ColdEmailCustomerLink {
+  id                    String   @id @default(cuid())
+  companyId             String
+  company               ColdEmailCompany @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contactId             String?
+  contact               ColdEmailContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunityId         String?
+  opportunity           ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  scaleYourJunkUserId   String?  @unique
+  scaleYourJunkUser     User? @relation(fields: [scaleYourJunkUserId], references: [id], onDelete: SetNull)
+  status                String   @default("prospect") // prospect | trial_activated | product_activated | paying | comped | churned
+  matchMethod           String
+  matchConfidence       Float?
+  activatedAt           DateTime?
+  payingAt              DateTime?
+  churnedAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  attributionTouches ColdEmailAttributionTouch[]
+  paymentProjections ColdEmailPaymentProjection[]
+  manualPaymentEvidence ColdEmailManualPaymentEvidence[]
+
+  @@index([companyId, status])
+  @@index([opportunityId])
+  @@index([status, updatedAt])
+}
+
+model ColdEmailPaymentProjection {
+  id                   String   @id @default(cuid())
+  customerLinkId       String
+  customerLink         ColdEmailCustomerLink @relation(fields: [customerLinkId], references: [id], onDelete: Cascade)
+  opportunityId        String?
+  opportunity          ColdEmailOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  stripeEventId        String?  @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeInvoiceId      String?
+  stripePaymentIntentId String?
+  eventType            String
+  status               String
+  amountCents          Int?
+  mrrCents             Int?
+  arrCents             Int?
+  currency             String?
+  redactedMetadata     Json?
+  occurredAt           DateTime
+  projectedAt          DateTime @default(now())
+
+  @@index([customerLinkId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([status, occurredAt])
+}
+
+model ColdEmailManualPaymentEvidence {
+  id                String   @id @default(cuid())
+  idempotencyKey    String   @unique
+  customerLinkId    String
+  customerLink      ColdEmailCustomerLink @relation(fields: [customerLinkId], references: [id], onDelete: Cascade)
+  opportunityId     String
+  opportunity       ColdEmailOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  evidenceType      String   // payment | refund | comp | dispute | other
+  status            String   @default("recorded") // recorded | verified | rejected
+  amountCents       Int?
+  currency          String   @default("usd")
+  externalReference String?
+  note              String   @db.Text
+  occurredAt        DateTime
+  recordedBy        String
+  createdAt         DateTime @default(now())
+
+  @@index([customerLinkId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([evidenceType, status, occurredAt])
+}
+
+model ColdEmailBlackoutDate {
+  id         String   @id @default(cuid())
+  campaignId String?
+  campaign   ColdEmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  date       DateTime
+  timezone   String
+  scope      String   @default("global") // global | campaign
+  dedupeKey  String   @unique
+  active     Boolean  @default(true)
+  createdBy  String
+  createdAt  DateTime @default(now())
+
+  @@index([active, date])
+  @@index([scope, date])
+}
+
+model ColdEmailPlacementTest {
+  id             String   @id @default(cuid())
+  provider       String   @default("instantly")
+  workspaceId    String
+  providerTestId String?
+  requestKey     String   @unique
+  source         String   @default("free_manual")
+  freeTestOrdinal Int?
+  materialFingerprint String?
+  status         String   @default("requested")
+  score          Float?
+  inboxRate      Float?
+  spamRate       Float?
+  missingRate    Float?
+  result         Json?
+  requestedBy    String
+  requestedAt    DateTime @default(now())
+  confirmedAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  staleAt        DateTime?
+  staleReason    String?
+
+  @@index([provider, workspaceId, providerTestId])
+  @@index([status, requestedAt])
+}
+
+model ColdEmailSavedView {
+  id         String   @id @default(cuid())
+  operatorId String
+  operator   ColdEmailOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  name       String
+  surface    String
+  filters    Json
+  sorting    Json?
+  columns    Json?
+  shared     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([operatorId, surface, name])
+  @@index([surface, shared])
+}
+
+model ColdEmailExportJob {
+  id              String   @id @default(cuid())
+  operatorId      String
+  operator        ColdEmailOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  exportType      String
+  filters         Json?
+  status          String   @default("pending") // pending | running | completed | failed | expired
+  rowCount        Int?
+  artifactUrl     String?
+  artifactExpiresAt DateTime?
+  redactedError   String?  @db.Text
+  createdAt       DateTime @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  @@index([operatorId, createdAt])
+  @@index([status, createdAt])
+  @@index([artifactExpiresAt])
+}
+
+model ColdEmailRetentionRun {
+  id             String   @id @default(cuid())
+  dryRun         Boolean  @default(true)
+  status         String   @default("running") // running | completed | partial | failed
+  messageCutoff  DateTime
+  webhookCutoff  DateTime
+  candidateCounts Json?
+  purgedCounts   Json?
+  protectedCounts Json?
+  redactedError  String?  @db.Text
+  startedBy      String
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([status, startedAt])
+  @@index([dryRun, startedAt])
+}
+
+model ColdEmailMetricSnapshot {
+  id          String   @id @default(cuid())
+  campaignId  String?
+  campaign    ColdEmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  metricDate  DateTime
+  scopeKey    String
+  dimensions  Json?
+  metrics     Json
+  dataState   String   @default("complete") // complete | partial | stale | unavailable
+  calculatedAt DateTime @default(now())
+
+  @@unique([scopeKey, metricDate])
+  @@index([metricDate, dataState])
 }
 
 model BlogPost {
@@ -2685,9 +4246,10 @@ model DemoBooking {
   meetUrl         String
   meetSpaceId     String? // Google Meet REST API space name (spaces/xxx)
   calendarEventId String // Google Calendar event id
-  status          String   @default("scheduled") // scheduled | cancelled | completed | no_show
+  status          String   @default("scheduled") // scheduled | cancel_pending | reschedule_pending | cancelled | completed | no_show
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  coldEmailMeeting ColdEmailMeeting?
 
   @@index([startsAt])
   @@index([email])

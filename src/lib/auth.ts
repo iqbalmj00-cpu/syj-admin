@@ -16,22 +16,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const inputEmail = String(credentials?.email || "").trim();
                 const inputPassword = String(credentials?.password || "");
 
-                console.log("[AUTH] Attempt:", inputEmail, "| Admin configured:", !!adminEmail);
-
                 if (!adminEmail || !adminPassword) {
-                    console.log("[AUTH] FAIL: env vars missing");
                     return null;
                 }
                 if (inputEmail !== adminEmail) {
-                    console.log("[AUTH] FAIL: email mismatch", JSON.stringify(inputEmail), "!==", JSON.stringify(adminEmail));
                     return null;
                 }
                 if (inputPassword !== adminPassword) {
-                    console.log("[AUTH] FAIL: password mismatch");
                     return null;
                 }
 
-                console.log("[AUTH] SUCCESS");
                 return { id: "admin", email: adminEmail, name: "Admin" };
             },
         }),
