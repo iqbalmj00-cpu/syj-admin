@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeInstantlyAccountHealth, normalizeInstantlyAccountVitals } from "../cold-email-health-sync.ts";
+import { matchInstantlyDomainVitals, normalizeInstantlyAccountHealth, normalizeInstantlyAccountVitals } from "../cold-email-health-sync.ts";
 
 test("account analytics keeps campaign and warmup volume separate", () => {
     const rows = normalizeInstantlyAccountHealth({
@@ -15,4 +15,18 @@ test("account vitals normalize authentication facts without treating missing val
     const rows = normalizeInstantlyAccountVitals({ success_list: [{ domain: "Example.com", allPass: true, mx: true, spf: true, dkim: true, dmarc: true }], failure_list: [{ domain: "bad.test", allPass: false, mx: true, spf: false }] });
     assert.deepEqual(rows[0], { domain: "example.com", allPass: true, mx: true, spf: true, dkim: true, dmarc: true });
     assert.deepEqual(rows[1], { domain: "bad.test", allPass: false, mx: true, spf: false, dkim: false, dmarc: false });
+});
+
+test("domain vitals remain actionable when a fresh mailbox has no campaign activity", () => {
+    const health = normalizeInstantlyAccountHealth({ dateKey: "2026-07-21", dailyPayload: [], warmupPayload: {}, });
+    const vitals = normalizeInstantlyAccountVitals({
+        success_list: [{ domain: "Example.com", allPass: true, mx: true, spf: true, dkim: true, dmarc: true }],
+    });
+    const matches = matchInstantlyDomainVitals([
+        { normalizedEmail: "first@example.com", sendingDomainId: "domain-1" },
+        { normalizedEmail: "second@example.com", sendingDomainId: "domain-1" },
+    ], vitals);
+
+    assert.equal(health.length, 0);
+    assert.deepEqual(matches, [{ sendingDomainId: "domain-1", vitals: vitals[0] }]);
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyColdEmailCronRequest } from "@/lib/cold-email-cron-auth";
-import { normalizeInstantlyAccountHealth, normalizeInstantlyAccountVitals } from "@/lib/cold-email-health-sync";
+import { matchInstantlyDomainVitals, normalizeInstantlyAccountHealth, normalizeInstantlyAccountVitals } from "@/lib/cold-email-health-sync";
 import { isColdEmailHealthSyncStoreReady, listColdEmailHealthAccounts, persistColdEmailAccountHealth, persistColdEmailDomainVitals } from "@/lib/cold-email-health-sync-store";
 import { getInstantlyDailyAccountAnalytics, getInstantlyWarmupAnalytics, isInstantlyConfigured, testInstantlyAccountVitals } from "@/lib/instantly";
 
@@ -25,6 +25,10 @@ async function handle(req: NextRequest) {
     const vitals = normalizeInstantlyAccountVitals(vitalsPayload);
     const vitalsByDomain = new Map(vitals.map((observation) => [observation.domain, observation]));
     const byEmail = new Map(observations.map((observation) => [observation.email, observation]));
+    const domainVitals = matchInstantlyDomainVitals(accounts, vitals);
+    for (const domain of domainVitals) {
+        await persistColdEmailDomainVitals({ sendingDomainId: domain.sendingDomainId, vitals: domain.vitals, dateKey, observedAt: new Date() });
+    }
     let synchronized = 0;
     for (const account of accounts) {
         const observation = byEmail.get(account.email.toLowerCase());
@@ -32,10 +36,9 @@ async function handle(req: NextRequest) {
         const domain = account.normalizedEmail.split("@")[1] || "";
         const accountVitals = vitalsByDomain.get(domain) || null;
         await persistColdEmailAccountHealth({ account, observation, vitals: accountVitals, observedAt: new Date() });
-        if (account.sendingDomainId && accountVitals) await persistColdEmailDomainVitals({ sendingDomainId: account.sendingDomainId, vitals: accountVitals, dateKey, observedAt: new Date() });
         synchronized += 1;
     }
-    return NextResponse.json({ ok: true, synchronized, missing: accounts.length - synchronized, vitalsTested: vitals.length });
+    return NextResponse.json({ ok: true, synchronized, missing: accounts.length - synchronized, vitalsTested: vitals.length, domainsSynchronized: domainVitals.length });
 }
 
 export const GET = handle;

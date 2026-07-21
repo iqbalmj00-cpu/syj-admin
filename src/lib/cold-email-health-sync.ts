@@ -65,3 +65,20 @@ export function normalizeInstantlyAccountVitals(payload: unknown): AccountVitals
     }
     return [...byDomain.values()];
 }
+
+export function matchInstantlyDomainVitals(
+    accounts: Array<{ normalizedEmail: string; sendingDomainId: string | null }>,
+    vitals: AccountVitalsObservation[],
+) {
+    const vitalsByDomain = new Map(vitals.map((observation) => [observation.domain, observation]));
+    const matchedDomainIds = new Set<string>();
+    return accounts.flatMap((account) => {
+        const sendingDomainId = account.sendingDomainId;
+        if (!sendingDomainId || matchedDomainIds.has(sendingDomainId)) return [];
+        const domain = account.normalizedEmail.split("@")[1]?.trim().toLowerCase() || "";
+        const observation = vitalsByDomain.get(domain);
+        if (!observation) return [];
+        matchedDomainIds.add(sendingDomainId);
+        return [{ sendingDomainId, vitals: observation }];
+    });
+}
