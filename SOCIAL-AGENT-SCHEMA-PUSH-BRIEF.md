@@ -7,6 +7,30 @@
 > **Database execution owner:** ScaleYourJunk
 > **Database state:** not inspected, not changed, and not inferred by Admin
 
+## Update — this may already be answered (checked 2026-07-28)
+
+Before doing anything below, note what was found on the ScaleYourJunk side after
+this brief was drafted:
+
+- The ScaleYourJunk repository at `main@161cdb3c9f815eb70bdb8db56873828813ee2266`
+  **already declares all twelve social models and all eight nullable
+  `ContentAsset` fields** in its own `prisma/schema.prisma`.
+- A field-by-field comparison of that declaration against the Admin declaration
+  below found **zero differences** across all twelve models, and **zero type
+  mismatches** across the eight `ContentAsset` additions. *(Directly verified by
+  the Admin side; comments and whitespace normalised.)*
+- The corpus routing index records that on 2026-07-28 the owner ran
+  `prisma migrate status` (17 migrations, "Database schema is up to date!") and
+  `prisma migrate diff --from-config-datasource --to-schema` ("No difference
+  detected", exit 0) against the shared Neon database. Since the schema those
+  commands compared against contains the social models, the shared database
+  holds them. *(Owner-side observation recorded in the corpus — not observed by
+  the Admin side, which cannot see the database.)*
+
+**So the likely correct outcome of this brief is: confirm and close.** Please
+still tick the sign-off below, and still answer the `SocialPost.seedId` index
+question, but expect to run no database command at all.
+
 ## Read this first — what is different about this brief
 
 This is **not a new push request.** The structures below are believed to have been
