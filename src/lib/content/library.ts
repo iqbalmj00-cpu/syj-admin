@@ -35,9 +35,23 @@ export interface ContentAsset {
     storyTags: string[];
     orientation: Orientation;
     blobUrl: string;
+    /** Private Blob pathname, present on rows uploaded through the asset surface. */
+    blobPath?: string | null;
+    mimeType?: string | null;
+    byteSize?: number | null;
+    pixelWidth?: number | null;
+    pixelHeight?: number | null;
+    sha256?: string | null;
+    sanitizedAt?: Date | null;
+    sanitizedBy?: string | null;
     /** Optional map of callout zone → pixel coordinates for Feature Callout template */
     annotationZones?: Record<string, { x: number; y: number }>;
     active: boolean;
+    /**
+     * True for the hardcoded placeholder rows below. Social output must never
+     * use one, so the flag is explicit rather than inferred from the URL.
+     */
+    isFallback?: boolean;
 }
 
 /* ─── DB-backed queries ──────────────────────────────────────────── */
@@ -47,14 +61,35 @@ export async function getActiveAssets(): Promise<ContentAsset[]> {
         where: { active: true },
         orderBy: { createdAt: "desc" },
     });
-    if (rows.length === 0) return FALLBACK_LIBRARY.filter((a) => a.active);
+    if (rows.length === 0) return fallbacks((a) => a.active);
+    return rows.map(rowToAsset);
+}
+
+/**
+ * Real database rows only — never the placeholder library.
+ *
+ * Social posts are published content, so an asset requirement is satisfied by a
+ * genuine uploaded screenshot or it fails closed. Returning an empty array when
+ * the catalog is empty is the point of this function, not a limitation of it.
+ */
+export async function getActiveDbAssets(): Promise<ContentAsset[]> {
+    const rows = await prisma.contentAsset.findMany({
+        where: { active: true },
+        orderBy: { createdAt: "desc" },
+    });
     return rows.map(rowToAsset);
 }
 
 export async function getAssetById(id: string): Promise<ContentAsset | null> {
     const row = await prisma.contentAsset.findUnique({ where: { id } });
     if (row) return rowToAsset(row);
-    return FALLBACK_LIBRARY.find((a) => a.id === id) ?? null;
+    return fallbacks((a) => a.id === id)[0] ?? null;
+}
+
+/** Database row or nothing. Used by social, which must not resolve a placeholder. */
+export async function getDbAssetById(id: string): Promise<ContentAsset | null> {
+    const row = await prisma.contentAsset.findUnique({ where: { id } });
+    return row ? rowToAsset(row) : null;
 }
 
 export async function getAssetsByType(type: AssetType): Promise<ContentAsset[]> {
@@ -62,8 +97,7 @@ export async function getAssetsByType(type: AssetType): Promise<ContentAsset[]> 
         where: { active: true, type },
         orderBy: { createdAt: "desc" },
     });
-    if (rows.length === 0)
-        return FALLBACK_LIBRARY.filter((a) => a.active && a.type === type);
+    if (rows.length === 0) return fallbacks((a) => a.active && a.type === type);
     return rows.map(rowToAsset);
 }
 
@@ -75,9 +109,7 @@ export async function getAssetsByOrientation(
         orderBy: { createdAt: "desc" },
     });
     if (rows.length === 0)
-        return FALLBACK_LIBRARY.filter(
-            (a) => a.active && a.orientation === orientation,
-        );
+        return fallbacks((a) => a.active && a.orientation === orientation);
     return rows.map(rowToAsset);
 }
 
@@ -92,6 +124,14 @@ function rowToAsset(row: {
     storyTags: string[];
     orientation: string;
     blobUrl: string;
+    blobPath?: string | null;
+    mimeType?: string | null;
+    byteSize?: number | null;
+    pixelWidth?: number | null;
+    pixelHeight?: number | null;
+    sha256?: string | null;
+    sanitizedAt?: Date | null;
+    sanitizedBy?: string | null;
     annotationZones: unknown;
     active: boolean;
 }): ContentAsset {
@@ -104,11 +144,30 @@ function rowToAsset(row: {
         storyTags: row.storyTags,
         orientation: row.orientation as Orientation,
         blobUrl: row.blobUrl,
+        blobPath: row.blobPath ?? null,
+        mimeType: row.mimeType ?? null,
+        byteSize: row.byteSize ?? null,
+        pixelWidth: row.pixelWidth ?? null,
+        pixelHeight: row.pixelHeight ?? null,
+        sha256: row.sha256 ?? null,
+        sanitizedAt: row.sanitizedAt ?? null,
+        sanitizedBy: row.sanitizedBy ?? null,
         annotationZones:
             (row.annotationZones as Record<string, { x: number; y: number }> | null) ??
             undefined,
         active: row.active,
+        isFallback: false,
     };
+}
+
+/** Placeholder rows, always tagged so downstream code can exclude them. */
+function fallbacks(predicate: (asset: ContentAsset) => boolean): ContentAsset[] {
+    return FALLBACK_LIBRARY.filter(predicate).map((asset) => ({ ...asset, isFallback: true }));
+}
+
+/** A real, publishable asset: a database row carrying private media. */
+export function isPublishableAsset(asset: ContentAsset): boolean {
+    return asset.isFallback !== true && typeof asset.blobPath === "string" && asset.blobPath.length > 0;
 }
 
 /* ─── Fallback library (used only when DB is empty) ──────────────── */

@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { ImageResponse } from "next/og";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,6 +7,11 @@ import {
     getAssetById,
     type ContentAsset,
 } from "@/lib/content/library";
+import {
+    buildMockup,
+    renderNodeToPng,
+    resolveAssetImageSource,
+} from "@/lib/content/compose";
 import {
     TEMPLATE_REGISTRY,
     getTemplateMeta,
@@ -23,12 +27,6 @@ import FeatureCalloutTemplate, {
     type CalloutPosition,
 } from "@/lib/content/templates/FeatureCalloutTemplate";
 import QuoteCardTemplate from "@/lib/content/templates/QuoteCardTemplate";
-
-import { BrowserFrame } from "@/lib/content/mockups/BrowserFrame";
-import { IPhoneFrameSatori } from "@/lib/content/mockups/IPhoneFrameSatori";
-import { MacBookFrame } from "@/lib/content/mockups/MacBookFrame";
-import { IPadFrame } from "@/lib/content/mockups/IPadFrame";
-import { PhoneInHandFrame } from "@/lib/content/mockups/PhoneInHandFrame";
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -398,29 +396,6 @@ function fallbackPick(
     };
 }
 
-/* ─── Mockup factory ────────────────────────────────────────────── */
-
-function buildMockup(
-    mockupType: MockupType,
-    screenshotUrl: string,
-): React.ReactNode {
-    switch (mockupType) {
-        case "browser":
-            return <BrowserFrame screenshotUrl={screenshotUrl} width={900} />;
-        case "macbook":
-            return <MacBookFrame screenshotUrl={screenshotUrl} width={900} />;
-        case "ipad":
-            return <IPadFrame screenshotUrl={screenshotUrl} width={900} />;
-        case "iphone":
-            return <IPhoneFrameSatori screenshotUrl={screenshotUrl} width={420} />;
-        case "phone_in_hand":
-            return <PhoneInHandFrame screenshotUrl={screenshotUrl} width={700} />;
-        case "none":
-        default:
-            return null;
-    }
-}
-
 /* ─── Composition ───────────────────────────────────────────────── */
 
 async function composePng(
@@ -434,8 +409,14 @@ async function composePng(
         ? allAssets.find((a) => a.id === pick.secondaryAssetId)
         : null;
 
-    const mockup = screenshot
-        ? buildMockup(pick.mockupType, screenshot.blobUrl)
+    // Assets uploaded through the new asset surface live in private Blob storage
+    // and are hydrated to inline bytes here. Legacy rows carrying only a public
+    // URL resolve to that URL exactly as before.
+    const screenshotSrc = screenshot ? await resolveAssetImageSource(screenshot) : null;
+    const secondarySrc = secondary ? await resolveAssetImageSource(secondary) : null;
+
+    const mockup = screenshotSrc
+        ? buildMockup(pick.mockupType, screenshotSrc)
         : null;
 
     const slots = pick.slots || {};
@@ -475,10 +456,10 @@ async function composePng(
             );
             break;
         case "before_after": {
-            const beforeVisual = secondary ? (
+            const beforeVisual = secondarySrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                    src={secondary.blobUrl}
+                    src={secondarySrc}
                     alt=""
                     width={400}
                     height={275}
@@ -530,86 +511,7 @@ async function composePng(
             throw new Error(`Unknown templateId: ${pick.templateId}`);
     }
 
-    // Load fonts (gracefully fall back if missing)
-    const fonts = await loadFonts();
-
-    const imageResponse = new ImageResponse(templateNode, {
-        width: 1080,
-        height: 1080,
-        fonts,
-    });
-
-    const arrayBuffer = await imageResponse.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-}
-
-/* ─── Font loader ────────────────────────────────────────────────── */
-
-async function loadFonts(): Promise<
-    Array<{
-        name: string;
-        data: ArrayBuffer;
-        weight: 400 | 500 | 700 | 800;
-        style: "normal";
-    }> | undefined
-> {
-    try {
-        const { readFile } = await import("node:fs/promises");
-        const path = await import("node:path");
-        const fontDir = path.join(process.cwd(), "public", "fonts");
-
-        const [regular, medium, bold, extraBold] = await Promise.all([
-            readFile(path.join(fontDir, "Inter-Regular.ttf")).catch(() => null),
-            readFile(path.join(fontDir, "Inter-Medium.ttf")).catch(() => null),
-            readFile(path.join(fontDir, "Inter-Bold.ttf")).catch(() => null),
-            readFile(path.join(fontDir, "Inter-ExtraBold.ttf")).catch(() => null),
-        ]);
-
-        const fonts: Array<{
-            name: string;
-            data: ArrayBuffer;
-            weight: 400 | 500 | 700 | 800;
-            style: "normal";
-        }> = [];
-
-        const bufferToArrayBuffer = (buf: Buffer): ArrayBuffer => {
-            return buf.buffer.slice(
-                buf.byteOffset,
-                buf.byteOffset + buf.byteLength,
-            ) as ArrayBuffer;
-        };
-
-        if (regular)
-            fonts.push({
-                name: "Inter",
-                data: bufferToArrayBuffer(regular),
-                weight: 400,
-                style: "normal",
-            });
-        if (medium)
-            fonts.push({
-                name: "Inter",
-                data: bufferToArrayBuffer(medium),
-                weight: 500,
-                style: "normal",
-            });
-        if (bold)
-            fonts.push({
-                name: "Inter",
-                data: bufferToArrayBuffer(bold),
-                weight: 700,
-                style: "normal",
-            });
-        if (extraBold)
-            fonts.push({
-                name: "Inter",
-                data: bufferToArrayBuffer(extraBold),
-                weight: 800,
-                style: "normal",
-            });
-
-        return fonts.length > 0 ? fonts : undefined;
-    } catch {
-        return undefined;
-    }
+    // Canvas size and font handling now live in the shared compositor; the
+    // product canvas is unchanged at 1080 × 1080.
+    return renderNodeToPng(templateNode, { width: 1080, height: 1080 });
 }
