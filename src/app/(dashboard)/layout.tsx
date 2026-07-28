@@ -43,6 +43,7 @@ const NAV_GROUPS = [
         label: "Automation & Health",
         items: [
             { id: "/agents", label: "AI Agents", icon: "cpu" },
+            { id: "/social", label: "Social Studio", icon: "chart" },
             { id: "/monitoring", label: "Monitoring", icon: "globe" },
             { id: "/alerts", label: "Alerts", icon: "bell" },
         ],
@@ -70,6 +71,7 @@ const TITLES: Record<string, string> = {
     "/churn": "Churn & Cancellations",
     "/growth": "Growth Metrics",
     "/agents": "AI Agents",
+    "/social": "Social Studio",
     "/monitoring": "Platform Monitoring",
     "/alerts": "System Alerts",
     "/support": "Support Tickets",
@@ -92,6 +94,7 @@ const SUBTITLES: Record<string, string> = {
     "/churn": "Cancellation risk, account health, and intervention priorities.",
     "/growth": "Expansion motion, usage signals, and growth opportunities.",
     "/agents": "Automation controls, run history, content work, and outreach queues.",
+    "/social": "Ideas, drafted Facebook and LinkedIn posts, the Fact Book, and everything waiting for your sign-off.",
     "/monitoring": "Platform checks, service health, and operational exceptions.",
     "/alerts": "Critical events, warnings, and action-required system notices.",
     "/support": "Open customer issues and resolution workload.",

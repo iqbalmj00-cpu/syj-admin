@@ -114,6 +114,7 @@ const AGENT_ICONS: Record<string, string> = {
     content_generator: "CG",
     blog_writer: "BW",
     research_writer: "RR",
+    social_post_creator: "SP",
 };
 
 function relTime(d: string | null) {
@@ -551,6 +552,20 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                         {/* ── Action Bar ── */}
                         {a.slug === "lead_scraper" ? (
                             <LeadScraperControls showToast={showToast} onRefresh={onRefresh} />
+                        ) : a.slug === "social_post_creator" ? (
+                            /* Social posts are made one at a time from a specific
+                               idea, so there is nothing for a generic "Run Now"
+                               to run. The card sends you where the work happens. */
+                            <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
+                                <a href="/social" className="btn btn-xs btn-primary" style={{ flex: 1, textAlign: "center", textDecoration: "none" }}>
+                                    Open Social Studio
+                                </a>
+                                <button className="btn btn-xs btn-ghost" onClick={() => openConfig(a)}
+                                    style={{ color: isExpanded ? "var(--accent-strong)" : "var(--text-light)", padding: "6px 10px" }}
+                                    title="Configure">
+                                    Configure
+                                </button>
+                            </div>
                         ) : (
                         <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
                             {/* Primary action: Run or Running indicator */}
@@ -1360,6 +1375,83 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
 
                 <ConfigNote>
                     Generates research reports using Perplexity for web research and Claude for writing. Reports are saved as drafts — review and approve before publishing to the SYJ website.
+                </ConfigNote>
+            </>
+        );
+    }
+
+    if (slug === "social_post_creator") {
+        // Only the editorial settings are here. The safety rules — what counts
+        // as a supported claim, the quality bar, the repetition checks, the time
+        // budget — are fixed in code and are deliberately not editable.
+        const voices = (config.voices ?? {}) as Record<string, string>;
+        const structure = (config.structure ?? {}) as Record<string, Record<string, unknown>>;
+        const models = (config.models ?? {}) as Record<string, string>;
+        const setNested = (key: string, sub: string, value: unknown) =>
+            onChange(key, { ...((config[key] as Record<string, unknown>) ?? {}), [sub]: value });
+
+        return (
+            <>
+                <ConfigNote>
+                    Voice, shape and categories are yours to change. The safety checks, the quality bar and the
+                    time limits are fixed in code and cannot be edited here — that is deliberate.
+                </ConfigNote>
+                <ConfigField label="Facebook voice">
+                    <textarea
+                        value={voices.facebook ?? ""}
+                        onChange={(e) => setNested("voices", "facebook", e.target.value)}
+                        rows={4}
+                        maxLength={8000}
+                        style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+                    />
+                </ConfigField>
+                <ConfigField label="LinkedIn voice">
+                    <textarea
+                        value={voices.linkedin ?? ""}
+                        onChange={(e) => setNested("voices", "linkedin", e.target.value)}
+                        rows={4}
+                        maxLength={8000}
+                        style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+                    />
+                </ConfigField>
+                <ConfigField label="Who each platform is for">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {(["facebook", "linkedin"] as const).map((platform) => (
+                            <input
+                                key={platform}
+                                value={String(structure[platform]?.audience ?? "")}
+                                onChange={(e) =>
+                                    setNested("structure", platform, { ...(structure[platform] ?? {}), audience: e.target.value })
+                                }
+                                placeholder={`${platform} audience`}
+                                style={inputStyle}
+                            />
+                        ))}
+                    </div>
+                </ConfigField>
+                <ConfigField label="Drafts per post (1–3)">
+                    <input
+                        type="number"
+                        min={1}
+                        max={3}
+                        value={Number(config.draftCandidates ?? 2)}
+                        onChange={(e) => onChange("draftCandidates", Number(e.target.value))}
+                        style={inputStyle}
+                    />
+                </ConfigField>
+                <ConfigField label="Reviewer model">
+                    <select
+                        value={models.verifier ?? "claude-sonnet-5"}
+                        onChange={(e) => setNested("models", "verifier", e.target.value)}
+                        style={{ ...inputStyle, cursor: "pointer" }}
+                    >
+                        <option value="claude-sonnet-5">Sonnet 5</option>
+                        <option value="claude-opus-4-8">Opus 4.8</option>
+                    </select>
+                </ConfigField>
+                <ConfigNote>
+                    Posts are always created one at a time from the Social Studio, and every one waits for your
+                    sign-off. There is no automatic approval at any score.
                 </ConfigNote>
             </>
         );
