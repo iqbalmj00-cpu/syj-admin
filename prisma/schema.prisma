@@ -1575,6 +1575,8 @@ model SyjAgentRun {
   blogPosts   BlogPost[]
   generatedContent GeneratedContent[]
   researchReports  ResearchReport[]
+  socialPosts      SocialPost[]
+  socialBatchItems SocialBatchItem[]
 
   @@index([agentId, startedAt])
 }
@@ -4127,7 +4129,15 @@ model ContentAsset {
   state            String?  @db.Text                // human description of what's shown
   storyTags        String[]                         // e.g. ["automation", "time_saved", "night_bookings"]
   orientation      String                           // "desktop" | "desktop-lifestyle" | "mobile-portrait" | "tablet-landscape"
-  blobUrl          String                           // public Vercel Blob URL of the screenshot
+  blobUrl          String                           // private full Vercel Blob URL or a legacy public URL
+  blobPath         String?  @unique                 // private Blob pathname for authenticated delivery
+  mimeType         String?
+  byteSize         Int?
+  pixelWidth       Int?
+  pixelHeight      Int?
+  sha256           String?
+  sanitizedAt      DateTime?
+  sanitizedBy      String?
   annotationZones  Json?                            // optional {top-left: {x,y}, top-right: {x,y}, ...} for Feature Callout template
   active           Boolean  @default(true)          // admin can toggle off without deleting
   createdAt        DateTime @default(now())
@@ -4136,6 +4146,270 @@ model ContentAsset {
   @@index([type])
   @@index([orientation])
   @@index([active])
+}
+
+// ─── Social Post Creation Agent ─────────────────────────────────────────────
+
+model SocialSeed {
+  id                       String   @id @default(cuid())
+  body                     String   @db.Text
+  sourceType               String   @default("note")
+  sourceDate               DateTime?
+  sourceRef                String?  @db.Text
+  audience                 String?
+  proofLevel               String   @default("observation")
+  permissionRequired       Boolean  @default(false)
+  permissionStatus         String   @default("not_needed")
+  permissionGrantedAt      DateTime?
+  permissionGrantedBy      String?
+  permissionEvidence       String?  @db.Text
+  anonymized               Boolean  @default(false)
+  anonymizedReviewedAt     DateTime?
+  anonymizedReviewedBy     String?
+  status                   String   @default("new")
+  infoRequest              String?  @db.Text
+  infoAnswer               String?  @db.Text
+  rejectedReason           String?
+  sanitizedAt              DateTime?
+  sanitizedBy              String?
+  qualificationVersion     String?
+  qualificationModelId     String?
+  qualifiedAt              DateTime?
+  qualifiedCategory        String?
+  qualifiedPromotional     Boolean?
+  qualifiedPlatforms       String[] @default([])
+  qualifiedFormats         String[] @default([])
+  qualificationSnapshot    Json?
+  firstUsedAt              DateTime?
+  useCount                 Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  posts                    SocialPost[]
+  batchItems               SocialBatchItem[]
+
+  @@index([status])
+}
+
+model SocialPost {
+  id                       String    @id @default(cuid())
+  seedId                   String?
+  seed                     SocialSeed? @relation(fields: [seedId], references: [id], onDelete: SetNull)
+  agentRunId               String?
+  agentRun                 SyjAgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  platform                 String
+  format                   String
+  category                 String?
+  status                   String    @default("drafted")
+  factbookStale            Boolean   @default(false)
+  verificationStale        Boolean   @default(false)
+  verificationStaleReasons String[]  @default([])
+  claimIds                 String[]
+  generationSequence       Int       @default(1)
+  operationId              String    @unique
+  generationKey            String    @unique
+  currentRevisionId        String?   @unique
+  approvedRevisionId       String?   @unique
+  postedRevisionId         String?   @unique
+  currentRevision          SocialPostRevision? @relation("CurrentSocialPostRevision", fields: [currentRevisionId], references: [id], onDelete: Restrict)
+  approvedRevision         SocialPostRevision? @relation("ApprovedSocialPostRevision", fields: [approvedRevisionId], references: [id], onDelete: Restrict)
+  postedRevision           SocialPostRevision? @relation("PostedSocialPostRevision", fields: [postedRevisionId], references: [id], onDelete: Restrict)
+  reviewNote               String?   @db.Text
+  postedAt                 DateTime?
+  postedUrl                String?
+  archivedAt               DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  revisions                SocialPostRevision[] @relation("SocialPostRevisionHistory")
+  events                   SocialPostEvent[]
+  batchItem                SocialBatchItem?
+
+  @@index([status])
+  @@index([platform, status])
+  @@index([postedAt])
+  @@index([claimIds], type: Gin)
+  @@unique([seedId, platform, format, generationSequence])
+}
+
+model SocialPostRevision {
+  id                   String   @id @default(cuid())
+  postId               String
+  post                 SocialPost @relation("SocialPostRevisionHistory", fields: [postId], references: [id], onDelete: Restrict)
+  revision             Int
+  purpose              String?  @db.Text
+  angle                String?  @db.Text
+  caption              String   @db.Text
+  altOpenings           String[]
+  altText               String?  @db.Text
+  visualPath            String?
+  visualSpec            Json?
+  visualSha256          String?
+  visualEtag            String?
+  visualMimeType        String?
+  visualByteSize        Int?
+  inputSnapshot         Json
+  claimSegments         Json
+  claimsSnapshot        Json
+  sources               Json
+  policySnapshot        Json
+  generationSnapshot    Json
+  contentLabel          String?
+  methodology           String?  @db.Text
+  topicTags             String[]
+  contentHash           String
+  createdByType         String
+  createdById           String?
+  createdByLabel        String?
+  createdAt             DateTime @default(now())
+  verificationAttempts SocialVerificationAttempt[]
+  events                SocialPostEvent[]
+  currentFor            SocialPost? @relation("CurrentSocialPostRevision")
+  approvedFor           SocialPost? @relation("ApprovedSocialPostRevision")
+  postedFor             SocialPost? @relation("PostedSocialPostRevision")
+
+  @@unique([postId, revision])
+  @@index([postId, createdAt])
+}
+
+model SocialVerificationAttempt {
+  id                         String   @id @default(cuid())
+  revisionId                 String
+  revision                   SocialPostRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  attempt                    Int
+  result                     String
+  modelId                    String
+  promptVersion              String
+  verifierModelId            String
+  verifierPromptVersion      String
+  factRevisionIds            String[]
+  verifiedContentHash        String
+  policyFingerprint          String
+  deterministicPolicyVersion String
+  policySnapshot             Json
+  checks                     Json
+  warnings                   Json?
+  createdAt                  DateTime @default(now())
+
+  @@unique([revisionId, attempt])
+}
+
+model SocialPostEvent {
+  id         String   @id @default(cuid())
+  postId     String
+  post       SocialPost @relation(fields: [postId], references: [id], onDelete: Restrict)
+  revisionId String?
+  revision   SocialPostRevision? @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  kind       String
+  actorType  String
+  actorId    String?
+  actorLabel String?
+  fromStatus String?
+  toStatus   String?
+  note       String?  @db.Text
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model SocialFactEntry {
+  id            String   @id @default(cuid())
+  claimId       String   @unique
+  category      String
+  status        String   @default("active")
+  retiredReason String?  @db.Text
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  revisions     SocialFactRevision[]
+
+  @@index([status, category])
+}
+
+model SocialFactRevision {
+  id              String   @id @default(cuid())
+  factId          String
+  fact            SocialFactEntry @relation(fields: [factId], references: [id], onDelete: Restrict)
+  revision        Int
+  text            String   @db.Text
+  evidenceSummary String   @db.Text
+  evidenceSources Json
+  riskTier        String   @default("standard")
+  effectiveFrom   DateTime @default(now())
+  verifiedAt      DateTime @default(now())
+  verifiedBy      String
+  createdAt       DateTime @default(now())
+
+  @@unique([factId, revision])
+}
+
+model SocialBannedClaim {
+  id          String   @id @default(cuid())
+  phrase      String
+  explanation String   @db.Text
+  severity    String   @default("block")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SocialExample {
+  id        String   @id @default(cuid())
+  platform  String
+  kind      String
+  text      String   @db.Text
+  reason    String?  @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SocialBatch {
+  id             String   @id @default(cuid())
+  status         String   @default("planned")
+  configSnapshot Json
+  createdById    String?
+  createdByLabel String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  items          SocialBatchItem[]
+
+  @@index([status, createdAt])
+}
+
+model SocialBatchItem {
+  id                    String   @id @default(cuid())
+  batchId               String
+  batch                 SocialBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  seedId                String?
+  seed                  SocialSeed? @relation(fields: [seedId], references: [id], onDelete: SetNull)
+  position              Int
+  platform              String
+  format                String
+  category              String?
+  promotional           Boolean  @default(false)
+  qualificationSnapshot Json
+  generationKey         String   @unique
+  status                String   @default("planned")
+  runId                 String?  @unique
+  run                   SyjAgentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  postId                String?  @unique
+  post                  SocialPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  errorCode             String?
+  errorSummary          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([batchId, position])
+  @@index([batchId, status])
+}
+
+model SocialGenerationLease {
+  key           String   @id
+  runId         String?
+  generationKey String?  @unique
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model ResearchReport {

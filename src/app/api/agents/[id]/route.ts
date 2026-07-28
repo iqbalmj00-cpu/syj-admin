@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { SOCIAL_AGENT_SLUG, assertMonotonicConfigVersion, validateSocialConfig } from "@/lib/social/config";
 import { usesPollingOnlyAgent } from "@/lib/enrichment-run-config";
 import { evaluateLeadCleanerGate, runLeadCleaner } from "@/lib/lead-cleaner-db";
 import { leadCleanerErrorStatus, sanitizeRunLimit } from "@/lib/lead-cleaner-util";
@@ -38,6 +40,40 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         for (const key of allowed) {
             if (key in body) data[key] = body[key];
         }
+
+        // Social Post Creator config is a contract, not free-form JSON. Only
+        // voices, structure rules, categories, brand, draft-candidate count and
+        // the requested model aliases are operator-owned; safety bounds, quality
+        // thresholds, repetition policy, retry budgets and lease behaviour are
+        // code-owned and cannot be weakened here.
+        if ("config" in data) {
+            const existing = await prisma.syjAgent.findUnique({ where: { id }, select: { slug: true, config: true } });
+            if (!existing) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+            if (existing.slug === SOCIAL_AGENT_SLUG) {
+                const validation = validateSocialConfig(data.config);
+                if (!validation.ok) {
+                    return NextResponse.json(
+                        { error: "Invalid Social Post Creator configuration", issues: validation.issues },
+                        { status: 400 },
+                    );
+                }
+                const versionIssue = assertMonotonicConfigVersion(existing.config, validation.config);
+                if (versionIssue) {
+                    return NextResponse.json({ error: versionIssue }, { status: 400 });
+                }
+                // A live generation owns the singleton agent; changing its config
+                // mid-run would leave the run and its snapshot disagreeing.
+                const lease = await prisma.socialGenerationLease.findUnique({ where: { key: SOCIAL_AGENT_SLUG } });
+                if (lease && lease.expiresAt > new Date()) {
+                    return NextResponse.json(
+                        { error: "A post is being created right now. Wait for it to finish, then save your changes." },
+                        { status: 409 },
+                    );
+                }
+                data.config = validation.config as unknown as Prisma.InputJsonValue;
+            }
+        }
+
         const updated = await prisma.syjAgent.update({ where: { id }, data });
         return NextResponse.json(updated);
     } catch (err) {
@@ -57,6 +93,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (agent.slug === "lead_scraper") {
             return NextResponse.json(
                 { error: "lead_scraper is controlled via the Lead Scraper card (Start/Stop), not Run Now" },
+                { status: 400 },
+            );
+        }
+        // Without this branch the generic path below would create a run, set the
+        // agent "running", and return status "running" with nothing executing it
+        // — a permanently stuck run, because social generation is driven from
+        // /api/social/generate with a seed, platform and format that this route
+        // has no way to supply.
+        if (agent.slug === SOCIAL_AGENT_SLUG) {
+            return NextResponse.json(
+                {
+                    error: "Social posts are created from the Social Studio, one post at a time, from a specific idea. Open Social Studio, pick a seed, then choose Create Facebook post or Create LinkedIn post.",
+                },
                 { status: 400 },
             );
         }

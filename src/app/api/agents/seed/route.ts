@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_EMAIL_CLEAN_POLICY } from "@/lib/emailable";
 import { DEFAULT_LEAD_CLEAN_POLICY } from "@/lib/lead-classify";
+import { DEFAULT_SOCIAL_CONFIG, SOCIAL_AGENT_SLUG } from "@/lib/social/config";
 
 // POST /api/agents/seed — Seed dashboard agents (dashboard only)
 export async function POST() {
@@ -128,15 +129,25 @@ export async function POST() {
                     policy: DEFAULT_LEAD_CLEAN_POLICY,
                 },
             },
+            {
+                slug: SOCIAL_AGENT_SLUG,
+                name: "Social Post Creator",
+                description: "Turns business notes into Facebook graphic posts and LinkedIn text posts in two distinct voices, grounded in an immutable Fact Book. Drafts several candidates, picks the best, verifies it adversarially, and always waits for human sign-off. Never posts to any account.",
+                schedule: null,
+                config: DEFAULT_SOCIAL_CONFIG,
+            },
         ];
 
         const results = [];
         for (const agent of agents) {
             const config = agent.config as unknown as Prisma.InputJsonValue;
-            // Preserve tuned Lead Cleaner policy when this seed endpoint is rerun.
-            const update = agent.slug === "lead_cleaner"
-                ? { name: agent.name, description: agent.description }
-                : { name: agent.name, description: agent.description, schedule: agent.schedule, config };
+            // Preserve every operator-tuned schedule and config when this seed
+            // endpoint is rerun. Previously only Lead Cleaner was protected, so a
+            // routine re-seed silently reset tuned config for all other agents.
+            // Creation still supplies the file defaults; only the update branch
+            // is narrowed. Future default upgrades ship as explicit, versioned
+            // migrations rather than a blanket overwrite from here.
+            const update = { name: agent.name, description: agent.description };
             const result = await prisma.syjAgent.upsert({
                 where: { slug: agent.slug },
                 update,
