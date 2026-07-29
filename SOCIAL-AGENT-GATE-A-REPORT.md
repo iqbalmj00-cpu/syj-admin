@@ -182,33 +182,69 @@ Checked read-only, after the implementation was complete:
   shared Neon database. The schema those commands compared against contains the
   social models.
 
+**Confirmed by Jamal, 2026-07-28:** the ScaleYourJunk developer has added the
+schemas and applied them to the shared database.
+
 **Evidence grades, stated separately.** The declaration match is directly
-observed by the Admin side and is strong. The database-state claim is an
-owner-side observation recorded in the corpus; the Admin side cannot see the
-database and did not verify it. The re-issued schema brief now leads with this
-and asks the owner to confirm and close rather than to apply anything.
+observed by the Admin side and is strong. The applied-database state rests on
+Jamal's confirmation plus the owner-side commands recorded in the corpus; the
+Admin side cannot see the database and did not observe it directly. Those two
+things agree, which is the strongest position available from here. The schema
+brief is marked closed and asks for no database command.
 
 ## 6. What Gate A does not prove
 
-- **The shared database, from this side.** Admin cannot see it. The owner-side
-  evidence in §5a is encouraging and probably decisive, but it is not an Admin
-  observation. The ScaleYourJunk developer should still tick the sign-off in
-  `SOCIAL-AGENT-SCHEMA-PUSH-BRIEF.md` — and must not re-apply anything.
+- **The shared database, from this side.** Jamal has confirmed the owner applied
+  it, and the declaration match is verified here — but Admin still cannot see
+  the database and has never queried it. The first real query runs at Gate B.
 - **Real provider behaviour.** Every provider interaction is tested against fixtures through an injected fetch. Actual model output, latency, cost and refusal behaviour are Gate B.
 - **Actual timing.** The worst-case budget is a calculation, not a measurement. Gate B records per-stage wall time.
 - **Output quality.** The rubric is implemented and its edges are proved. Whether the posts are *good* is an editorial judgement that needs real content, a loaded Fact Book and Jamal reading them — Gate B.
 - **Rendered behaviour in a browser.** The page type-checks, lints and builds; it has not been opened.
 - **Deployment.** Gate C.
 
+## 6a. Operating decision — customer content is paused (Jamal, 2026-07-28)
+
+Customer stories, quotes and testimonials **will not be produced for the time
+being.** The capability stays built exactly as specified and is not to be
+removed: `customer_story` remains a seed type, permission stays mandatory and
+deterministically enforced for it, the anonymisation review path stays, and
+`named_customer` remains a high-risk Fact Book category.
+
+Practical effect on Gate B, so nobody reads too much into it:
+
+- No `customer_story` seeds are created, so the permission gate and the
+  anonymisation review path get **no real-world exercise**. They remain proved
+  only by unit tests. That is a known, accepted coverage gap, not an oversight.
+- No `named_customer` Fact Book entries are loaded, so the ≥30-entry minimum
+  should be met from product, pricing, plan-limit, results, integration and
+  guarantee categories instead.
+- Nothing in the code changes, and nothing needs re-testing when this resumes —
+  but the permission path should get a deliberate first run at that point.
+
 ## 7. Content still needed before Gate B
 
 Facebook and LinkedIn voice and audience; categories per platform; **≥30 Fact
-Book entries** across the high-risk categories; **≥6 good and ≥4 bad examples
-per platform**; banned phrases with their severities; ≥10 real ideas; approved
-sanitised screenshots. The Fact Book is the binding ceiling on how specific any
-post can be: below those volumes the agent structurally cannot say anything
-particular about ScaleYourJunk, and an editorial verdict taken below them is not
-meaningful.
+Book entries** (excluding `named_customer`, per §6a); **≥6 good and ≥4 bad
+examples per platform**; banned phrases with their severities; ≥10 real ideas;
+approved sanitised screenshots. The Fact Book is the binding ceiling on how
+specific any post can be: below those volumes the agent structurally cannot say
+anything particular about ScaleYourJunk, and an editorial verdict taken below
+them is not meaningful.
 
-Provider keys go in the approved secret store — never in chat, code, tests or
-documentation.
+## 8. Environment variables — none are new
+
+The social code reads exactly two environment variables, and the storage library
+reads a third from the environment on its own. **All three already exist in
+`.env.example` and are already used by shipped features**, so no new secret has
+to be created for this build.
+
+| Variable | Used for | Required? | Already used by |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY` | Every AI stage: qualification, purpose and angle, drafting, editorial selection, adversarial verification | **Yes.** `/api/social/generate` and the edit path refuse with a plain message if it is absent | Cold-email AI drafts, blog writer, research reports, content generator |
+| `PERPLEXITY_API_KEY` | Outside research, for LinkedIn posts only | **No.** Research is optional by design; if the key is missing or the call fails, the run records that research was unavailable and continues | Blog generator, research-report generator |
+| `BLOB_READ_WRITE_TOKEN` | Storing Facebook graphics and uploaded screenshots, and reading them back through the authenticated media route | **Yes for Facebook graphics and screenshot uploads.** LinkedIn text posts need no storage at all. Read from the environment by `@vercel/blob`; no code passes it | Content generator and research-report generator already call `put()` with no explicit token |
+
+Keys go in the approved secret store — never in chat, code, tests or
+documentation. Nothing in this build prints, logs or persists a key, and no test
+requires a real one.

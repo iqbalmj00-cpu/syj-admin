@@ -7,10 +7,22 @@
 > **Database execution owner:** ScaleYourJunk
 > **Database state:** not inspected, not changed, and not inferred by Admin
 
-## Update — this may already be answered (checked 2026-07-28)
+## CLOSED — confirmed by Jamal, 2026-07-28
 
-Before doing anything below, note what was found on the ScaleYourJunk side after
-this brief was drafted:
+**No action is required from the ScaleYourJunk developer. Do not run any database command against this brief.**
+
+Jamal confirmed on 2026-07-28 that the ScaleYourJunk developer has added the
+social schema declarations and applied them to the shared database. That matches
+the independent evidence recorded below. This brief is retained as the exact
+contract of record, not as a request.
+
+The one open item is a question, not a change: **does the applied
+`SocialPost` table have an index on `seedId`?** See the section below. Either
+answer is fine at the expected volume; it is worth knowing, not worth acting on.
+
+## Supporting evidence (checked read-only, 2026-07-28)
+
+Independently of Jamal's confirmation, the Admin side verified:
 
 - The ScaleYourJunk repository at `main@161cdb3c9f815eb70bdb8db56873828813ee2266`
   **already declares all twelve social models and all eight nullable
