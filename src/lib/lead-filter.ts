@@ -26,6 +26,16 @@ export const LEAD_FILTER_KEYS = [
     "phoneLineType", "phoneDeliverable", "hasOwnerFullName", "hasOwnerLinkedIn", "isDirectContact",
     "lastUpdatedYearBucket", "hasPricingPage", "hasBlog", "hasServiceAreaPublishedOnSite",
     "totalPageCountBucket", "primaryBottleneck", "websiteAgeYearsMin", "recentReviewTrend", "painSeverityMin",
+    // Reliable-signal filter set for the scraped-leads panel. Every key above is kept so
+    // that an already-saved LeadGroup.filterDefinition still resolves to the same leads —
+    // parseLeadFilter drops any key absent from this list, which would silently widen a
+    // stored segment's membership.
+    "googleAdsStatus", "bookingStatus", "primaryCtaType", "hasQuoteForm",
+    "bookingHasPhotoUpload", "bookingHasTimeslotSelection", "bookingHasPriceEstimate",
+    "ctaPromiseTags",
+    "foundedYearMin", "foundedYearMax", "reviewCountMin", "reviewCountMax",
+    "ratingMin", "ratingMax", "ownerResponseRateMin", "ownerResponseRateMax",
+    "reviewVelocity90dMin", "reviewVelocity90dMax", "loadTimeSecondsMin", "loadTimeSecondsMax",
 ] as const;
 
 export type LeadFilterParams = Record<string, string | null>;
@@ -156,6 +166,26 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     const websiteAgeYearsMin = g("websiteAgeYearsMin");
     const recentReviewTrend = g("recentReviewTrend");
     const painSeverityMin = g("painSeverityMin");
+    const googleAdsStatus = g("googleAdsStatus");
+    const bookingStatus = g("bookingStatus");
+    const primaryCtaType = g("primaryCtaType");
+    const hasQuoteForm = g("hasQuoteForm");
+    const bookingHasPhotoUpload = g("bookingHasPhotoUpload");
+    const bookingHasTimeslotSelection = g("bookingHasTimeslotSelection");
+    const bookingHasPriceEstimate = g("bookingHasPriceEstimate");
+    const ctaPromiseTags = g("ctaPromiseTags");
+    const foundedYearMin = g("foundedYearMin");
+    const foundedYearMax = g("foundedYearMax");
+    const reviewCountMin = g("reviewCountMin");
+    const reviewCountMax = g("reviewCountMax");
+    const ratingMin = g("ratingMin");
+    const ratingMax = g("ratingMax");
+    const ownerResponseRateMin = g("ownerResponseRateMin");
+    const ownerResponseRateMax = g("ownerResponseRateMax");
+    const reviewVelocity90dMin = g("reviewVelocity90dMin");
+    const reviewVelocity90dMax = g("reviewVelocity90dMax");
+    const loadTimeSecondsMin = g("loadTimeSecondsMin");
+    const loadTimeSecondsMax = g("loadTimeSecondsMax");
 
     const where: Record<string, unknown> = {};
     if (archived === "true") where.archivedAt = { not: null };
@@ -176,7 +206,19 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     if (enriched === "false") where.enrichedAt = null;
     if (isExistingClient === "true") where.isExistingClient = true;
     if (isExistingClient === "false") where.isExistingClient = false;
-    if (serviceType) where.serviceTypes = { has: serviceType };
+    // Multi-value serviceType ANDs its values, so "junk_removal,dumpster_rental" selects
+    // operators offering BOTH. A single value keeps its original clause exactly.
+    if (serviceType) {
+        const serviceTypeValues = serviceType.split(",").filter(Boolean);
+        if (serviceTypeValues.length === 1) {
+            where.serviceTypes = { has: serviceTypeValues[0] };
+        } else if (serviceTypeValues.length > 1) {
+            where.AND = [
+                ...(where.AND as Array<Record<string, unknown>> || []),
+                ...serviceTypeValues.map((value) => ({ serviceTypes: { has: value } })),
+            ];
+        }
+    }
     if (hasOwnerName === "true") where.AND = [...(where.AND as Array<Record<string, unknown>> || []), { ownerName: { not: null } }, { ownerName: { not: "" } }];
     if (hasOwnerName === "false") where.AND = [...(where.AND as Array<Record<string, unknown>> || []), { OR: [{ ownerName: null }, { ownerName: "" }] }];
     if (hasPhone === "true") where.phone = { not: null };
@@ -504,6 +546,90 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     if (painSeverityMin) {
         const n = parseInt(painSeverityMin);
         if (!isNaN(n) && n > 0) andClauses.push({ painSeverityScore: { gte: n } });
+    }
+
+    // ── Reliable-signal filters (scraped-leads panel) ──
+    // The "unknown" member of googleAdsStatus / bookingStatus is a real stored value
+    // meaning "not determined"; the panel omits it, but the clause accepts whatever it is
+    // given so a saved segment keeps resolving.
+    if (googleAdsStatus) {
+        const values = googleAdsStatus.split(",").filter(Boolean);
+        if (values.length > 0) andClauses.push({ googleAdsStatus: { in: values } });
+    }
+    if (bookingStatus) {
+        const values = bookingStatus.split(",").filter(Boolean);
+        if (values.length > 0) andClauses.push({ bookingStatus: { in: values } });
+    }
+    if (primaryCtaType) {
+        const values = primaryCtaType.split(",").filter(Boolean);
+        if (values.length > 0) andClauses.push({ primaryCtaType: { in: values } });
+    }
+    if (hasQuoteForm === "true") andClauses.push({ hasQuoteForm: true });
+    if (hasQuoteForm === "false") andClauses.push({ hasQuoteForm: false });
+    if (bookingHasPhotoUpload === "true") andClauses.push({ bookingHasPhotoUpload: true });
+    if (bookingHasPhotoUpload === "false") andClauses.push({ bookingHasPhotoUpload: false });
+    if (bookingHasTimeslotSelection === "true") andClauses.push({ bookingHasTimeslotSelection: true });
+    if (bookingHasTimeslotSelection === "false") andClauses.push({ bookingHasTimeslotSelection: false });
+    if (bookingHasPriceEstimate === "true") andClauses.push({ bookingHasPriceEstimate: true });
+    if (bookingHasPriceEstimate === "false") andClauses.push({ bookingHasPriceEstimate: false });
+    // OR across values — "any of these promises". Deliberately unlike painTags, which
+    // pushes one AND clause per tag.
+    if (ctaPromiseTags) {
+        const tags = ctaPromiseTags.split(",").filter(Boolean);
+        if (tags.length > 0) andClauses.push({ OR: tags.map((tag) => ({ ctaPromiseTags: { has: tag } })) });
+    }
+
+    // Numeric ranges. A gte/lte bound on a nullable column excludes rows where the value
+    // is null, so a range filter never admits a lead with no data for that signal. Zero is
+    // a valid bound (reviewVelocity90dMax=0 is how "went quiet" is expressed), so these
+    // guard only against NaN.
+    if (foundedYearMin) {
+        const n = parseInt(foundedYearMin);
+        if (!isNaN(n)) andClauses.push({ foundedYear: { gte: n } });
+    }
+    if (foundedYearMax) {
+        const n = parseInt(foundedYearMax);
+        if (!isNaN(n)) andClauses.push({ foundedYear: { lte: n } });
+    }
+    if (reviewCountMin) {
+        const n = parseInt(reviewCountMin);
+        if (!isNaN(n)) andClauses.push({ reviewCount: { gte: n } });
+    }
+    if (reviewCountMax) {
+        const n = parseInt(reviewCountMax);
+        if (!isNaN(n)) andClauses.push({ reviewCount: { lte: n } });
+    }
+    if (ratingMin) {
+        const v = parseFloat(ratingMin);
+        if (!isNaN(v)) andClauses.push({ rating: { gte: v } });
+    }
+    if (ratingMax) {
+        const v = parseFloat(ratingMax);
+        if (!isNaN(v)) andClauses.push({ rating: { lte: v } });
+    }
+    if (ownerResponseRateMin) {
+        const v = parseFloat(ownerResponseRateMin);
+        if (!isNaN(v)) andClauses.push({ ownerResponseRate: { gte: v } });
+    }
+    if (ownerResponseRateMax) {
+        const v = parseFloat(ownerResponseRateMax);
+        if (!isNaN(v)) andClauses.push({ ownerResponseRate: { lte: v } });
+    }
+    if (reviewVelocity90dMin) {
+        const n = parseInt(reviewVelocity90dMin);
+        if (!isNaN(n)) andClauses.push({ reviewVelocity90d: { gte: n } });
+    }
+    if (reviewVelocity90dMax) {
+        const n = parseInt(reviewVelocity90dMax);
+        if (!isNaN(n)) andClauses.push({ reviewVelocity90d: { lte: n } });
+    }
+    if (loadTimeSecondsMin) {
+        const v = parseFloat(loadTimeSecondsMin);
+        if (!isNaN(v)) andClauses.push({ loadTimeSeconds: { gte: v } });
+    }
+    if (loadTimeSecondsMax) {
+        const v = parseFloat(loadTimeSecondsMax);
+        if (!isNaN(v)) andClauses.push({ loadTimeSeconds: { lte: v } });
     }
 
     if (andClauses.length > 0) where.AND = andClauses;

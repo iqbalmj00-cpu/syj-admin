@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Kpi } from "@/components/ui/Kpi";
-import { painTagsByCategory, praiseTagsByCategory } from "@/lib/pain-taxonomy";
 import { PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
+import {
+    FILTER_DEFAULTS,
+    OPERATIONAL_FILTERS,
+    SEGMENT_FILTERS,
+    SEGMENT_SECTIONS,
+    type FilterDef,
+} from "@/lib/lead-filter-catalog";
 
 interface Lead {
     id: string; name: string; phone: string | null; email: string | null; website: string | null;
@@ -30,15 +36,189 @@ function displayMarketCity(market: string | null | undefined) {
     return clean.split(",")[0]?.trim() || clean;
 }
 
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+// ── Catalog-driven filter controls ────────────────────────────────────────────
+// Every control below renders from a FilterDef in lead-filter-catalog.ts, so the set
+// of filters is changed there rather than here.
+
+type FilterValues = Record<string, string>;
+
+// Param keys owned by the segment panel — used by "Clear segment filters" and the active
+// count, so clearing the panel leaves the operational filters (and their defaults) alone.
+const SEGMENT_PARAM_KEYS_LIST: string[] = SEGMENT_FILTERS.flatMap(def =>
+    def.control.kind === "range" ? [def.control.minKey, def.control.maxKey] : [def.key],
+);
+const SEGMENT_PARAM_KEYS = new Set(SEGMENT_PARAM_KEYS_LIST);
+
+function pillStyle(active: boolean): CSSProperties {
+    return {
+        padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, cursor: "pointer",
+        border: `1px solid ${active ? "var(--accent-border)" : "var(--line)"}`,
+        background: active ? "var(--accent-soft)" : "var(--surface-raised)",
+        color: active ? "var(--accent-strong)" : "var(--muted)",
+    };
+}
+
+const numberInputStyle: CSSProperties = {
+    width: 72, padding: "3px 6px", fontSize: 11, border: "1px solid var(--line)",
+    borderRadius: 4, background: "var(--surface-raised)", outline: "none",
+};
+
+const selectStyle: CSSProperties = {
+    padding: "4px 8px", fontSize: 11, border: "1px solid var(--line)",
+    borderRadius: 6, background: "var(--surface-raised)",
+};
+
+function splitCsv(value: string | undefined): string[] {
+    return value ? value.split(",").filter(Boolean) : [];
+}
+
+function FilterControl({ def, values, onChange, dynamicOptions }: {
+    def: FilterDef;
+    values: FilterValues;
+    onChange: (key: string, value: string) => void;
+    dynamicOptions?: string[];
+}) {
+    const control = def.control;
+    const current = values[def.key] ?? "";
+
+    // A single pill that is the filter: on means true. Offered for fields whose stored
+    // `false` cannot be told apart from "never determined".
+    if (control.kind === "yesOnly") {
+        return (
+            <button style={pillStyle(current === "true")} onClick={() => onChange(def.key, current === "true" ? "" : "true")}>
+                {def.label}
+            </button>
+        );
+    }
+
+    if (control.kind === "yesNo") {
+        return (
+            <FilterRow label={def.label}>
+                <button style={pillStyle(current === "true")} onClick={() => onChange(def.key, current === "true" ? "" : "true")}>Yes</button>
+                <button style={pillStyle(current === "false")} onClick={() => onChange(def.key, current === "false" ? "" : "false")}>No</button>
+            </FilterRow>
+        );
+    }
+
+    if (control.kind === "enum") {
+        // An enum with an entry in FILTER_DEFAULTS is a mode selector, not an on/off: one
+        // option is always in force. `archived` is the case — deselecting it would show no
+        // option highlighted while the endpoint still defaulted to active-only, which is the
+        // sort of misleading state this rebuild is meant to remove. So clicking the selected
+        // option keeps it, and you switch modes by choosing another.
+        const fallback = FILTER_DEFAULTS[def.key];
+        const shown = values[def.key] ?? fallback ?? "";
+        return (
+            <FilterRow label={def.label}>
+                {control.options.map((opt) => (
+                    <button key={opt.value} style={pillStyle(shown === opt.value)}
+                        onClick={() => onChange(def.key, shown === opt.value && fallback === undefined ? "" : opt.value)}>
+                        {opt.label}
+                    </button>
+                ))}
+            </FilterRow>
+        );
+    }
+
+    if (control.kind === "multiAny" || control.kind === "multiAll") {
+        const selected = splitCsv(current);
+        const toggle = (value: string) => {
+            const next = selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value];
+            onChange(def.key, next.join(","));
+        };
+        return (
+            <FilterRow label={`${def.label} (${control.kind === "multiAll" ? "all of" : "any of"})`}>
+                {control.options.map((opt) => (
+                    <button key={opt.value} style={pillStyle(selected.includes(opt.value))} onClick={() => toggle(opt.value)}>
+                        {opt.label}
+                    </button>
+                ))}
+            </FilterRow>
+        );
+    }
+
+    if (control.kind === "range") {
+        return (
+            <FilterRow label={def.label}>
+                <input type="number" step={control.step} placeholder="min" style={numberInputStyle}
+                    value={values[control.minKey] ?? ""} onChange={(e) => onChange(control.minKey, e.target.value)} />
+                <span style={{ fontSize: 11, color: "var(--muted-faint)" }}>to</span>
+                <input type="number" step={control.step} placeholder="max" style={numberInputStyle}
+                    value={values[control.maxKey] ?? ""} onChange={(e) => onChange(control.maxKey, e.target.value)} />
+                {control.hint && <span style={{ fontSize: 10, color: "var(--muted-faint)" }}>{control.hint}</span>}
+            </FilterRow>
+        );
+    }
+
+    if (control.kind === "days") {
+        return (
+            <FilterRow label={def.label}>
+                <input type="number" step={1} placeholder="days" style={numberInputStyle}
+                    value={current} onChange={(e) => onChange(def.key, e.target.value)} />
+            </FilterRow>
+        );
+    }
+
+    if (control.kind === "dynamic") {
+        return (
+            <select style={selectStyle} value={current} onChange={(e) => onChange(def.key, e.target.value)}>
+                <option value="">{`All ${def.label}s`}</option>
+                {(dynamicOptions ?? []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+        );
+    }
+
     return (
-        <button onClick={onClick} style={{
-            padding: "5px 12px", fontSize: 11, fontWeight: active ? 600 : 500, cursor: "pointer",
-            border: "1px solid", borderColor: active ? "var(--border)" : "transparent",
-            borderRadius: 6, background: active ? "var(--white)" : "transparent",
-            color: active ? "var(--text)" : "var(--text-light)", transition: "all 0.1s",
-            boxShadow: active ? "0 1px 2px rgba(0,0,0,0.02)" : "none"
-        }}>{label}</button>
+        <input placeholder={`${def.label}...`} value={current} onChange={(e) => onChange(def.key, e.target.value)}
+            style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--line)", borderRadius: 6, background: "var(--surface-raised)", width: 160, outline: "none" }} />
+    );
+}
+
+function FilterSection({ title, defs, values, onChange, dynamicOptions }: {
+    title?: string;
+    defs: FilterDef[];
+    values: FilterValues;
+    onChange: (key: string, value: string) => void;
+    dynamicOptions?: Record<string, string[]>;
+}) {
+    // yesOnly filters are bare pills, so they share one wrapped row instead of taking a
+    // labelled row each.
+    const flags = defs.filter(d => d.control.kind === "yesOnly");
+    const rest = defs.filter(d => d.control.kind !== "yesOnly");
+    return (
+        <div style={{ display: "grid", gap: 7 }}>
+            {title && (
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {title}
+                </div>
+            )}
+            {rest.map(def => (
+                <FilterControl key={def.key} def={def} values={values} onChange={onChange}
+                    dynamicOptions={dynamicOptions?.[def.key]} />
+            ))}
+            {flags.length > 0 && (
+                <div title="These fields are only stored when true — a stored false cannot be told apart from never determined, so there is no No option."
+                    style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-soft)", textTransform: "uppercase", letterSpacing: "0.04em", minWidth: 168 }}>
+                        Yes Only
+                    </span>
+                    {flags.map(def => (
+                        <FilterControl key={def.key} def={def} values={values} onChange={onChange} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-soft)", textTransform: "uppercase", letterSpacing: "0.04em", minWidth: 168 }}>
+                {label}
+            </span>
+            {children}
+        </div>
     );
 }
 
@@ -48,110 +228,46 @@ export default function ScrapedLeadsPage() {
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
 
-    // Filters
-    const [gradeFilter, setGradeFilter] = useState<string>("all");
-    const [outreachFilter, setOutreachFilter] = useState<string>("all");
-    const [searchQuery, setSearchQuery] = useState("");
+    // Filters — every catalog filter lives in one object keyed by its query-param name, so
+    // the set of filters is changed in lead-filter-catalog.ts rather than here.
+    //
+    // Seeded from FILTER_DEFAULTS. `archived: "active"` and `isExistingClient: "false"` are
+    // NOT "all": the pre-rebuild page defaulted to them, so the unfiltered table hid
+    // archived leads and existing clients. Losing either default would silently widen the
+    // default result set and let archived leads and existing customers into cold-email
+    // segments built from it.
+    const [filters, setFilters] = useState<FilterValues>({ ...FILTER_DEFAULTS });
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [sortBy, setSortBy] = useState("createdAt");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-    const [marketFilter, setMarketFilter] = useState("all");
     const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
-    const [stateFilter, setStateFilter] = useState("all");
     const [availableStates, setAvailableStates] = useState<string[]>([]);
-    const [companyTypeFilter, setCompanyTypeFilter] = useState("all");
-    const [enrichedFilter, setEnrichedFilter] = useState("all");
-    const [competitorFilter, setCompetitorFilter] = useState("all");
-    const [phoneTypeFilter, setPhoneTypeFilter] = useState("all");
-    const [existingClientFilter, setExistingClientFilter] = useState("false");
-    // Data presence filters
-    const [hasOwnerName, setHasOwnerName] = useState("all");
-    const [hasPhone, setHasPhone] = useState("all");
-    const [hasEmail, setHasEmail] = useState("all");
-    const [hasWebsite, setHasWebsite] = useState("all");
-    const [sourceFilter, setSourceFilter] = useState("all");
-    const [diyFilter, setDiyFilter] = useState("all");
-    const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
-    // Segmentation filters — review / business age / booking
-    const [reviewPainFilter, setReviewPainFilter] = useState("all");
-    const [reviewCountRangeFilter, setReviewCountRangeFilter] = useState("all");
-    const [ownerResponseRateFilter, setOwnerResponseRateFilter] = useState("all");
-    const [lastReviewWithinDays, setLastReviewWithinDays] = useState("all");
-    const [yearsInBusinessRangeFilter, setYearsInBusinessRangeFilter] = useState("all");
-    const [hasTrueBookingFilter, setHasTrueBookingFilter] = useState("all");
-    const [bookingFlowTypeFilter, setBookingFlowTypeFilter] = useState("all");
-    // Canonical pain/praise tag filters (multi-select — AND semantics)
-    const [selectedPainTags, setSelectedPainTags] = useState<Set<string>>(new Set());
-    const [selectedPraiseTags, setSelectedPraiseTags] = useState<Set<string>>(new Set());
-    const [painTagCountMin, setPainTagCountMin] = useState("all");
-    const [negativeReviewPercentMin, setNegativeReviewPercentMin] = useState("all");
-    const [mostRecentNegativeWithinDays, setMostRecentNegativeWithinDays] = useState("all");
-    // GBP filters (Phase 2)
-    const [starRatingBucket, setStarRatingBucket] = useState("all");
-    const [profileCompletenessBucket, setProfileCompletenessBucket] = useState("all");
-    const [respondsToNegatives, setRespondsToNegatives] = useState("all");
-    const [hasRecentGbpPosts, setHasRecentGbpPosts] = useState("all");
-    const [hasBusinessDescription, setHasBusinessDescription] = useState("all");
-    // Booking sophistication (Phase 2.5)
-    const [selectedBookingTiers, setSelectedBookingTiers] = useState<Set<string>>(new Set());
-    const [bookingHasInstantQuote, setBookingHasInstantQuote] = useState("all");
-    const [bookingHasJobSizeInput, setBookingHasJobSizeInput] = useState("all");
-    const [bookingHasItemSelector, setBookingHasItemSelector] = useState("all");
-    const [bookingCollectsPayment, setBookingCollectsPayment] = useState("all");
-    const [bookingIsQuoteRequestOnly, setBookingIsQuoteRequestOnly] = useState("all");
-    // Competitor + payment stack (Phase 3)
-    const [selectedCompetitorStack, setSelectedCompetitorStack] = useState<Set<string>>(new Set());
-    const [selectedPaymentStack, setSelectedPaymentStack] = useState<Set<string>>(new Set());
-    const [mentionsCashOnly, setMentionsCashOnly] = useState("all");
-    const [hasOnlinePayment, setHasOnlinePayment] = useState("all");
-    // Phase 4 — captured-but-dark filters
-    const [selectedCms, setSelectedCms] = useState<Set<string>>(new Set());
-    const [selectedBookingPlatforms, setSelectedBookingPlatforms] = useState<Set<string>>(new Set());
-    const [bookingCtaTargetsPhone, setBookingCtaTargetsPhone] = useState("all");
-    const [marketingMaturityBucket, setMarketingMaturityBucket] = useState("all");
-    const [loadTimeBucket, setLoadTimeBucket] = useState("all");
-    const [mobileFriendly, setMobileFriendly] = useState("all");
-    const [sslValid, setSslValid] = useState("all");
-    const [hasGoogleAds, setHasGoogleAds] = useState("all");
-    const [hasCallTracking, setHasCallTracking] = useState("all");
-    const [hasChatWidget, setHasChatWidget] = useState("all");
-    const [hasGTM, setHasGTM] = useState("all");
-    const [hasFacebookPixel, setHasFacebookPixel] = useState("all");
-    const [hasGoogleAnalytics, setHasGoogleAnalytics] = useState("all");
-    const [employeeBucket, setEmployeeBucket] = useState("all");
-    const [fleetBucket, setFleetBucket] = useState("all");
-    const [selectedWebsiteBuiltBy, setSelectedWebsiteBuiltBy] = useState<Set<string>>(new Set());
-    const [selectedMarketCompetitionLevel, setSelectedMarketCompetitionLevel] = useState<Set<string>>(new Set());
-    const [marketRankPercentileMin, setMarketRankPercentileMin] = useState("all");
-    const [hasFacebook, setHasFacebook] = useState("all");
-    const [hasYouTube, setHasYouTube] = useState("all");
-    const [isVeteranOwned, setIsVeteranOwned] = useState("all");
-    const [isFamilyBusiness, setIsFamilyBusiness] = useState("all");
-    const [reviewVelocityBucket, setReviewVelocityBucket] = useState("all");
-    // Phase 5 — contact quality
-    const [selectedEmailDomainType, setSelectedEmailDomainType] = useState<Set<string>>(new Set());
-    const [emailDomainMatchesWebsite, setEmailDomainMatchesWebsite] = useState("all");
-    const [emailDeliverable, setEmailDeliverable] = useState("all");
-    const [emailVerificationState, setEmailVerificationState] = useState("all");
-    const [selectedPhoneLineType, setSelectedPhoneLineType] = useState<Set<string>>(new Set());
-    const [phoneDeliverable, setPhoneDeliverable] = useState("all");
-    const [hasOwnerFullName, setHasOwnerFullName] = useState("all");
-    const [hasOwnerLinkedIn, setHasOwnerLinkedIn] = useState("all");
-    const [isDirectContact, setIsDirectContact] = useState("all");
-    // Phase 6 — website crawl depth
-    const [lastUpdatedYearBucket, setLastUpdatedYearBucket] = useState("all");
-    const [hasPricingPage, setHasPricingPage] = useState("all");
-    const [hasBlog, setHasBlog] = useState("all");
-    const [hasServiceAreaPublishedOnSite, setHasServiceAreaPublishedOnSite] = useState("all");
-    const [totalPageCountBucket, setTotalPageCountBucket] = useState("all");
-    // Personalization filters (HIGH-impact Round 7)
-    const [selectedPrimaryBottleneck, setSelectedPrimaryBottleneck] = useState<Set<string>>(new Set());
-    const [websiteAgeYearsMin, setWebsiteAgeYearsMin] = useState("all");
-    // Round 8: trend + severity
-    const [selectedReviewTrend, setSelectedReviewTrend] = useState<Set<string>>(new Set());
-    const [painSeverityMin, setPainSeverityMin] = useState("all");
     const [showSegmentFilters, setShowSegmentFilters] = useState(false);
+
+    // An empty string clears a filter; every other value is kept verbatim. "all" is NOT a
+    // clear sentinel — `archived: "all"` is a real value meaning "include archived leads",
+    // and dropping it would fall back to the endpoint's active-only default.
+    const setFilter = useCallback((key: string, value: string) => {
+        setFilters(prev => {
+            const next = { ...prev };
+            if (value === "") delete next[key];
+            else next[key] = value;
+            return next;
+        });
+    }, []);
+
+    const clearSegmentFilters = useCallback(() => {
+        setFilters(prev => {
+            const next: FilterValues = {};
+            for (const [key, value] of Object.entries(prev)) {
+                if (!SEGMENT_PARAM_KEYS.has(key)) next[key] = value;
+            }
+            return next;
+        });
+    }, []);
+
+    const activeSegmentCount = SEGMENT_PARAM_KEYS_LIST.filter(k => filters[k]).length;
     const LEADS_PER_PAGE = 50;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -169,101 +285,29 @@ export default function ScrapedLeadsPage() {
     const [showAddLead, setShowAddLead] = useState(false);
     const [addingLead, setAddingLead] = useState(false);
     const [newLead, setNewLead] = useState({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
-    const [archivedFilter, setArchivedFilter] = useState("active");
     const [canPermanentlyDelete, setCanPermanentlyDelete] = useState(false);
 
     const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
+    // The ONE place the filter query string is built. fetchLeads, the "select all matching"
+    // path, and the dynamic email segment saved from `lastQuery` all go through this, so
+    // the table, the bulk selection and a saved segment can never disagree about the filter.
+    //
+    // `archived: "active"` is deliberately not sent: the endpoint's own default already
+    // means active-only, which is how the pre-rebuild page behaved.
+    const buildFilterParams = useCallback(() => {
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(filters)) {
+            if (!value) continue;
+            if (key === "archived" && value === "active") continue;
+            params.set(key, value);
+        }
+        return params;
+    }, [filters]);
+
     const fetchLeads = useCallback(async () => {
         try {
-            const params = new URLSearchParams();
-            if (gradeFilter !== "all") params.set("grade", gradeFilter);
-            if (archivedFilter !== "active") params.set("archived", archivedFilter);
-            if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
-            if (marketFilter !== "all") params.set("market", marketFilter);
-            if (stateFilter !== "all") params.set("state", stateFilter);
-            if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
-            if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
-            if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
-            if (phoneTypeFilter !== "all") params.set("phoneType", phoneTypeFilter);
-            if (existingClientFilter !== "all") params.set("isExistingClient", existingClientFilter);
-            if (hasOwnerName !== "all") params.set("hasOwnerName", hasOwnerName);
-            if (hasPhone !== "all") params.set("hasPhone", hasPhone);
-            if (hasEmail !== "all") params.set("hasEmail", hasEmail);
-            if (hasWebsite !== "all") params.set("hasWebsite", hasWebsite);
-            if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
-            if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
-            if (serviceTypeFilter !== "all") params.set("serviceType", serviceTypeFilter);
-            // Segmentation filters
-            if (reviewPainFilter !== "all") params.set("reviewPain", reviewPainFilter);
-            if (reviewCountRangeFilter !== "all") params.set("reviewCountRange", reviewCountRangeFilter);
-            if (ownerResponseRateFilter !== "all") params.set("ownerResponseRateBucket", ownerResponseRateFilter);
-            if (lastReviewWithinDays !== "all") params.set("lastReviewWithinDays", lastReviewWithinDays);
-            if (yearsInBusinessRangeFilter !== "all") params.set("yearsInBusinessRange", yearsInBusinessRangeFilter);
-            if (hasTrueBookingFilter !== "all") params.set("hasTrueOnlineBooking", hasTrueBookingFilter);
-            if (bookingFlowTypeFilter !== "all") params.set("bookingFlowType", bookingFlowTypeFilter);
-            if (selectedPainTags.size > 0) params.set("painTags", Array.from(selectedPainTags).join(","));
-            if (selectedPraiseTags.size > 0) params.set("praiseTags", Array.from(selectedPraiseTags).join(","));
-            if (painTagCountMin !== "all") params.set("painTagCountMin", painTagCountMin);
-            if (negativeReviewPercentMin !== "all") params.set("negativeReviewPercentMin", negativeReviewPercentMin);
-            if (mostRecentNegativeWithinDays !== "all") params.set("mostRecentNegativeWithinDays", mostRecentNegativeWithinDays);
-            if (starRatingBucket !== "all") params.set("starRatingBucket", starRatingBucket);
-            if (profileCompletenessBucket !== "all") params.set("profileCompletenessBucket", profileCompletenessBucket);
-            if (respondsToNegatives !== "all") params.set("respondsToNegatives", respondsToNegatives);
-            if (hasRecentGbpPosts !== "all") params.set("hasRecentGbpPosts", hasRecentGbpPosts);
-            if (hasBusinessDescription !== "all") params.set("hasBusinessDescription", hasBusinessDescription);
-            if (selectedBookingTiers.size > 0) params.set("bookingSophistication", Array.from(selectedBookingTiers).join(","));
-            if (bookingHasInstantQuote !== "all") params.set("bookingHasInstantQuote", bookingHasInstantQuote);
-            if (bookingHasJobSizeInput !== "all") params.set("bookingHasJobSizeInput", bookingHasJobSizeInput);
-            if (bookingHasItemSelector !== "all") params.set("bookingHasItemSelector", bookingHasItemSelector);
-            if (bookingCollectsPayment !== "all") params.set("bookingCollectsPayment", bookingCollectsPayment);
-            if (bookingIsQuoteRequestOnly !== "all") params.set("bookingIsQuoteRequestOnly", bookingIsQuoteRequestOnly);
-            if (selectedCompetitorStack.size > 0) params.set("competitorStack", Array.from(selectedCompetitorStack).join(","));
-            if (selectedPaymentStack.size > 0) params.set("paymentStack", Array.from(selectedPaymentStack).join(","));
-            if (mentionsCashOnly !== "all") params.set("mentionsCashOnly", mentionsCashOnly);
-            if (hasOnlinePayment !== "all") params.set("hasOnlinePayment", hasOnlinePayment);
-            if (selectedCms.size > 0) params.set("cmsDetected", Array.from(selectedCms).join(","));
-            if (selectedBookingPlatforms.size > 0) params.set("bookingPlatform", Array.from(selectedBookingPlatforms).join(","));
-            if (bookingCtaTargetsPhone !== "all") params.set("bookingCtaTargetsPhone", bookingCtaTargetsPhone);
-            if (marketingMaturityBucket !== "all") params.set("marketingMaturityBucket", marketingMaturityBucket);
-            if (loadTimeBucket !== "all") params.set("loadTimeBucket", loadTimeBucket);
-            if (mobileFriendly !== "all") params.set("mobileFriendly", mobileFriendly);
-            if (sslValid !== "all") params.set("sslValid", sslValid);
-            if (hasGoogleAds !== "all") params.set("hasGoogleAds", hasGoogleAds);
-            if (hasCallTracking !== "all") params.set("hasCallTracking", hasCallTracking);
-            if (hasChatWidget !== "all") params.set("hasChatWidget", hasChatWidget);
-            if (hasGTM !== "all") params.set("hasGTM", hasGTM);
-            if (hasFacebookPixel !== "all") params.set("hasFacebookPixel", hasFacebookPixel);
-            if (hasGoogleAnalytics !== "all") params.set("hasGoogleAnalytics", hasGoogleAnalytics);
-            if (employeeBucket !== "all") params.set("employeeBucket", employeeBucket);
-            if (fleetBucket !== "all") params.set("fleetBucket", fleetBucket);
-            if (selectedWebsiteBuiltBy.size > 0) params.set("websiteBuiltBy", Array.from(selectedWebsiteBuiltBy).join(","));
-            if (selectedMarketCompetitionLevel.size > 0) params.set("marketCompetitionLevel", Array.from(selectedMarketCompetitionLevel).join(","));
-            if (marketRankPercentileMin !== "all") params.set("marketRankPercentileMin", marketRankPercentileMin);
-            if (hasFacebook !== "all") params.set("hasFacebook", hasFacebook);
-            if (hasYouTube !== "all") params.set("hasYouTube", hasYouTube);
-            if (isVeteranOwned !== "all") params.set("isVeteranOwned", isVeteranOwned);
-            if (isFamilyBusiness !== "all") params.set("isFamilyBusiness", isFamilyBusiness);
-            if (reviewVelocityBucket !== "all") params.set("reviewVelocityBucket", reviewVelocityBucket);
-            if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
-            if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
-            if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
-            if (emailVerificationState !== "all") params.set("emailVerificationState", emailVerificationState);
-            if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
-            if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
-            if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
-            if (hasOwnerLinkedIn !== "all") params.set("hasOwnerLinkedIn", hasOwnerLinkedIn);
-            if (isDirectContact !== "all") params.set("isDirectContact", isDirectContact);
-            if (lastUpdatedYearBucket !== "all") params.set("lastUpdatedYearBucket", lastUpdatedYearBucket);
-            if (hasPricingPage !== "all") params.set("hasPricingPage", hasPricingPage);
-            if (hasBlog !== "all") params.set("hasBlog", hasBlog);
-            if (hasServiceAreaPublishedOnSite !== "all") params.set("hasServiceAreaPublishedOnSite", hasServiceAreaPublishedOnSite);
-            if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
-            if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
-            if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
-            if (selectedReviewTrend.size > 0) params.set("recentReviewTrend", Array.from(selectedReviewTrend).join(","));
-            if (painSeverityMin !== "all") params.set("painSeverityMin", painSeverityMin);
-            if (searchQuery) params.set("search", searchQuery);
+            const params = buildFilterParams();
             params.set("page", String(page));
             params.set("limit", String(LEADS_PER_PAGE));
             params.set("sortBy", sortBy);
@@ -282,7 +326,7 @@ export default function ScrapedLeadsPage() {
             }
         } catch { /* ignore */ }
         setLoading(false);
-    }, [gradeFilter, archivedFilter, outreachFilter, marketFilter, stateFilter, companyTypeFilter, enrichedFilter, competitorFilter, phoneTypeFilter, existingClientFilter, hasOwnerName, hasPhone, hasEmail, hasWebsite, sourceFilter, diyFilter, serviceTypeFilter, reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, selectedPainTags, selectedPraiseTags, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, selectedBookingTiers, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, selectedCompetitorStack, selectedPaymentStack, mentionsCashOnly, hasOnlinePayment, selectedCms, selectedBookingPlatforms, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, selectedWebsiteBuiltBy, selectedMarketCompetitionLevel, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, selectedEmailDomainType, emailDomainMatchesWebsite, emailDeliverable, emailVerificationState, selectedPhoneLineType, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, selectedPrimaryBottleneck, websiteAgeYearsMin, selectedReviewTrend, painSeverityMin, searchQuery, page, sortBy, sortOrder]);
+    }, [buildFilterParams, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
     useEffect(() => { fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}); }, []);
@@ -394,93 +438,7 @@ export default function ScrapedLeadsPage() {
         if (loadingSelectAll) return;
         setLoadingSelectAll(true);
         try {
-            const params = new URLSearchParams();
-            if (gradeFilter !== "all") params.set("grade", gradeFilter);
-            if (archivedFilter !== "active") params.set("archived", archivedFilter);
-            if (outreachFilter !== "all") params.set("outreachStatus", outreachFilter);
-            if (marketFilter !== "all") params.set("market", marketFilter);
-            if (stateFilter !== "all") params.set("state", stateFilter);
-            if (companyTypeFilter !== "all") params.set("companyType", companyTypeFilter);
-            if (enrichedFilter !== "all") params.set("enriched", enrichedFilter);
-            if (competitorFilter !== "all") params.set("usingCompetitor", competitorFilter);
-            if (phoneTypeFilter !== "all") params.set("phoneType", phoneTypeFilter);
-            if (existingClientFilter !== "all") params.set("isExistingClient", existingClientFilter);
-            if (hasOwnerName !== "all") params.set("hasOwnerName", hasOwnerName);
-            if (hasPhone !== "all") params.set("hasPhone", hasPhone);
-            if (hasEmail !== "all") params.set("hasEmail", hasEmail);
-            if (hasWebsite !== "all") params.set("hasWebsite", hasWebsite);
-            if (sourceFilter !== "all") params.set("discoveredVia", sourceFilter);
-            if (diyFilter !== "all") params.set("isDiyBuilder", diyFilter);
-            if (serviceTypeFilter !== "all") params.set("serviceType", serviceTypeFilter);
-            if (reviewPainFilter !== "all") params.set("reviewPain", reviewPainFilter);
-            if (reviewCountRangeFilter !== "all") params.set("reviewCountRange", reviewCountRangeFilter);
-            if (ownerResponseRateFilter !== "all") params.set("ownerResponseRateBucket", ownerResponseRateFilter);
-            if (lastReviewWithinDays !== "all") params.set("lastReviewWithinDays", lastReviewWithinDays);
-            if (yearsInBusinessRangeFilter !== "all") params.set("yearsInBusinessRange", yearsInBusinessRangeFilter);
-            if (hasTrueBookingFilter !== "all") params.set("hasTrueOnlineBooking", hasTrueBookingFilter);
-            if (bookingFlowTypeFilter !== "all") params.set("bookingFlowType", bookingFlowTypeFilter);
-            if (selectedPainTags.size > 0) params.set("painTags", Array.from(selectedPainTags).join(","));
-            if (selectedPraiseTags.size > 0) params.set("praiseTags", Array.from(selectedPraiseTags).join(","));
-            if (painTagCountMin !== "all") params.set("painTagCountMin", painTagCountMin);
-            if (negativeReviewPercentMin !== "all") params.set("negativeReviewPercentMin", negativeReviewPercentMin);
-            if (mostRecentNegativeWithinDays !== "all") params.set("mostRecentNegativeWithinDays", mostRecentNegativeWithinDays);
-            if (starRatingBucket !== "all") params.set("starRatingBucket", starRatingBucket);
-            if (profileCompletenessBucket !== "all") params.set("profileCompletenessBucket", profileCompletenessBucket);
-            if (respondsToNegatives !== "all") params.set("respondsToNegatives", respondsToNegatives);
-            if (hasRecentGbpPosts !== "all") params.set("hasRecentGbpPosts", hasRecentGbpPosts);
-            if (hasBusinessDescription !== "all") params.set("hasBusinessDescription", hasBusinessDescription);
-            if (selectedBookingTiers.size > 0) params.set("bookingSophistication", Array.from(selectedBookingTiers).join(","));
-            if (bookingHasInstantQuote !== "all") params.set("bookingHasInstantQuote", bookingHasInstantQuote);
-            if (bookingHasJobSizeInput !== "all") params.set("bookingHasJobSizeInput", bookingHasJobSizeInput);
-            if (bookingHasItemSelector !== "all") params.set("bookingHasItemSelector", bookingHasItemSelector);
-            if (bookingCollectsPayment !== "all") params.set("bookingCollectsPayment", bookingCollectsPayment);
-            if (bookingIsQuoteRequestOnly !== "all") params.set("bookingIsQuoteRequestOnly", bookingIsQuoteRequestOnly);
-            if (selectedCompetitorStack.size > 0) params.set("competitorStack", Array.from(selectedCompetitorStack).join(","));
-            if (selectedPaymentStack.size > 0) params.set("paymentStack", Array.from(selectedPaymentStack).join(","));
-            if (mentionsCashOnly !== "all") params.set("mentionsCashOnly", mentionsCashOnly);
-            if (hasOnlinePayment !== "all") params.set("hasOnlinePayment", hasOnlinePayment);
-            if (selectedCms.size > 0) params.set("cmsDetected", Array.from(selectedCms).join(","));
-            if (selectedBookingPlatforms.size > 0) params.set("bookingPlatform", Array.from(selectedBookingPlatforms).join(","));
-            if (bookingCtaTargetsPhone !== "all") params.set("bookingCtaTargetsPhone", bookingCtaTargetsPhone);
-            if (marketingMaturityBucket !== "all") params.set("marketingMaturityBucket", marketingMaturityBucket);
-            if (loadTimeBucket !== "all") params.set("loadTimeBucket", loadTimeBucket);
-            if (mobileFriendly !== "all") params.set("mobileFriendly", mobileFriendly);
-            if (sslValid !== "all") params.set("sslValid", sslValid);
-            if (hasGoogleAds !== "all") params.set("hasGoogleAds", hasGoogleAds);
-            if (hasCallTracking !== "all") params.set("hasCallTracking", hasCallTracking);
-            if (hasChatWidget !== "all") params.set("hasChatWidget", hasChatWidget);
-            if (hasGTM !== "all") params.set("hasGTM", hasGTM);
-            if (hasFacebookPixel !== "all") params.set("hasFacebookPixel", hasFacebookPixel);
-            if (hasGoogleAnalytics !== "all") params.set("hasGoogleAnalytics", hasGoogleAnalytics);
-            if (employeeBucket !== "all") params.set("employeeBucket", employeeBucket);
-            if (fleetBucket !== "all") params.set("fleetBucket", fleetBucket);
-            if (selectedWebsiteBuiltBy.size > 0) params.set("websiteBuiltBy", Array.from(selectedWebsiteBuiltBy).join(","));
-            if (selectedMarketCompetitionLevel.size > 0) params.set("marketCompetitionLevel", Array.from(selectedMarketCompetitionLevel).join(","));
-            if (marketRankPercentileMin !== "all") params.set("marketRankPercentileMin", marketRankPercentileMin);
-            if (hasFacebook !== "all") params.set("hasFacebook", hasFacebook);
-            if (hasYouTube !== "all") params.set("hasYouTube", hasYouTube);
-            if (isVeteranOwned !== "all") params.set("isVeteranOwned", isVeteranOwned);
-            if (isFamilyBusiness !== "all") params.set("isFamilyBusiness", isFamilyBusiness);
-            if (reviewVelocityBucket !== "all") params.set("reviewVelocityBucket", reviewVelocityBucket);
-            if (selectedEmailDomainType.size > 0) params.set("emailDomainType", Array.from(selectedEmailDomainType).join(","));
-            if (emailDomainMatchesWebsite !== "all") params.set("emailDomainMatchesWebsite", emailDomainMatchesWebsite);
-            if (emailDeliverable !== "all") params.set("emailDeliverable", emailDeliverable);
-            if (emailVerificationState !== "all") params.set("emailVerificationState", emailVerificationState);
-            if (selectedPhoneLineType.size > 0) params.set("phoneLineType", Array.from(selectedPhoneLineType).join(","));
-            if (phoneDeliverable !== "all") params.set("phoneDeliverable", phoneDeliverable);
-            if (hasOwnerFullName !== "all") params.set("hasOwnerFullName", hasOwnerFullName);
-            if (hasOwnerLinkedIn !== "all") params.set("hasOwnerLinkedIn", hasOwnerLinkedIn);
-            if (isDirectContact !== "all") params.set("isDirectContact", isDirectContact);
-            if (lastUpdatedYearBucket !== "all") params.set("lastUpdatedYearBucket", lastUpdatedYearBucket);
-            if (hasPricingPage !== "all") params.set("hasPricingPage", hasPricingPage);
-            if (hasBlog !== "all") params.set("hasBlog", hasBlog);
-            if (hasServiceAreaPublishedOnSite !== "all") params.set("hasServiceAreaPublishedOnSite", hasServiceAreaPublishedOnSite);
-            if (totalPageCountBucket !== "all") params.set("totalPageCountBucket", totalPageCountBucket);
-            if (selectedPrimaryBottleneck.size > 0) params.set("primaryBottleneck", Array.from(selectedPrimaryBottleneck).join(","));
-            if (websiteAgeYearsMin !== "all") params.set("websiteAgeYearsMin", websiteAgeYearsMin);
-            if (selectedReviewTrend.size > 0) params.set("recentReviewTrend", Array.from(selectedReviewTrend).join(","));
-            if (painSeverityMin !== "all") params.set("painSeverityMin", painSeverityMin);
-            if (searchQuery) params.set("search", searchQuery);
+            const params = buildFilterParams();
             params.set("idsOnly", "true");
             const res = await fetch(`/api/agents/leads?${params}`);
             if (!res.ok) throw new Error("Failed to fetch matching IDs");
@@ -539,7 +497,7 @@ export default function ScrapedLeadsPage() {
     };
 
     const permanentlyDeleteSelected = async () => {
-        if (selectedIds.size === 0 || archivedFilter !== "true" || !canPermanentlyDelete) return;
+        if (selectedIds.size === 0 || filters.archived !== "true" || !canPermanentlyDelete) return;
         const confirmation = prompt(
             `This permanently deletes ${selectedIds.size} archived lead(s) and cannot be undone. Type ${PERMANENT_LEAD_DELETE_CONFIRMATION} to continue.`,
         );
@@ -817,962 +775,58 @@ export default function ScrapedLeadsPage() {
                 ))}
             </div>
 
-            {/* Data Presence Filters */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "8px 12px", background: "var(--white)", border: "1px solid var(--border-light)", borderRadius: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-faint)", marginRight: 4 }}>Show only:</span>
-                {[
-                    { label: "Has Owner Name", state: hasOwnerName, setter: setHasOwnerName, activeValue: "true" },
-                    { label: "No Owner Name", state: hasOwnerName, setter: setHasOwnerName, activeValue: "false" },
-                    { label: "Has Phone", state: hasPhone, setter: setHasPhone, activeValue: "true" },
-                    { label: "Has Email", state: hasEmail, setter: setHasEmail, activeValue: "true" },
-                    { label: "Has Website", state: hasWebsite, setter: setHasWebsite, activeValue: "true" },
-                    { label: "DIY Builder", state: diyFilter, setter: setDiyFilter, activeValue: "true" },
-                ].map(f => (
-                    <button key={f.label} onClick={() => f.setter(f.state === f.activeValue ? "all" : f.activeValue)}
-                        style={{
-                            padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, cursor: "pointer",
-                            border: `1px solid ${f.state === f.activeValue ? "var(--success)" : "var(--border)"}`,
-                            background: f.state === f.activeValue ? "rgba(0,216,74,0.08)" : "var(--white)",
-                            color: f.state === f.activeValue ? "#00A83A" : "var(--text-light)",
-                        }}>
-                        {f.state === f.activeValue ? "✓ " : ""}{f.label}
-                    </button>
-                ))}
-                <div style={{ width: 1, height: 16, background: "var(--border)", margin: "0 4px" }} />
-                <select value={serviceTypeFilter} onChange={e => setServiceTypeFilter(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">All Services</option>
-                    <option value="junk_removal">Junk Removal</option>
-                    <option value="dumpster_rental">Dumpster Rental</option>
-                    <option value="demolition">Demolition</option>
-                </select>
-                <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">All Sources</option>
-                    <option value="google_maps">Google Maps</option>
-                    <option value="manual">Manual</option>
-                </select>
-                <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">All States</option>
-                    {availableStates.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+            {/* Operational filters — gate WHO is contactable. Kept separate from the segment
+                signals below, which describe what the business looks like. */}
+            <div style={{ background: "var(--surface-raised)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "10px 14px", display: "grid", gap: 8 }}>
+                <FilterSection
+                    title="Operational"
+                    defs={OPERATIONAL_FILTERS.filter(d => d.key !== "search")}
+                    values={filters}
+                    onChange={setFilter}
+                    dynamicOptions={{ market: availableMarkets, state: availableStates }}
+                />
             </div>
 
-            {/* Segment Filters — collapsible */}
-            <div style={{ background: "var(--white)", border: "1px solid var(--border-light)", borderRadius: 8 }}>
+            {/* Segment filters — collapsible. Rendered entirely from lead-filter-catalog.ts. */}
+            <div style={{ background: "var(--surface-raised)", border: "1px solid var(--line-soft)", borderRadius: 8 }}>
                 <button
-                    onClick={() => setShowSegmentFilters(s => !s)}
+                    onClick={() => setShowSegmentFilters(v => !v)}
                     style={{
-                        width: "100%", padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        background: "transparent", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--text-light)",
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 14px", background: "none", border: "none", cursor: "pointer",
                     }}>
-                    <span>🎯 Segment Filters (Pain · Praise · GBP · Reviews · Booking · Stack · Tech · Marketing · Team · Market · Contact · Site)
-                        {(() => {
-                            const dropdowns = [reviewPainFilter, reviewCountRangeFilter, ownerResponseRateFilter, lastReviewWithinDays, yearsInBusinessRangeFilter, hasTrueBookingFilter, bookingFlowTypeFilter, painTagCountMin, negativeReviewPercentMin, mostRecentNegativeWithinDays, starRatingBucket, profileCompletenessBucket, respondsToNegatives, hasRecentGbpPosts, hasBusinessDescription, bookingHasInstantQuote, bookingHasJobSizeInput, bookingHasItemSelector, bookingCollectsPayment, bookingIsQuoteRequestOnly, mentionsCashOnly, hasOnlinePayment, bookingCtaTargetsPhone, marketingMaturityBucket, loadTimeBucket, mobileFriendly, sslValid, hasGoogleAds, hasCallTracking, hasChatWidget, hasGTM, hasFacebookPixel, hasGoogleAnalytics, employeeBucket, fleetBucket, marketRankPercentileMin, hasFacebook, hasYouTube, isVeteranOwned, isFamilyBusiness, reviewVelocityBucket, emailDomainMatchesWebsite, emailDeliverable, phoneDeliverable, hasOwnerFullName, hasOwnerLinkedIn, isDirectContact, lastUpdatedYearBucket, hasPricingPage, hasBlog, hasServiceAreaPublishedOnSite, totalPageCountBucket, websiteAgeYearsMin, painSeverityMin].filter(f => f !== "all").length;
-                            const active = dropdowns + selectedPainTags.size + selectedPraiseTags.size + selectedBookingTiers.size + selectedCompetitorStack.size + selectedPaymentStack.size + selectedCms.size + selectedBookingPlatforms.size + selectedWebsiteBuiltBy.size + selectedMarketCompetitionLevel.size + selectedEmailDomainType.size + selectedPhoneLineType.size + selectedPrimaryBottleneck.size + selectedReviewTrend.size;
-                            return active > 0 ? <span style={{ marginLeft: 6, padding: "1px 6px", fontSize: 10, background: "var(--orange)", color: "#fff", borderRadius: 10, fontWeight: 700 }}>{active}</span> : null;
-                        })()}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Segment Filters
+                        {activeSegmentCount > 0 && (
+                            <span style={{ marginLeft: 8, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>
+                                {activeSegmentCount}
+                            </span>
+                        )}
                     </span>
-                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{showSegmentFilters ? "▲ Hide" : "▼ Show"}</span>
+                    <span style={{ fontSize: 10, color: "var(--muted-faint)" }}>{showSegmentFilters ? "Hide" : "Show"}</span>
                 </button>
 
                 {showSegmentFilters && (
-                    <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: 10 }}>
-                        {/* ── Primary Bottleneck (HIGH-impact Round 7) — the single most important outreach filter ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>🎯 Primary Bottleneck (single biggest outreach angle)</span>
-                                {selectedPrimaryBottleneck.size > 0 && (
-                                    <button onClick={() => setSelectedPrimaryBottleneck(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPrimaryBottleneck.size}</button>
-                                )}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                {[
-                                    { value: "missed_calls", label: "📞 Missed calls" },
-                                    { value: "no_online_booking", label: "🚫 No online booking" },
-                                    { value: "poor_response_rate", label: "💬 Poor response rate" },
-                                    { value: "outdated_website", label: "🌐 Outdated website" },
-                                    { value: "no_reviews", label: "🕳 No reviews" },
-                                    { value: "stale_reviews", label: "💤 Stale reviews" },
-                                    { value: "negative_review_trend", label: "📉 Negative review trend" },
-                                    { value: "none", label: "✨ None (healthy)" },
-                                ].map(b => {
-                                    const active = selectedPrimaryBottleneck.has(b.value);
-                                    return (
-                                        <button key={b.value}
-                                            onClick={() => setSelectedPrimaryBottleneck(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(b.value)) next.delete(b.value); else next.add(b.value);
-                                                return next;
-                                            })}
-                                            style={{
-                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                border: `1px solid ${active ? "var(--orange)" : "var(--border)"}`,
-                                                background: active ? "rgba(255,107,0,0.08)" : "transparent",
-                                                color: active ? "var(--orange)" : "var(--text-light)",
-                                            }}>
-                                            {b.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Website age ≥:</span>
-                                <select value={websiteAgeYearsMin} onChange={e => setWebsiteAgeYearsMin(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="3">3+ years old</option>
-                                    <option value="5">5+ years old</option>
-                                    <option value="7">7+ years old</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Pain severity ≥:</span>
-                                <select value={painSeverityMin} onChange={e => setPainSeverityMin(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="40">40+ (moderate)</option>
-                                    <option value="60">60+ (high)</option>
-                                    <option value="80">80+ (critical)</option>
-                                </select>
-                            </label>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginTop: 2 }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)" }}>Review trend:</span>
-                                {[
-                                    { value: "improving", label: "📈 Improving" },
-                                    { value: "stable", label: "➖ Stable" },
-                                    { value: "declining", label: "📉 Declining" },
-                                    { value: "dormant", label: "💤 Dormant" },
-                                    { value: "insufficient_data", label: "❓ Insufficient data" },
-                                ].map(t => {
-                                    const active = selectedReviewTrend.has(t.value);
-                                    return (
-                                        <button key={t.value}
-                                            onClick={() => setSelectedReviewTrend(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(t.value)) next.delete(t.value); else next.add(t.value);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                                border: `1px solid ${active ? "var(--orange)" : "var(--border)"}`,
-                                                background: active ? "rgba(255,107,0,0.08)" : "transparent",
-                                                color: active ? "var(--orange)" : "var(--text-light)" }}>
-                                            {t.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* ── Canonical pain tags (multi-select, grouped by category) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Pain Tags (multi-select, AND)</span>
-                                {selectedPainTags.size > 0 && (
-                                    <button onClick={() => setSelectedPainTags(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPainTags.size}</button>
-                                )}
-                            </div>
-                            {Object.entries(painTagsByCategory()).map(([cat, tags]) => (
-                                <div key={cat} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                    <span style={{ fontSize: 9, fontWeight: 600, color: "var(--text-faint)", minWidth: 110 }}>{cat}</span>
-                                    {tags.map(t => {
-                                        const active = selectedPainTags.has(t.id);
-                                        return (
-                                            <button key={t.id} title={t.description}
-                                                onClick={() => setSelectedPainTags(prev => {
-                                                    const next = new Set(prev);
-                                                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
-                                                    return next;
-                                                })}
-                                                style={{
-                                                    padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                    border: `1px solid ${active ? "var(--danger)" : "var(--border)"}`,
-                                                    background: active ? "rgba(239,68,68,0.08)" : "transparent",
-                                                    color: active ? "var(--danger)" : "var(--text-light)",
-                                                }}>
-                                                {t.emoji} {t.label}
-                                            </button>
-                                        );
-                                    })}
+                    <div style={{ padding: "0 14px 14px", display: "grid", gap: 14 }}>
+                        {SEGMENT_SECTIONS.map(section => {
+                            const defs = SEGMENT_FILTERS.filter(d => d.section === section);
+                            if (defs.length === 0) return null;
+                            return (
+                                <div key={section} style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
+                                    <FilterSection title={section} defs={defs} values={filters} onChange={setFilter} />
                                 </div>
-                            ))}
-                        </div>
-
-                        {/* ── Canonical praise tags (multi-select, grouped by category) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Praise Tags (multi-select, AND)</span>
-                                {selectedPraiseTags.size > 0 && (
-                                    <button onClick={() => setSelectedPraiseTags(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedPraiseTags.size}</button>
-                                )}
-                            </div>
-                            {Object.entries(praiseTagsByCategory()).map(([cat, tags]) => (
-                                <div key={cat} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                    <span style={{ fontSize: 9, fontWeight: 600, color: "var(--text-faint)", minWidth: 110 }}>{cat}</span>
-                                    {tags.map(t => {
-                                        const active = selectedPraiseTags.has(t.id);
-                                        return (
-                                            <button key={t.id} title={t.description}
-                                                onClick={() => setSelectedPraiseTags(prev => {
-                                                    const next = new Set(prev);
-                                                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
-                                                    return next;
-                                                })}
-                                                style={{
-                                                    padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                    border: `1px solid ${active ? "var(--success)" : "var(--border)"}`,
-                                                    background: active ? "rgba(0,216,74,0.08)" : "transparent",
-                                                    color: active ? "#00A83A" : "var(--text-light)",
-                                                }}>
-                                                {t.emoji} {t.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ── Severity dropdowns ── */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Severity:</span>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Pain intensity:</span>
-                                <select value={painTagCountMin} onChange={e => setPainTagCountMin(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="1">1+ pains</option>
-                                    <option value="2">2+ pains</option>
-                                    <option value="3">3+ pains</option>
-                                    <option value="5">5+ pains</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>% negative reviews:</span>
-                                <select value={negativeReviewPercentMin} onChange={e => setNegativeReviewPercentMin(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="0.1">10%+</option>
-                                    <option value="0.25">25%+</option>
-                                    <option value="0.5">50%+</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Most recent negative within:</span>
-                                <select value={mostRecentNegativeWithinDays} onChange={e => setMostRecentNegativeWithinDays(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="7">7 days</option>
-                                    <option value="30">30 days</option>
-                                    <option value="90">90 days</option>
-                                </select>
-                            </label>
-                        </div>
-
-                        {/* ── GBP Profile dropdowns ── */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>GBP Profile:</span>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Star rating:</span>
-                                <select value={starRatingBucket} onChange={e => setStarRatingBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="<3">&lt; 3★</option>
-                                    <option value="3-3.9">3.0 – 3.9★</option>
-                                    <option value="4-4.4">4.0 – 4.4★</option>
-                                    <option value="4.5-4.7">4.5 – 4.7★</option>
-                                    <option value="4.8+">4.8+★</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Profile completeness:</span>
-                                <select value={profileCompletenessBucket} onChange={e => setProfileCompletenessBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="low">Low (&lt; 40)</option>
-                                    <option value="medium">Medium (40–70)</option>
-                                    <option value="high">High (70+)</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Responds to negatives:</span>
-                                <select value={respondsToNegatives} onChange={e => setRespondsToNegatives(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="true">Yes (≥50%)</option>
-                                    <option value="false">No</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Recent GBP posts:</span>
-                                <select value={hasRecentGbpPosts} onChange={e => setHasRecentGbpPosts(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="true">Posted in 90d</option>
-                                    <option value="false">No posts</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Description:</span>
-                                <select value={hasBusinessDescription} onChange={e => setHasBusinessDescription(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="true">Has description</option>
-                                    <option value="false">Missing</option>
-                                </select>
-                            </label>
-                        </div>
-
-                        {/* ── Booking Sophistication (multi-select tiers + component toggles) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Booking Sophistication (multi-select)</span>
-                                {selectedBookingTiers.size > 0 && (
-                                    <button onClick={() => setSelectedBookingTiers(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedBookingTiers.size}</button>
-                                )}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                {[
-                                    { value: "none", label: "⛔ None" },
-                                    { value: "cta_only", label: "🔘 CTA only" },
-                                    { value: "basic_scheduler", label: "🗓️ Basic scheduler" },
-                                    { value: "photo_collector", label: "📷 Photo collector" },
-                                    { value: "quote_form", label: "📝 Quote form" },
-                                    { value: "instant_quote", label: "💵 Instant quote" },
-                                    { value: "full_booking", label: "🏆 Full booking" },
-                                    { value: "other", label: "Other" },
-                                ].map(t => {
-                                    const active = selectedBookingTiers.has(t.value);
-                                    return (
-                                        <button key={t.value}
-                                            onClick={() => setSelectedBookingTiers(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(t.value)) next.delete(t.value); else next.add(t.value);
-                                                return next;
-                                            })}
-                                            style={{
-                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                border: `1px solid ${active ? "var(--info)" : "var(--border)"}`,
-                                                background: active ? "rgba(37,99,235,0.08)" : "transparent",
-                                                color: active ? "var(--info)" : "var(--text-light)",
-                                            }}>
-                                            {t.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Components:</span>
-                                {[
-                                    { label: "Instant quote", state: bookingHasInstantQuote, setter: setBookingHasInstantQuote },
-                                    { label: "Job size input", state: bookingHasJobSizeInput, setter: setBookingHasJobSizeInput },
-                                    { label: "Item selector", state: bookingHasItemSelector, setter: setBookingHasItemSelector },
-                                    { label: "Collects payment", state: bookingCollectsPayment, setter: setBookingCollectsPayment },
-                                    { label: "Quote-only (no instant)", state: bookingIsQuoteRequestOnly, setter: setBookingIsQuoteRequestOnly },
-                                ].map(f => (
-                                    <button key={f.label}
-                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                        style={{
-                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                        }}>
-                                        {f.state === "true" ? "✓ " : ""}{f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* ── Competitor Stack (multi-select, OR semantics) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Competitor Stack (multi-select, OR)</span>
-                                {selectedCompetitorStack.size > 0 && (
-                                    <button onClick={() => setSelectedCompetitorStack(new Set())} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>Clear {selectedCompetitorStack.size}</button>
-                                )}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                {[
-                                    { value: "Jobber", label: "Jobber" },
-                                    { value: "Workiz", label: "Workiz" },
-                                    { value: "HousecallPro", label: "Housecall Pro" },
-                                    { value: "ServiceTitan", label: "ServiceTitan" },
-                                    { value: "Thryv", label: "Thryv" },
-                                    { value: "GorillaDesk", label: "GorillaDesk" },
-                                    { value: "FieldPulse", label: "FieldPulse" },
-                                    { value: "QuoteIQ", label: "QuoteIQ" },
-                                    { value: "Docket", label: "Docket" },
-                                    { value: "DumpstersCom", label: "Dumpsters.com" },
-                                ].map(p => {
-                                    const active = selectedCompetitorStack.has(p.value);
-                                    return (
-                                        <button key={p.value}
-                                            onClick={() => setSelectedCompetitorStack(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(p.value)) next.delete(p.value); else next.add(p.value);
-                                                return next;
-                                            })}
-                                            style={{
-                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                border: `1px solid ${active ? "var(--warn-dark)" : "var(--border)"}`,
-                                                background: active ? "rgba(245,158,11,0.08)" : "transparent",
-                                                color: active ? "var(--warn-dark)" : "var(--text-light)",
-                                            }}>
-                                            {p.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* ── Payment Stack (multi-select + toggles) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Payment Stack</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Uses:</span>
-                                {[
-                                    { value: "Stripe", label: "💳 Stripe" },
-                                    { value: "Square", label: "⬛ Square" },
-                                ].map(p => {
-                                    const active = selectedPaymentStack.has(p.value);
-                                    return (
-                                        <button key={p.value}
-                                            onClick={() => setSelectedPaymentStack(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(p.value)) next.delete(p.value); else next.add(p.value);
-                                                return next;
-                                            })}
-                                            style={{
-                                                padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 12, cursor: "pointer",
-                                                border: `1px solid ${active ? "var(--info)" : "var(--border)"}`,
-                                                background: active ? "rgba(37,99,235,0.08)" : "transparent",
-                                                color: active ? "var(--info)" : "var(--text-light)",
-                                            }}>
-                                            {p.label}
-                                        </button>
-                                    );
-                                })}
-                                <div style={{ width: 1, height: 14, background: "var(--border)", margin: "0 4px" }} />
-                                {[
-                                    { label: "Cash/check only", state: mentionsCashOnly, setter: setMentionsCashOnly },
-                                    { label: "Has online payment", state: hasOnlinePayment, setter: setHasOnlinePayment },
-                                ].map(f => (
-                                    <button key={f.label}
-                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                        style={{
-                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                        }}>
-                                        {f.state === "true" ? "✓ " : ""}{f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* ── Tech Stack (CMS, website built-by, booking platform, site quality) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Tech Stack</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>CMS:</span>
-                                {["WordPress", "Wix", "Squarespace", "GoDaddy", "Weebly", "Shopify", "Webflow", "Other"].map(cms => {
-                                    const active = selectedCms.has(cms);
-                                    return (
-                                        <button key={cms}
-                                            onClick={() => setSelectedCms(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(cms)) next.delete(cms); else next.add(cms);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {cms}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Built by:</span>
-                                {[
-                                    { value: "diy", label: "🛠 DIY (confirmed)" },
-                                    { value: "likely_diy", label: "🛠 Likely DIY" },
-                                    { value: "likely_agency", label: "🏢 Likely Agency" },
-                                    { value: "unknown", label: "❓ Unknown" },
-                                ].map(w => {
-                                    const active = selectedWebsiteBuiltBy.has(w.value);
-                                    return (
-                                        <button key={w.value}
-                                            onClick={() => setSelectedWebsiteBuiltBy(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(w.value)) next.delete(w.value); else next.add(w.value);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {w.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Booking platform:</span>
-                                {["Calendly", "Jobber", "Housecall Pro", "ServiceTitan", "Workiz", "Thryv", "GorillaDesk", "FieldPulse", "Custom (native form)"].map(bp => {
-                                    const active = selectedBookingPlatforms.has(bp);
-                                    return (
-                                        <button key={bp}
-                                            onClick={() => setSelectedBookingPlatforms(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(bp)) next.delete(bp); else next.add(bp);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {bp}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Load time:</span>
-                                    <select value={loadTimeBucket} onChange={e => setLoadTimeBucket(e.target.value)}
-                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                        <option value="all">Any</option>
-                                        <option value="fast">Fast (&lt; 2s)</option>
-                                        <option value="medium">Medium (2–5s)</option>
-                                        <option value="slow">Slow (5s+)</option>
-                                    </select>
-                                </label>
-                                {[
-                                    { label: "Mobile-friendly", state: mobileFriendly, setter: setMobileFriendly },
-                                    { label: "SSL valid", state: sslValid, setter: setSslValid },
-                                    { label: "⚠️ Fake booking (CTA dials phone)", state: bookingCtaTargetsPhone, setter: setBookingCtaTargetsPhone },
-                                ].map(f => (
-                                    <button key={f.label}
-                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                        style={{
-                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                        }}>
-                                        {f.state === "true" ? "✓ " : ""}{f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* ── Marketing Signals ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Marketing Signals</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Maturity score:</span>
-                                    <select value={marketingMaturityBucket} onChange={e => setMarketingMaturityBucket(e.target.value)}
-                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                        <option value="all">Any</option>
-                                        <option value="low">Low (&lt; 20)</option>
-                                        <option value="medium">Medium (20–49)</option>
-                                        <option value="high">High (50+)</option>
-                                    </select>
-                                </label>
-                                {[
-                                    { label: "Google Ads", state: hasGoogleAds, setter: setHasGoogleAds },
-                                    { label: "Call tracking", state: hasCallTracking, setter: setHasCallTracking },
-                                    { label: "Chat widget", state: hasChatWidget, setter: setHasChatWidget },
-                                    { label: "GTM", state: hasGTM, setter: setHasGTM },
-                                    { label: "FB Pixel", state: hasFacebookPixel, setter: setHasFacebookPixel },
-                                    { label: "Google Analytics", state: hasGoogleAnalytics, setter: setHasGoogleAnalytics },
-                                ].map(f => (
-                                    <button key={f.label}
-                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                        style={{
-                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                        }}>
-                                        {f.state === "true" ? "✓ " : ""}{f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* ── Team Size & Business Profile ── */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Team &amp; Profile:</span>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Employees:</span>
-                                <select value={employeeBucket} onChange={e => setEmployeeBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="1">Solo (1)</option>
-                                    <option value="2-3">Small (2–3)</option>
-                                    <option value="4-10">Growing (4–10)</option>
-                                    <option value="11+">Established (11+)</option>
-                                    <option value="unknown">Unknown</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Fleet:</span>
-                                <select value={fleetBucket} onChange={e => setFleetBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="1">1 truck</option>
-                                    <option value="2-5">2–5</option>
-                                    <option value="6+">6+</option>
-                                    <option value="unknown">Unknown</option>
-                                </select>
-                            </label>
-                            {[
-                                { label: "Veteran-owned", state: isVeteranOwned, setter: setIsVeteranOwned },
-                                { label: "Family business", state: isFamilyBusiness, setter: setIsFamilyBusiness },
-                                { label: "Has Facebook", state: hasFacebook, setter: setHasFacebook },
-                                { label: "Has YouTube", state: hasYouTube, setter: setHasYouTube },
-                            ].map(f => (
-                                <button key={f.label}
-                                    onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                    style={{
-                                        padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                        border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                        background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                        color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                    }}>
-                                    {f.state === "true" ? "✓ " : ""}{f.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* ── Market Context ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Market Context</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Competition:</span>
-                                {[
-                                    { value: "low", label: "🟢 Low" },
-                                    { value: "medium", label: "🟡 Medium" },
-                                    { value: "high", label: "🔴 High" },
-                                ].map(c => {
-                                    const active = selectedMarketCompetitionLevel.has(c.value);
-                                    return (
-                                        <button key={c.value}
-                                            onClick={() => setSelectedMarketCompetitionLevel(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(c.value)) next.delete(c.value); else next.add(c.value);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {c.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Market rank:</span>
-                                    <select value={marketRankPercentileMin} onChange={e => setMarketRankPercentileMin(e.target.value)}
-                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                        <option value="all">Any</option>
-                                        <option value="0.9">Top 10%</option>
-                                        <option value="0.75">Top 25%</option>
-                                        <option value="0.5">Top 50%</option>
-                                    </select>
-                                </label>
-                                <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                    <span style={{ fontWeight: 600, marginRight: 4 }}>Review velocity (90d):</span>
-                                    <select value={reviewVelocityBucket} onChange={e => setReviewVelocityBucket(e.target.value)}
-                                        style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                        <option value="all">Any</option>
-                                        <option value="dormant">💤 Dormant (0)</option>
-                                        <option value="low">🐢 Low (1–5)</option>
-                                        <option value="moderate">⚡ Moderate (6–20)</option>
-                                        <option value="high">🚀 High (21+)</option>
-                                    </select>
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* ── Contact Quality (Phase 5) ── */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Contact Quality</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Email domain:</span>
-                                {[
-                                    { value: "personal", label: "📧 Personal (gmail, yahoo, …)" },
-                                    { value: "business_custom", label: "🏢 Custom domain" },
-                                    { value: "unknown", label: "❓ Unknown" },
-                                ].map(d => {
-                                    const active = selectedEmailDomainType.has(d.value);
-                                    return (
-                                        <button key={d.value}
-                                            onClick={() => setSelectedEmailDomainType(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(d.value)) next.delete(d.value); else next.add(d.value);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {d.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", minWidth: 100 }}>Phone line type:</span>
-                                {[
-                                    { value: "mobile", label: "📱 Mobile" },
-                                    { value: "landline", label: "☎️ Landline" },
-                                    { value: "voip", label: "🖥 VOIP" },
-                                    { value: "unknown", label: "❓ Unknown" },
-                                ].map(d => {
-                                    const active = selectedPhoneLineType.has(d.value);
-                                    return (
-                                        <button key={d.value}
-                                            onClick={() => setSelectedPhoneLineType(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(d.value)) next.delete(d.value); else next.add(d.value);
-                                                return next;
-                                            })}
-                                            style={{ padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer", border: `1px solid ${active ? "var(--info)" : "var(--border)"}`, background: active ? "rgba(37,99,235,0.08)" : "transparent", color: active ? "var(--info)" : "var(--text-light)" }}>
-                                            {d.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                {[
-                                    { label: "Email matches website", state: emailDomainMatchesWebsite, setter: setEmailDomainMatchesWebsite },
-                                    { label: "Email deliverable", state: emailDeliverable, setter: setEmailDeliverable },
-                                    { label: "Phone deliverable", state: phoneDeliverable, setter: setPhoneDeliverable },
-                                    { label: "Has first + last name", state: hasOwnerFullName, setter: setHasOwnerFullName },
-                                    { label: "Has LinkedIn URL", state: hasOwnerLinkedIn, setter: setHasOwnerLinkedIn },
-                                    { label: "🎯 Direct contact", state: isDirectContact, setter: setIsDirectContact },
-                                ].map(f => (
-                                    <button key={f.label}
-                                        onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                        style={{
-                                            padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                            border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                            background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                            color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                        }}>
-                                        {f.state === "true" ? "✓ " : ""}{f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* ── Website Depth (Phase 6) ── */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px dashed var(--border-light)" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Website Depth:</span>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Last updated:</span>
-                                <select value={lastUpdatedYearBucket} onChange={e => setLastUpdatedYearBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="stale">💀 Stale (≤2020)</option>
-                                    <option value="aging">🕰 Aging (2021–2022)</option>
-                                    <option value="fresh">✨ Fresh (2023+)</option>
-                                    <option value="unknown">Unknown</option>
-                                </select>
-                            </label>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Page count:</span>
-                                <select value={totalPageCountBucket} onChange={e => setTotalPageCountBucket(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="tiny">Tiny (1–5)</option>
-                                    <option value="small">Small (6–20)</option>
-                                    <option value="medium">Medium (21–100)</option>
-                                    <option value="large">Large (100+)</option>
-                                </select>
-                            </label>
-                            {[
-                                { label: "Has pricing page", state: hasPricingPage, setter: setHasPricingPage },
-                                { label: "Has blog", state: hasBlog, setter: setHasBlog },
-                                { label: "Service area on site", state: hasServiceAreaPublishedOnSite, setter: setHasServiceAreaPublishedOnSite },
-                            ].map(f => (
-                                <button key={f.label}
-                                    onClick={() => f.setter(f.state === "true" ? "all" : "true")}
-                                    style={{
-                                        padding: "3px 8px", fontSize: 10, fontWeight: 600, borderRadius: 10, cursor: "pointer",
-                                        border: `1px solid ${f.state === "true" ? "var(--info)" : "var(--border)"}`,
-                                        background: f.state === "true" ? "rgba(37,99,235,0.08)" : "var(--white)",
-                                        color: f.state === "true" ? "var(--info)" : "var(--text-light)",
-                                    }}>
-                                    {f.state === "true" ? "✓ " : ""}{f.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Review pains — toggle chips */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 4 }}>Review Pain:</span>
-                            {[
-                                { value: "dormant_reviews", label: "📉 Dormant (no reviews 90d)" },
-                                { value: "low_response_rate", label: "💬 Low Response Rate (<30%)" },
-                                { value: "negative_reviews", label: "⚠️ Has Negative Reviews" },
-                                { value: "has_complaints", label: "😠 Has Recurring Complaints" },
-                                { value: "stale_owner_response", label: "🕒 Stale Owner Response (60d+)" },
-                                { value: "stale_last_review", label: "📅 Stale Last Review (60d+)" },
-                            ].map(p => (
-                                <button key={p.value}
-                                    onClick={() => setReviewPainFilter(reviewPainFilter === p.value ? "all" : p.value)}
-                                    style={{
-                                        padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 14, cursor: "pointer",
-                                        border: `1px solid ${reviewPainFilter === p.value ? "var(--orange)" : "var(--border)"}`,
-                                        background: reviewPainFilter === p.value ? "rgba(255,107,0,0.08)" : "transparent",
-                                        color: reviewPainFilter === p.value ? "var(--orange)" : "var(--text-light)",
-                                    }}>
-                                    {p.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Dropdowns row — review count, response rate, last review, years in business, booking, flow type */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Review count:</span>
-                                <select value={reviewCountRangeFilter} onChange={e => setReviewCountRangeFilter(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="0-10">0–10</option>
-                                    <option value="11-50">11–50</option>
-                                    <option value="51-200">51–200</option>
-                                    <option value="201-500">201–500</option>
-                                    <option value="500+">500+</option>
-                                </select>
-                            </label>
-
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Response rate:</span>
-                                <select value={ownerResponseRateFilter} onChange={e => setOwnerResponseRateFilter(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="low">Low (&lt;30%)</option>
-                                    <option value="medium">Medium (30–60%)</option>
-                                    <option value="high">High (60%+)</option>
-                                </select>
-                            </label>
-
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Last review within:</span>
-                                <select value={lastReviewWithinDays} onChange={e => setLastReviewWithinDays(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="15">15 days</option>
-                                    <option value="30">30 days</option>
-                                    <option value="45">45 days</option>
-                                    <option value="60">60 days</option>
-                                    <option value="90">90 days</option>
-                                </select>
-                            </label>
-
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Years in business:</span>
-                                <select value={yearsInBusinessRangeFilter} onChange={e => setYearsInBusinessRangeFilter(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="<1">Less than 1 year</option>
-                                    <option value="1-5">1–5 years</option>
-                                    <option value="5-10">5–10 years</option>
-                                    <option value="10+">10+ years</option>
-                                    <option value="unknown">Unknown</option>
-                                </select>
-                            </label>
-
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Has booking:</span>
-                                <select value={hasTrueBookingFilter} onChange={e => setHasTrueBookingFilter(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="true">Yes (true booking)</option>
-                                    <option value="false">No</option>
-                                </select>
-                            </label>
-
-                            <label style={{ fontSize: 11, color: "var(--text-light)" }}>
-                                <span style={{ fontWeight: 600, marginRight: 4 }}>Booking flow:</span>
-                                <select value={bookingFlowTypeFilter} onChange={e => setBookingFlowTypeFilter(e.target.value)}
-                                    style={{ padding: "3px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)" }}>
-                                    <option value="all">Any</option>
-                                    <option value="photo_upload">📷 Photo upload only</option>
-                                    <option value="timeslot_selection">🗓️ Timeslot only</option>
-                                    <option value="photo_and_timeslot">📷🗓️ Photo + Timeslot</option>
-                                    <option value="other">Other / Basic form</option>
-                                    <option value="none">No booking at all</option>
-                                </select>
-                            </label>
-
+                            );
+                        })}
+                        <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
                             <button
-                                onClick={() => {
-                                    setReviewPainFilter("all");
-                                    setReviewCountRangeFilter("all");
-                                    setOwnerResponseRateFilter("all");
-                                    setLastReviewWithinDays("all");
-                                    setYearsInBusinessRangeFilter("all");
-                                    setHasTrueBookingFilter("all");
-                                    setBookingFlowTypeFilter("all");
-                                    setSelectedPainTags(new Set());
-                                    setSelectedPraiseTags(new Set());
-                                    setPainTagCountMin("all");
-                                    setNegativeReviewPercentMin("all");
-                                    setMostRecentNegativeWithinDays("all");
-                                    setStarRatingBucket("all");
-                                    setProfileCompletenessBucket("all");
-                                    setRespondsToNegatives("all");
-                                    setHasRecentGbpPosts("all");
-                                    setHasBusinessDescription("all");
-                                    setSelectedBookingTiers(new Set());
-                                    setBookingHasInstantQuote("all");
-                                    setBookingHasJobSizeInput("all");
-                                    setBookingHasItemSelector("all");
-                                    setBookingCollectsPayment("all");
-                                    setBookingIsQuoteRequestOnly("all");
-                                    setSelectedCompetitorStack(new Set());
-                                    setSelectedPaymentStack(new Set());
-                                    setMentionsCashOnly("all");
-                                    setHasOnlinePayment("all");
-                                    setSelectedCms(new Set());
-                                    setSelectedBookingPlatforms(new Set());
-                                    setBookingCtaTargetsPhone("all");
-                                    setMarketingMaturityBucket("all");
-                                    setLoadTimeBucket("all");
-                                    setMobileFriendly("all");
-                                    setSslValid("all");
-                                    setHasGoogleAds("all");
-                                    setHasCallTracking("all");
-                                    setHasChatWidget("all");
-                                    setHasGTM("all");
-                                    setHasFacebookPixel("all");
-                                    setHasGoogleAnalytics("all");
-                                    setEmployeeBucket("all");
-                                    setFleetBucket("all");
-                                    setSelectedWebsiteBuiltBy(new Set());
-                                    setSelectedMarketCompetitionLevel(new Set());
-                                    setMarketRankPercentileMin("all");
-                                    setHasFacebook("all");
-                                    setHasYouTube("all");
-                                    setIsVeteranOwned("all");
-                                    setIsFamilyBusiness("all");
-                                    setReviewVelocityBucket("all");
-                                    setSelectedEmailDomainType(new Set());
-                                    setEmailDomainMatchesWebsite("all");
-                                    setEmailDeliverable("all");
-                                    setSelectedPhoneLineType(new Set());
-                                    setPhoneDeliverable("all");
-                                    setHasOwnerFullName("all");
-                                    setHasOwnerLinkedIn("all");
-                                    setIsDirectContact("all");
-                                    setLastUpdatedYearBucket("all");
-                                    setHasPricingPage("all");
-                                    setHasBlog("all");
-                                    setHasServiceAreaPublishedOnSite("all");
-                                    setTotalPageCountBucket("all");
-                                    setSelectedPrimaryBottleneck(new Set());
-                                    setWebsiteAgeYearsMin("all");
-                                    setSelectedReviewTrend(new Set());
-                                    setPainSeverityMin("all");
-                                }}
-                                style={{ padding: "3px 10px", fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer" }}>
+                                onClick={clearSegmentFilters}
+                                disabled={activeSegmentCount === 0}
+                                style={{
+                                    padding: "3px 10px", fontSize: 10, fontWeight: 600, borderRadius: 4,
+                                    border: "1px solid var(--line)", background: "var(--surface-raised)",
+                                    color: activeSegmentCount === 0 ? "var(--muted-faint)" : "var(--muted)",
+                                    cursor: activeSegmentCount === 0 ? "default" : "pointer",
+                                }}>
                                 Clear segment filters
                             </button>
                         </div>
@@ -1820,10 +874,10 @@ export default function ScrapedLeadsPage() {
                                 </div>
                             )}
                         </div>
-                        {archivedFilter !== "active" && (
+                        {filters.archived !== "active" && (
                             <button onClick={restoreSelected} disabled={deleting} title="Clear archive + cleaner fields and return to the active enrichment pool" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>{deleting ? "Restoring..." : "Restore"}</button>
                         )}
-                        {archivedFilter === "true" && canPermanentlyDelete && (
+                        {filters.archived === "true" && canPermanentlyDelete && (
                             <button onClick={permanentlyDeleteSelected} disabled={deleting} title="Super Admin only: permanently delete selected archived leads" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, border: "1px solid var(--danger)", borderRadius: 4, background: "var(--danger)", color: "#fff", cursor: deleting ? "wait" : "pointer" }}>{deleting ? "Deleting..." : "Permanently Delete"}</button>
                         )}
                         <button onClick={deleteSelected} disabled={deleting} title="Soft-archive: excluded from enrichment but restorable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Archiving..." : "Discard"}</button>
@@ -1834,47 +888,11 @@ export default function ScrapedLeadsPage() {
                 
                 <div style={{ flex: 1 }} />
                 
-                {/* Embedded Filters */}
-                <div style={{ display: "flex", gap: 4, background: "var(--border-light)", padding: 4, borderRadius: 8 }}>
-                    {["all", "A", "B", "C"].map(g => <FilterChip key={g} label={g === "all" ? "Grades" : g} active={gradeFilter === g} onClick={() => setGradeFilter(g)} />)}
-                </div>
-                <div style={{ display: "flex", gap: 4, background: "var(--border-light)", padding: 4, borderRadius: 8 }}>
-                    {["all", "new", "emailed", "replied"].map(s => <FilterChip key={s} label={s === "all" ? "Outreach" : s} active={outreachFilter === s} onClick={() => setOutreachFilter(s)} />)}
-                </div>
-                <select value={enrichedFilter} onChange={e => setEnrichedFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">Enrichment</option>
-                    <option value="true">Enriched</option>
-                    <option value="false">Not Enriched</option>
-                </select>
-                <select value={emailVerificationState} onChange={e => setEmailVerificationState(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">Email Clean</option>
-                    <option value="deliverable">Deliverable</option>
-                    <option value="unverified">Unverified</option>
-                    <option value="risky">Risky</option>
-                    <option value="unknown">Unknown</option>
-                    <option value="undeliverable">Undeliverable</option>
-                    <option value="missing">Missing</option>
-                    <option value="invalid">Invalid</option>
-                    <option value="duplicate">Duplicate</option>
-                </select>
-                <select value={archivedFilter} onChange={e => setArchivedFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="active">Active</option>
-                    <option value="all">All Leads</option>
-                    <option value="true">Archived</option>
-                </select>
-                <select value={competitorFilter} onChange={e => setCompetitorFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">Competitor</option>
-                    <option value="true">Using Competitor</option>
-                    <option value="false">No Competitor</option>
-                </select>
-                <select value={phoneTypeFilter} onChange={e => setPhoneTypeFilter(e.target.value)} style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)" }}>
-                    <option value="all">Phone Type</option>
-                    <option value="local">Local</option>
-                    <option value="toll_free">Toll-Free</option>
-                    <option value="none">No Phone</option>
-                </select>
-                <input placeholder="Search company..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--white)", width: 160, outline: "none" }} />
+                {/* Grade, outreach status, enrichment, email verification and archive state now
+                    live in the Operational block above. usingCompetitor moved to the segment
+                    panel; phoneType was dropped in favour of Twilio's phoneLineType. */}
+                <input placeholder="Search company..." value={filters.search ?? ""} onChange={e => setFilter("search", e.target.value)}
+                    style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--line)", borderRadius: 6, background: "var(--surface-raised)", width: 160, outline: "none" }} />
             </div>
 
             {/* Select-all-matching banner — appears when current page is fully selected and more pages match */}

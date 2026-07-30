@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { constructWebhookEvent } from "@/lib/stripe";
+import { sanitizeColdEmailStripeEvent } from "@/lib/cold-email-stripe";
+import { ingestColdEmailStripeEvent, isColdEmailStripeStoreReady } from "@/lib/cold-email-stripe-store";
 
 export async function POST(req: NextRequest) {
     const body = await req.text();
@@ -20,6 +22,14 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        if (isColdEmailStripeStoreReady()) {
+            const persisted = await ingestColdEmailStripeEvent(sanitizeColdEmailStripeEvent(event));
+            return NextResponse.json({ received: true, processing: "asynchronous", eventId: (persisted as { id?: string }).id || null });
+        }
+
+        // Compatibility fallback until the database owner applies the canonical
+        // schema and regenerates the Admin client. The canonical path above is
+        // durable, deduplicated, and asynchronously projected.
         switch (event.type) {
             case "invoice.payment_failed": {
                 const invoice = event.data.object as { customer?: string; subscription?: string; amount_due?: number };
