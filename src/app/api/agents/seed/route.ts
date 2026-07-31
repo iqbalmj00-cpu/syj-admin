@@ -11,19 +11,6 @@ export async function POST() {
     try {
         const agents = [
             {
-                slug: "lead_scraper",
-                name: "Lead Scraper",
-                description: "Discovers junk removal and dumpster rental businesses on Google Maps via Outscraper, by ZIP. Manual start only through the Lead Scraper card; an external worker ingests thin leads for enrichment.",
-                schedule: null,
-                config: {
-                    search_terms: ["junk removal", "dumpster rental"],
-                    results_per_query_limit: null,
-                    fetch_reviews: false,
-                    batch_zip_count: 12,
-                    skip_empty_zips_on_rerun: true,
-                },
-            },
-            {
                 slug: "cold_outreach",
                 name: "Cold Outreach",
                 description: "Sends personalized emails and iMessages to qualified leads using Claude AI for copy generation.",
@@ -60,7 +47,7 @@ export async function POST() {
             {
                 slug: "lead_enrichment",
                 name: "Lead Enrichment",
-                description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering. Runs inside the dashboard.",
+                description: "Enriches scraped leads with website analysis, owner/contact evidence, GBP/review signals, booking/pricing data, scoring, and existing-client filtering through the external enrichment worker.",
                 schedule: null,
                 config: {},
             },
@@ -120,6 +107,19 @@ export async function POST() {
                 },
             },
             {
+                slug: "lead_scraper",
+                name: "Lead Scraper",
+                description: "Discovers junk removal and dumpster rental businesses on Google Maps via Outscraper, by city/market targets with selective grid expansion. Manual start only through the Lead Scraper card; an external worker ingests thin leads for enrichment.",
+                schedule: null,
+                config: {
+                    search_terms: ["junk removal", "dumpster rental"],
+                    results_per_query_limit: null,
+                    fetch_reviews: false,
+                    batch_zip_count: 12,
+                    skip_empty_zips_on_rerun: true,
+                },
+            },
+            {
                 slug: "lead_cleaner",
                 name: "Lead Cleaner",
                 description: "Pre-enrichment relevance gate for scraped leads. Archives irrelevant or franchise leads before paid enrichment.",
@@ -133,13 +133,13 @@ export async function POST() {
         const results = [];
         for (const agent of agents) {
             const config = agent.config as unknown as Prisma.InputJsonValue;
-            // Preserve tuned Lead Cleaner policy when this seed endpoint is rerun.
-            const update = agent.slug === "lead_cleaner"
-                ? { name: agent.name, description: agent.description }
-                : { name: agent.name, description: agent.description, schedule: agent.schedule, config };
+            // The update branch intentionally omits `config` and `schedule`:
+            // re-seeding must never reset an operator-tuned agent policy —
+            // e.g. silently downgrading the Lead Cleaner's gateMode from
+            // "block" back to "warn" or wiping custom blocklists.
             const result = await prisma.syjAgent.upsert({
                 where: { slug: agent.slug },
-                update,
+                update: { name: agent.name, description: agent.description },
                 create: { ...agent, config },
             });
             results.push(result);

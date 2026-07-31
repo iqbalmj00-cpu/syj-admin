@@ -143,20 +143,21 @@ async function fetchHomepageAndContact(websiteUrl) {
 }
 
 // ── Main ──
-const leads = await prisma.scrapedLead.findMany({
-    where: {
-        website: { not: null },
-        // Idempotent: skip leads that already have emailsDiscovered populated
-        emailsDiscovered: { isEmpty: true },
-    },
+// Pull all website-having leads and filter idempotency in-memory.
+// (Prisma's `isEmpty: true` doesn't reliably match TEXT[] DEFAULT '{}' columns;
+// use array length check on the JS side instead.)
+const allCandidates = await prisma.scrapedLead.findMany({
+    where: { website: { not: null } },
     select: {
         id: true, name: true, website: true, email: true,
         ownerFirstName: true, ownerLastName: true, ownerName: true,
+        emailsDiscovered: true,
     },
 });
+const leads = allCandidates.filter(l => !Array.isArray(l.emailsDiscovered) || l.emailsDiscovered.length === 0);
 
 console.log(`\n=== Website email backfill ===`);
-console.log(`Found ${leads.length} leads with website and no emailsDiscovered yet\n`);
+console.log(`${allCandidates.length} leads with website total, ${leads.length} need backfill\n`);
 
 const stats = { updated: 0, no_emails: 0, fetch_failed: 0, errors: 0 };
 const startTime = Date.now();

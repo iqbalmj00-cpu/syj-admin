@@ -32,3 +32,17 @@ npm-debug.log*
 *.tsbuildinfo
 gateway_venv/
 gateway.py
+
+# --- first-commit cleanup: never commit runtime junk ---
+venv/
+__pycache__/
+*.pyc
+scraper_ledger.db
+scraper_ledger.db-shm
+scraper_ledger.db-wal
+.next.stale-*/
+
+# Licensed SimpleMaps US-ZIP dataset — keep out of git.
+# Re-download from https://simplemaps.com/data/us-zips and place on the scraper machine.
+simplemaps_uszips_basicv1/
+us_zips.csv

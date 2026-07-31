@@ -3,8 +3,9 @@ Ingest — POST thin leads to the dashboard's existing upsert route.
 
 POST {DASHBOARD}/api/agents/leads {secret, leads}  (no agentRunId — plan §2/§4B).
 Chunked ≤50/POST (mandatory: the leads route has no maxDuration and each lead is
-2-3 sequential DB roundtrips). Retry a failed chunk once, then log and continue
-(the googlePlaceId upsert makes re-posts idempotent). Plan §3B.
+2-3 sequential DB roundtrips). Retry a failed chunk once, then return per-lead
+failure details so `server.py` can preserve paid rows in the local outbox. The
+dashboard identity contract makes confirmed re-posts idempotent. Plan §3B.
 """
 
 from __future__ import annotations

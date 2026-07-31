@@ -6,11 +6,12 @@ technical plan (§5), changing these in the dashboard requires a worker restart 
 the control route returns control state, not config.
 
 Env (.env, same conventions as ENRICHMENT AGENT):
-  OUTSCRAPER_API_KEY    — Outscraper key (same key the enrichment worker uses)
+  OUTSCRAPER_API_KEY    — valid Outscraper Maps key
   AGENT_CALLBACK_URL    — dashboard base URL (e.g. https://syj-admin.vercel.app)
   AGENT_CALLBACK_SECRET — shared secret for dashboard worker routes
   POLL_INTERVAL         — control-poll cadence, seconds (default 10)
-  DRY_RUN_TARGET        — dev only: bypass control route, sweep this state, stub ingest
+  DRY_RUN_TARGET        — dev only: bypass control route and stub dashboard
+                          ingest; provider searches are still live/billable
 """
 
 from __future__ import annotations
@@ -48,11 +49,13 @@ def _float_env(name: str, default: float) -> float:
 
 
 # ── Discovery defaults ──
+# `city` is the only supported production mode. Legacy ZIP helpers remain for
+# compatibility tests, but the current provider-job control loop is city-only.
 DISCOVERY_MODE = os.getenv("DISCOVERY_MODE", "city").strip().lower()
 
-# Every city/town gets the two high-intent terms. Broader terms are deliberately
-# expansion-only so the long tail stays covered without reintroducing ZIP-level
-# overlap spend.
+# Every city/town starts with the primary high-intent term. The secondary term
+# is scheduled adaptively; broader terms are expansion-only so the long tail
+# stays covered without reintroducing ZIP-level overlap spend.
 SEARCH_TERMS = _csv(os.getenv("SEARCH_TERMS"), ["junk removal", "dumpster rental"])
 EXPANSION_SEARCH_TERMS = _csv(os.getenv("EXPANSION_SEARCH_TERMS"), ["roll off dumpster"])
 

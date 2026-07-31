@@ -5,7 +5,6 @@ Single entry point for all agent triggers. Runs on one port (8000),
 routes to the correct agent server based on URL path.
 
 Routes:
-  POST /lead_scraper/run    → localhost:8001/run
   POST /cold_outreach/run   → localhost:8002/run
   POST /content_generator/run → localhost:8003/run
   POST /blog_writer/run     → localhost:8004/run
@@ -19,7 +18,6 @@ from fastapi.responses import JSONResponse
 app = FastAPI(title="SYJ Agent Gateway")
 
 AGENT_PORTS = {
-    # lead_scraper removed — it polls the dashboard directly, no gateway needed
     "cold_outreach": 8002,
     "content_generator": 8003,
     "blog_writer": 8004,

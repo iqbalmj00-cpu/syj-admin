@@ -23,7 +23,7 @@ console.log(`\n=== Enriched leads where reviewsAnalyzedCount = 0 ===\n`);
 console.log(`Total: ${enrichedNoReviews.length}\n`);
 console.log(`  ✅ No Google reviews to fetch (reviewCount=0, placeId present):  ${hasPlaceIdNoReviews}  ← legitimately zero`);
 console.log(`  🔴 HAS placeId AND reviewCount>0 BUT no reviews fetched:        ${hasPlaceIdAndGoogleReviews}  ← Outscraper fetch failed`);
-console.log(`  🟡 No placeId (Facebook-sourced):                                ${noPlaceId}`);
+console.log(`  🟡 No placeId:                                                   ${noPlaceId}`);
 console.log();
 
 // Also check the flip side — how many total leads with placeId+reviewCount are NOT enriched yet?
