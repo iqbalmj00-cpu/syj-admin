@@ -221,6 +221,12 @@ export const OPERATIONAL_FILTERS: FilterDef[] = [
         },
     },
     { key: "isExistingClient", field: "isExistingClient", label: "Existing Client", section: "Operational", control: { kind: "yesNo" } },
+    // Presence checks, NOT the yes-only booleans above. These ask "is this column
+    // populated", and a null answer is unambiguous — so both directions are offered.
+    // hasOwnerName is what guarantees [owner_first_name] can never render empty in an
+    // outreach template, so a group built for a "hi <name>" email should require it.
+    { key: "hasOwnerName", field: "ownerName", label: "Has Owner Name", section: "Operational", control: { kind: "yesNo" } },
+    { key: "hasOwnerLinkedIn", field: "ownerLinkedInUrl", label: "Has Owner LinkedIn", section: "Operational", control: { kind: "yesNo" } },
     { key: "hasEmail", field: "email", label: "Has Email", section: "Operational", control: { kind: "yesNo" } },
     { key: "emailDeliverable", field: "emailDeliverable", label: "Email Deliverable", section: "Operational", control: { kind: "yesNo" } },
     {
@@ -247,6 +253,7 @@ export const OPERATIONAL_FILTERS: FilterDef[] = [
             ],
         },
     },
+    { key: "hasPhone", field: "phone", label: "Has Phone", section: "Operational", control: { kind: "yesNo" } },
     {
         key: "phoneLineType",
         field: "phoneLineType",

@@ -92,9 +92,32 @@ test("every declared section has at least one filter", () => {
     }
 });
 
-test("catalog holds 28 segment and 15 operational filters", () => {
+test("catalog holds 28 segment and 18 operational filters", () => {
     assert.equal(SEGMENT_FILTERS.length, 28);
-    assert.equal(OPERATIONAL_FILTERS.length, 15);
+    assert.equal(OPERATIONAL_FILTERS.length, 18);
+});
+
+test("the presence filters that guarantee outreach variables are offered", () => {
+    // hasOwnerName is the only filter that guarantees [owner_first_name] resolves, so a
+    // group built for a "hi <name>" email depends on it existing. hasPhone does the same
+    // for SMS. Both check whether a column is populated, so unlike the yes-only booleans
+    // their "no" is meaningful and both directions are offered.
+    for (const key of ["hasOwnerName", "hasOwnerLinkedIn", "hasPhone", "hasEmail"]) {
+        const def = OPERATIONAL_FILTERS.find((d) => d.key === key);
+        assert.ok(def, `${key} is missing from the panel`);
+        assert.equal(def!.control.kind, "yesNo", `${key} should offer both Yes and No`);
+    }
+});
+
+test("presence filters build the expected null checks", () => {
+    const owner = andClauses({ hasOwnerName: "true" });
+    assert.ok(owner.some((c) => JSON.stringify(c) === JSON.stringify({ ownerName: { not: null } })));
+    assert.ok(owner.some((c) => JSON.stringify(c) === JSON.stringify({ ownerName: { not: "" } })));
+    assert.deepEqual(where({ hasPhone: "true" }).phone, { not: null });
+    assert.equal(where({ hasPhone: "false" }).phone, null);
+    const li = andClauses({ hasOwnerLinkedIn: "true" });
+    assert.ok(li.some((c) => JSON.stringify(c) === JSON.stringify({ ownerLinkedInUrl: { not: null } })));
+    assert.ok(andClauses({ hasOwnerLinkedIn: "false" }).some((c) => JSON.stringify(c) === JSON.stringify({ ownerLinkedInUrl: null })));
 });
 
 test("no catalog key is declared twice", () => {
@@ -360,6 +383,81 @@ const routeSource = readFileSync(
     join(process.cwd(), "src", "app", "api", "agents", "leads", "route.ts"),
     "utf8",
 );
+
+/* ── Catalog values must match what the database actually stores ───────────────
+   A wrong or missing option is invisible: the query still builds, it just matches
+   nothing (typo) or the value can never be selected (omission). schema.prisma documents
+   each column's vocabulary in a trailing comment, so assert the catalog against it. */
+
+const schemaSource = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+
+// Pull the `// "a" | "b" | ...` or `// a | b | ...` vocabulary off a ScrapedLead column.
+function declaredValues(column: string): string[] {
+    const line = schemaSource
+        .split("\n")
+        .find((l) => new RegExp(`^\\s{2}${column}\\s`).test(l) && l.includes("//"));
+    if (!line) return [];
+    const comment = line.slice(line.indexOf("//") + 2);
+    return (comment.match(/"?[a-z][a-z0-9_]*"?(?=\s*\|)|(?<=\|\s*)"?[a-z][a-z0-9_]*"?/g) || [])
+        .map((v) => v.replace(/"/g, "").trim())
+        .filter(Boolean);
+}
+
+const VOCAB_COLUMNS: Array<[string, string]> = [
+    ["googleAdsStatus", "googleAdsStatus"],
+    ["bookingStatus", "bookingStatus"],
+    ["primaryCtaType", "primaryCtaType"],
+    ["websiteBuiltBy", "websiteBuiltBy"],
+    ["companyType", "companyType"],
+    ["outreachStatus", "outreachStatus"],
+    ["phoneLineType", "phoneLineType"],
+];
+
+test("every catalog option exists in the column's documented vocabulary", () => {
+    const byKey = new Map([...SEGMENT_FILTERS, ...OPERATIONAL_FILTERS].map((d) => [d.key, d]));
+    for (const [key, column] of VOCAB_COLUMNS) {
+        const def = byKey.get(key);
+        assert.ok(def, `catalog has no filter for ${key}`);
+        const control = def!.control;
+        if (control.kind !== "enum" && control.kind !== "multiAny" && control.kind !== "multiAll") continue;
+        const declared = declaredValues(column);
+        assert.ok(declared.length > 0, `no documented vocabulary found for ${column}`);
+        for (const opt of control.options) {
+            assert.ok(
+                declared.includes(opt.value),
+                `${key} offers "${opt.value}" which is not in schema.prisma's ${column} vocabulary [${declared.join(", ")}]`,
+            );
+        }
+    }
+});
+
+test("outreachStatus deliberately omits opted_out", () => {
+    // `opted_out` is a real stored status (api/agents/incoming-message sets it on a STOP
+    // reply) but is intentionally not offered as a filter. Those leads are already excluded
+    // from sends by the send and segment-refresh routes, so surfacing them here was not
+    // wanted. Recorded as a decision so it is not "fixed" later by mistake.
+    const def = OPERATIONAL_FILTERS.find((d) => d.key === "outreachStatus")!;
+    const offered = def.control.kind === "multiAny" ? def.control.options.map((o) => o.value) : [];
+    assert.equal(offered.includes("opted_out"), false);
+});
+
+// `archived: "all"` means "do not filter on archive state", so building no clause is the
+// correct result for it — it is the one option that legitimately narrows nothing.
+const NON_NARROWING = new Set(["archived:all"]);
+
+test("every option of every enum and multi filter builds a clause", () => {
+    for (const def of [...SEGMENT_FILTERS, ...OPERATIONAL_FILTERS]) {
+        const c = def.control;
+        if (c.kind !== "enum" && c.kind !== "multiAny" && c.kind !== "multiAll") continue;
+        for (const opt of c.options) {
+            if (NON_NARROWING.has(`${def.key}:${opt.value}`)) continue;
+            const built = where({ [def.key]: opt.value });
+            const clauses = Array.isArray(built.AND) ? (built.AND as unknown[]).length : 0;
+            const direct = Object.keys(built).filter((k) => k !== "AND").length;
+            assert.ok(clauses + direct > 0, `${def.key}=${opt.value} produced no clause`);
+        }
+    }
+});
 
 test("the leads endpoint reads every param key the panel can emit", () => {
     const missing = catalogParamKeys().filter((key) => !routeSource.includes(`searchParams.get("${key}")`));
