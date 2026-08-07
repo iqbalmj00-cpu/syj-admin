@@ -56,6 +56,43 @@ test("direct Lead Group email sending is removed while the canonical handoff rem
     assert.match(page, /href="\/cold-email\/campaigns\/new"/);
 });
 
+test("Lead Group SMS sending is removed and cannot render a stored template", () => {
+    // This was the only send path that rendered a stored templateBody without validating its
+    // [variables] first, so a template written against a since-removed variable would have
+    // texted the literal token text to a real lead. The route is kept as a rejection so a
+    // stale caller fails loudly rather than 404-ing.
+    const route = source("src/app/api/agents/lead-groups/send/route.ts");
+    assert.match(route, /SMS sending has been removed/);
+    assert.doesNotMatch(route, /replaceVariables|BLUEBUBBLES_URL|BLUEBUBBLES_PASSWORD/);
+    assert.doesNotMatch(route, /outreachLog|templateBody/);
+
+    // No send affordance and no channel picker left in the Groups tab or the Messages composer.
+    const page = source("src/app/(dashboard)/agents/page.tsx");
+    assert.doesNotMatch(page, /sendToGroup|Send to \$\{selectedGroup\.memberCount\}/);
+    assert.doesNotMatch(page, /<option value="sms">/);
+});
+
+test("no route can dispatch a message to a lead's phone", () => {
+    // The backstop for the whole SMS removal: BlueBubbles' send endpoint is /api/v1/message/text,
+    // so if no source file references it, nothing in this dashboard can text a lead — including
+    // the autonomous paths (opt-out confirmations and queued Claude auto-replies) that fired
+    // without any operator action.
+    const offenders = sourceFiles(join(root, "src"))
+        .filter((path) => !path.includes("__tests__"))
+        .filter((path) => readFileSync(path, "utf8").includes("message/text"))
+        .map((path) => relative(root, path));
+    assert.deepEqual(offenders, []);
+
+    // send-message is matcher-bypassed in middleware, so it must stay an explicit rejector
+    // rather than be deleted. Every channel terminates: sms 410, email 501, anything else 400 —
+    // that last one matters because without it an unknown channel falls out of the handler with
+    // no return, which is a runtime 500 nothing here would catch.
+    const sendMessage = source("src/app/api/agents/send-message/route.ts");
+    assert.match(sendMessage, /SMS sending has been removed/);
+    assert.match(sendMessage, /Unknown channel/);
+    assert.doesNotMatch(sendMessage, /outreachLog\.create|scrapedLead\.update/);
+});
+
 test("Cold Email configuration fails closed and exposes no backfill switch", () => {
     const example = source(".env.example");
     assert.match(example, /^COLD_EMAIL_CONTROL_PLANE="shadow"$/m);

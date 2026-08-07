@@ -1,6 +1,9 @@
 /**
  * Outreach template variable system — shared between the template editor UI
- * (agents/page.tsx) and the send route (lead-groups/send/route.ts).
+ * (agents/page.tsx) and the Cold Email campaign path, which validates a template's tokens at
+ * build time (cold-email-campaign.ts) and renders them at send time
+ * (cold-email-canonical-store.ts). The old Lead Group send route no longer imports this at
+ * all — a release-safety test now forbids it.
  *
  * Single source of truth so the editor's variable palette, preview substitution,
  * and send-time substitution stay in perfect sync.
@@ -177,10 +180,32 @@ const OUTREACH_PAIN_POINT_PREFIXES = [
     "No new reviews",
 ];
 
-function formatPainPoints(painPoints: unknown): string {
+// Four allowlisted strings used to be computed OUTSIDE the enrichment agent's
+// has_active_website branch, so they asserted website- and review-scoped absences on leads
+// whose site was never fetched or whose reviews were never analysed. That is now fixed at
+// source (scorer.py build_pain_points), but this filter STAYS: painPoints rows written before
+// that fix still hold the bad strings until each lead is re-enriched.
+//
+// Do NOT assume painPoints and the gates below come from the same run. Their freshness is
+// controlled by two independent flags — painPoints by run_seo_scoring (main.py:975, dropped
+// :2311-2316), reviewVelocity90d by fetch_reviews (:973, dropped :2322-2336). A run with
+// reviews off but scoring on can write a fresh dormancy bullet while the gate still reads a
+// stale non-null velocity. The filter errs toward suppression, which is the safe direction.
+const WEBSITE_SCOPED_PAIN_POINTS = [
+    "No digital marketing tools detected",
+    "No Google Analytics tracking",
+    "No Facebook business page linked",
+];
+const REVIEW_SCOPED_PAIN_POINT_PREFIX = "No new reviews";
+
+function formatPainPoints(painPoints: unknown, l: LeadData): string {
     if (!Array.isArray(painPoints) || painPoints.length === 0) return "";
+    const siteAnalysed = l.hasActiveWebsite === true;
+    const reviewsAnalysed = num(l.reviewVelocity90d) !== null;
     const filtered = painPoints.filter((p: unknown) => {
         if (typeof p !== "string") return false;
+        if (!siteAnalysed && WEBSITE_SCOPED_PAIN_POINTS.includes(p)) return false;
+        if (!reviewsAnalysed && p.startsWith(REVIEW_SCOPED_PAIN_POINT_PREFIX)) return false;
         if (OUTREACH_PAIN_POINTS.includes(p)) return true;
         if (OUTREACH_PAIN_POINT_PREFIXES.some((prefix) => p.startsWith(prefix))) return true;
         return false;
@@ -194,7 +219,10 @@ function formatPainPoints(painPoints: unknown): string {
 // ──────────────────────────────────────────────────────────────────────────
 
 function composeDormantReviewsPain(l: LeadData): string {
-    const velocity = Number(l.reviewVelocity90d);
+    // reviewVelocity90d is dropped (stays null) when reviews were never analysed —
+    // Number(null) === 0 would claim dormancy on every unanalysed lead.
+    const velocity = num(l.reviewVelocity90d);
+    if (velocity === null) return "";
     const total = Number(l.reviewCount);
     if (total > 0 && velocity === 0) {
         return `You haven't received a new Google review in 90+ days despite having ${total} total.`;
@@ -309,18 +337,37 @@ function composeLowProfileCompletenessPain(l: LeadData): string {
     return `Your Google Business Profile is only ${score}/100 complete — big gaps in description, hours, photos, or posts.`;
 }
 
+// These composers assert a NEGATIVE fact about the recipient, so they must fire only on
+// positive evidence of absence. The enrichment agent has TWO different ways of leaving a
+// falsy value behind, and each needs a different gate:
+//
+//   dropped   — `_drop_fields` omits the key, so the column keeps its prior value (null on
+//               a never-enriched lead). hasBusinessDescription and profileCompletenessScore
+//               are dropped together by `if not gbp_found` (main.py:2338-2344), so a non-null
+//               score proves the description flag was genuinely determined.
+//   hard-set  — a fallback dict literal writes False/0 unconditionally when the website could
+//               not be fetched: hasFacebook (main.py:1203) and marketingMaturityScore
+//               (main.py:1168-1172). These are NEVER dropped, so no score gate can vouch for
+//               them — only hasActiveWebsite, written unconditionally by the same run
+//               (main.py:2132), shares their provenance.
+//
+// A gate is only valid if it shares a data source with the fact being asserted. Vouching for
+// a website-scrape fact with a Google-profile marker is what this file got wrong before.
 function composeNoBusinessDescriptionPain(l: LeadData): string {
+    if (num(l.profileCompletenessScore) === null) return "";
     if (l.hasBusinessDescription === true) return "";
     return `Your Google Business Profile has no description — customers searching for you see a blank bio.`;
 }
 
 function composeLowMarketingPain(l: LeadData): string {
+    if (l.hasActiveWebsite !== true) return "";
     const score = num(l.marketingMaturityScore);
     if (score === null || score >= 20) return "";
     return `No digital marketing tools detected on your site — no Google Ads, call tracking, or analytics.`;
 }
 
 function composeNoFacebookPain(l: LeadData): string {
+    if (l.hasActiveWebsite !== true) return "";
     if (l.hasFacebook === true) return "";
     return `No Facebook business page is linked from your website.`;
 }
@@ -329,7 +376,26 @@ function composeNoFacebookPain(l: LeadData): string {
 // VARIABLE_MAP — all template variables
 // ──────────────────────────────────────────────────────────────────────────
 
-export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = {
+// Only these tokens are offered in the template editor, accepted by
+// validateTemplateVariables, and uploaded to Instantly as custom variables. Everything else in
+// ALL_VARIABLES below is retained but inactive — the enrichment mapping and its gates are
+// preserved so re-enabling a variable is an edit to this list, not a rewrite.
+//
+// Narrowed deliberately: personalisation beyond name/company/city asserts facts about the
+// recipient's business that depend on enrichment having actually run. Re-enable a token only
+// once you have decided that risk is acceptable for the specific claim it makes.
+export const ACTIVE_VARIABLE_KEYS = [
+    "[company_name]",
+    "[owner_name]",
+    "[owner_first_name]",
+    "[city]",
+] as const;
+
+// Deliberately NOT annotated `: Record<string, ...>` — a `satisfies` clause closes the object
+// instead (see the end of this literal). With the annotation, the index signature made
+// ALL_VARIABLES[key] valid for ANY string, so a typo in ACTIVE_VARIABLE_KEYS type-checked
+// clean and produced an undefined entry that throws at send time.
+const ALL_VARIABLES = {
     // Identity
     "[company_name]": (l) => str(l.name),
     "[owner_name]": (l) => str(l.ownerName).trim() || "there",
@@ -528,15 +594,28 @@ export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = {
     "[market_rank_percentile]": (l) => formatPercent(l.marketRankPercentile),
 
     // Aggregate
-    "[pain_points]": (l) => formatPainPoints(l.painPoints),
-};
+    "[pain_points]": (l) => formatPainPoints(l.painPoints, l),
+} satisfies Record<string, (lead: LeadData) => string>;
+
+// The active map. replaceVariables, validateTemplateVariables and the Instantly
+// custom-variable upload all read this, so an inactive token is simultaneously unavailable in
+// the editor, rejected at campaign build, and never sent to the provider.
+export const VARIABLE_MAP: Record<string, (lead: LeadData) => string> = Object.fromEntries(
+    ACTIVE_VARIABLE_KEYS.map((key) => [key, ALL_VARIABLES[key]]),
+);
+
+// Retained-but-inactive tokens. Exported so tests can keep pinning the composer gates while
+// the variables are switched off — if a token is re-enabled, its behaviour is already proven.
+export const DISABLED_VARIABLE_MAP: Record<string, (lead: LeadData) => string> = Object.fromEntries(
+    Object.entries(ALL_VARIABLES).filter(([key]) => !(ACTIVE_VARIABLE_KEYS as readonly string[]).includes(key)),
+);
 
 // ──────────────────────────────────────────────────────────────────────────
 // TEMPLATE_VAR_GROUPS — categorized for UI rendering
 // Order matters: groups render top-to-bottom; vars render left-to-right per group.
 // ──────────────────────────────────────────────────────────────────────────
 
-export const TEMPLATE_VAR_GROUPS: VarCategory[] = [
+const ALL_VAR_GROUPS: VarCategory[] = [
     {
         category: "Identity",
         vars: [
@@ -803,6 +882,12 @@ export const TEMPLATE_VAR_GROUPS: VarCategory[] = [
 ];
 
 /** Flat view of all variables across every category — for iteration. */
+// The editor palette, filtered to the active tokens. Categories left with no active variable
+// drop out entirely rather than rendering as empty headings.
+export const TEMPLATE_VAR_GROUPS: VarCategory[] = ALL_VAR_GROUPS
+    .map((g) => ({ ...g, vars: g.vars.filter((v) => v.variable in VARIABLE_MAP) }))
+    .filter((g) => g.vars.length > 0);
+
 export const TEMPLATE_VARS: VarDef[] = TEMPLATE_VAR_GROUPS.flatMap((g) => g.vars);
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -812,7 +897,11 @@ export const TEMPLATE_VARS: VarDef[] = TEMPLATE_VAR_GROUPS.flatMap((g) => g.vars
 export function replaceVariables(template: string, lead: LeadData): string {
     let result = template;
     for (const [variable, getter] of Object.entries(VARIABLE_MAP)) {
-        result = result.replaceAll(variable, getter(lead));
+        // The replacement MUST be a function. With a string replacement, ECMAScript runs
+        // GetSubstitution over it, so scraped lead data containing "$&" re-emits the raw
+        // [token] into the message and "$$" collapses to a single "$". Review excerpts and
+        // pricing snippets routinely contain both.
+        result = result.replaceAll(variable, () => getter(lead));
     }
     return result;
 }

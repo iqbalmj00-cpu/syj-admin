@@ -16,18 +16,6 @@ interface Agent {
     totalRuns: number;
 }
 
-interface Lead {
-    id: string; name: string; phone: string | null; email: string | null; website: string | null;
-    market: string; grade: string; leadScore: number; websiteScore: number; qualification: string;
-    outreachStatus: string; painPoints: string[]; reasons: string[]; notesFlags: string[];
-    createdAt: string;
-    // Enrichment fields
-    serviceTypes?: string[]; phoneType?: string | null; hasActiveWebsite?: boolean;
-    usingCompetitor?: boolean; competitorPlatform?: string | null;
-    estimatedEmployees?: number | null; estimatedFleetSize?: number | null;
-    serviceAreaCities?: string[]; serviceAreaSize?: string | null;
-    enrichedAt?: string | null; isExistingClient?: boolean;
-}
 
 interface BlogPostPreview {
     id: string; title: string; slug: string; excerpt: string | null; topic: string | null;
@@ -47,7 +35,6 @@ interface ResearchReportPreview {
     createdAt: string; updatedAt: string;
 }
 
-interface FunnelData { total: number; new: number; emailed: number; sms_sent: number; replied: number; converted: number; skipped: number }
 
 /* ─── Helpers ───────────────────────────────────────────────────────── */
 
@@ -1186,10 +1173,10 @@ function AgentConfigFields({ slug, config, onChange, onRefreshBlog, refreshingBl
                     <strong>How to send outreach:</strong><br />
                     1. Go to <strong>Groups tab</strong> → create a group<br />
                     2. Go to <strong>Scraped Leads</strong> → select leads → <strong>Add to Group</strong><br />
-                    3. Back to <strong>Groups tab</strong> → click your group → <strong>Edit Template</strong><br />
-                    4. Write your message using variables: <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[company_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[city]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[market]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[pain_points]</code><br />
-                    5. Click <strong>Send to Group</strong><br /><br />
-                    <strong>Auto-replies:</strong> Toggle in the <strong>Messages tab</strong> sidebar. Claude reads the conversation and replies with a 3-5 minute delay.
+                    3. Go to <strong>Cold Email</strong> → <strong>Build Cold Email Campaign</strong><br />
+                    4. Write your copy using variables: <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[company_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[owner_first_name]</code> <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>[city]</code><br />
+                    5. Approve the campaign — unknown variables are rejected at that step<br /><br />
+                    <strong>Note:</strong> those four are the only active variables. SMS sending has been removed; Lead Groups build Cold Email audiences only.
                 </ConfigNote>
             </>
         );
@@ -1386,274 +1373,6 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     );
 }
 
-function LeadsTab({ leads, funnel, gradeFilter, setGradeFilter, outreachFilter, setOutreachFilter, marketFilter, setMarketFilter, companyTypeFilter, setCompanyTypeFilter, searchQuery, setSearchQuery, page, setPage, total, perPage, sortBy, setSortBy, sortOrder, setSortOrder, availableMarkets, onRefresh, showToast }: {
-    leads: Lead[]; funnel: FunnelData;
-    gradeFilter: string; setGradeFilter: (v: string) => void;
-    outreachFilter: string; setOutreachFilter: (v: string) => void;
-    marketFilter: string; setMarketFilter: (v: string) => void;
-    companyTypeFilter: string; setCompanyTypeFilter: (v: string) => void;
-    searchQuery: string; setSearchQuery: (v: string) => void;
-    page: number; setPage: (v: number) => void; total: number; perPage: number;
-    sortBy: string; setSortBy: (v: string) => void; sortOrder: "asc" | "desc"; setSortOrder: (v: "asc" | "desc") => void;
-    availableMarkets: string[]; onRefresh: () => void; showToast: (msg: string, type?: string) => void;
-}) {
-    const totalPages = Math.max(1, Math.ceil(total / perPage));
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [deleting, setDeleting] = useState(false);
-    const [sendingOutreach, setSendingOutreach] = useState(false);
-
-    const allOnPageSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
-
-    const toggleSelect = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    };
-
-    const toggleSelectAll = () => {
-        if (allOnPageSelected) {
-            setSelectedIds(prev => {
-                const next = new Set(prev);
-                leads.forEach(l => next.delete(l.id));
-                return next;
-            });
-        } else {
-            setSelectedIds(prev => {
-                const next = new Set(prev);
-                leads.forEach(l => next.add(l.id));
-                return next;
-            });
-        }
-    };
-
-    const archiveSelected = async () => {
-        if (selectedIds.size === 0) return;
-        if (!confirm(`Archive ${selectedIds.size} lead(s)? They can be restored from Scraped Leads.`)) return;
-        setDeleting(true);
-        try {
-            const res = await fetch("/api/agents/leads", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ archive: true, ids: Array.from(selectedIds) }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                showToast(`Archived ${data.archived} lead(s)`);
-                setSelectedIds(new Set());
-                onRefresh();
-            } else {
-                showToast("Failed to archive leads", "error");
-            }
-        } catch { showToast("Failed to archive leads", "error"); }
-        setDeleting(false);
-    };
-
-    const sendToOutreach = async () => {
-        if (selectedIds.size === 0) return;
-        setSendingOutreach(true);
-        try {
-            const selectedLeads = leads.filter(l => selectedIds.has(l.id));
-            const res = await fetch("/api/agents/outreach", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadIds: Array.from(selectedIds), leads: selectedLeads }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                showToast(`Sent ${data.queued || selectedIds.size} lead(s) to outreach`);
-                setSelectedIds(new Set());
-                onRefresh();
-            } else {
-                showToast("Failed to send to outreach", "error");
-            }
-        } catch { showToast("Failed to send to outreach", "error"); }
-        setSendingOutreach(false);
-    };
-
-    const handleSort = (field: string) => {
-        if (sortBy === field) {
-            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-        } else {
-            setSortBy(field);
-            setSortOrder(field === "name" || field === "market" ? "asc" : "desc");
-        }
-    };
-
-    const SortHeader = ({ label, field }: { label: string; field: string }) => (
-        <th className="table-head" onClick={() => handleSort(field)}
-            style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-            {label} {sortBy === field ? (sortOrder === "asc" ? "▲" : "▼") : <span style={{ opacity: 0.25 }}>⇅</span>}
-        </th>
-    );
-
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Funnel KPIs */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
-                {[
-                    { label: "Total", value: funnel.total, color: "var(--text)" },
-                    { label: "New", value: funnel.new, color: "var(--muted)" },
-                    { label: "Emailed", value: funnel.emailed, color: "var(--info)" },
-                    { label: "SMS Sent", value: funnel.sms_sent, color: "var(--ink)" },
-                    { label: "Replied", value: funnel.replied, color: "var(--success-dark)" },
-                    { label: "Converted", value: funnel.converted, color: "var(--accent)" },
-                ].map(f => (
-                    <div key={f.label} style={{
-                        background: "var(--white)", borderRadius: 10, padding: "12px 16px",
-                        border: "1px solid var(--border)", textAlign: "center",
-                    }}>
-                        <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 500 }}>{f.label}</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--font-heading)", color: f.color, marginTop: 4 }}>{f.value}</div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Bulk Actions Bar */}
-            {selectedIds.size > 0 && (
-                <div style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "10px 16px",
-                    background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
-                    borderRadius: 10,
-                }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                        {selectedIds.size} lead{selectedIds.size > 1 ? "s" : ""} selected
-                    </span>
-                    <div style={{ flex: 1 }} />
-                    <button onClick={sendToOutreach} disabled={sendingOutreach}
-                        style={{
-                            padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
-                            background: "var(--info)", color: "#fff", cursor: "pointer", opacity: sendingOutreach ? 0.6 : 1,
-                        }}>
-                        {sendingOutreach ? "Sending..." : "Send to Outreach"}
-                    </button>
-                    <button onClick={archiveSelected} disabled={deleting}
-                        style={{
-                            padding: "7px 16px", fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8,
-                            background: "var(--danger)", color: "#fff", cursor: "pointer", opacity: deleting ? 0.6 : 1,
-                        }}>
-                        {deleting ? "Archiving..." : "Archive"}
-                    </button>
-                </div>
-            )}
-
-            {/* Filters */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Grade:</span>
-                {["all", "A", "B", "C"].map(g => (
-                    <FilterChip key={g} label={g === "all" ? "All" : g} active={gradeFilter === g} onClick={() => setGradeFilter(g)} />
-                ))}
-                <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
-                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Outreach:</span>
-                {["all", "new", "emailed", "sms_sent", "replied", "converted"].map(s => (
-                    <FilterChip key={s} label={s === "all" ? "All" : s.replace("_", " ")} active={outreachFilter === s} onClick={() => setOutreachFilter(s)} />
-                ))}
-                <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
-                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Market:</span>
-                <select value={marketFilter} onChange={e => setMarketFilter(e.target.value)}
-                    style={{
-                        padding: "5px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 8,
-                        background: "var(--white)", color: "var(--text)", cursor: "pointer", outline: "none",
-                    }}>
-                    <option value="all">All Markets</option>
-                    {availableMarkets.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <span style={{ fontSize: 12, color: "var(--text-light)", fontWeight: 600 }}>Type:</span>
-                <select value={companyTypeFilter} onChange={e => setCompanyTypeFilter(e.target.value)}
-                    style={{
-                        padding: "5px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 8,
-                        background: "var(--white)", color: "var(--text)", cursor: "pointer", outline: "none",
-                    }}>
-                    <option value="all">All Types</option>
-                    <option value="junk_removal">Junk Removal</option>
-                    <option value="dumpster_rental">Dumpster Rental</option>
-                    <option value="demolition">Demolition</option>
-                    <option value="other">Other</option>
-                </select>
-                <div style={{ flex: 1 }} />
-                <input placeholder="Search leads..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    style={{
-                        padding: "7px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8,
-                        background: "var(--white)", color: "var(--text)", width: 220, outline: "none",
-                    }} />
-            </div>
-
-            {/* Table */}
-            <div className="card">
-                <div className="card-body no-pad" style={{ overflowX: "auto" }}>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th className="table-head" style={{ width: 36, textAlign: "center" }}>
-                                    <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll}
-                                        style={{ cursor: "pointer", accentColor: "var(--orange)" }} />
-                                </th>
-                                <SortHeader label="Company" field="name" />
-                                <SortHeader label="Market" field="market" />
-                                <SortHeader label="Grade" field="grade" />
-                                <SortHeader label="Score" field="leadScore" />
-                                <th className="table-head">Website</th>
-                                <th className="table-head">Phone</th>
-                                <SortHeader label="Outreach" field="outreachStatus" />
-                                <th className="table-head">Pain Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {leads.map(l => {
-                                const gm = GRADE_MAP[l.grade] || GRADE_MAP.C;
-                                const om = OUTREACH_MAP[l.outreachStatus] || OUTREACH_MAP.new;
-                                const isSelected = selectedIds.has(l.id);
-                                return (
-                                    <tr key={l.id} className="table-row" style={{ background: isSelected ? "rgba(255,107,0,0.04)" : undefined }}>
-                                        <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(l.id)}
-                                                style={{ cursor: "pointer", accentColor: "var(--orange)" }} />
-                                        </td>
-                                        <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>{l.name}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12 }}>{l.market}</td>
-                                        <td style={{ padding: "10px 14px" }}><Badge bg={gm.bg} color={gm.color} label={l.grade} /></td>
-                                        <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-heading)" }}>{l.leadScore}</td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12 }}>
-                                            {l.website ? <a href={l.website.startsWith("http") ? l.website : `https://${l.website}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--info)", textDecoration: "none" }}>{l.website.replace(/^https?:\/\//, "").slice(0, 25)}</a> : "—"}
-                                        </td>
-                                        <td style={{ padding: "10px 14px", fontSize: 12, fontFamily: "monospace" }}>{l.phone || "—"}</td>
-                                        <td style={{ padding: "10px 14px" }}><Badge bg={om.bg} color={om.color} label={om.label} /></td>
-                                        <td style={{ padding: "10px 14px", fontSize: 11, color: "var(--text-light)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                            {l.painPoints?.length > 0 ? l.painPoints.slice(0, 2).join(", ") : l.reasons?.slice(0, 2).join(", ") || "—"}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    {leads.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>No leads found.</div>}
-                </div>
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
-                        <span style={{ fontSize: 13, color: "var(--text-light)" }}>
-                            Showing {((page - 1) * perPage) + 1}–{Math.min(page * perPage, total)} of {total} leads
-                        </span>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
-                                style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 8, cursor: page <= 1 ? "not-allowed" : "pointer", background: "var(--white)", color: page <= 1 ? "var(--text-faint)" : "var(--text)", opacity: page <= 1 ? 0.5 : 1 }}>
-                                ← Previous
-                            </button>
-                            <span style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "var(--orange)", fontFamily: "var(--font-heading)" }}>
-                                Page {page} of {totalPages}
-                            </span>
-                            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}
-                                style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 8, cursor: page >= totalPages ? "not-allowed" : "pointer", background: "var(--white)", color: page >= totalPages ? "var(--text-faint)" : "var(--text)", opacity: page >= totalPages ? 0.5 : 1 }}>
-                                Next →
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
 
 /* ─── Blogs Tab ─────────────────────────────────────────────────────── */
 
@@ -2122,12 +1841,10 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
-    const [sending, setSending] = useState(false);
 
-    // Create group form
+    // Create group form. No channel state: email is the only channel.
     const [showCreate, setShowCreate] = useState(false);
     const [newName, setNewName] = useState("");
-    const [newChannel, setNewChannel] = useState<"sms" | "email">("sms");
 
     // Template editing
     const [editTemplate, setEditTemplate] = useState(false);
@@ -2162,7 +1879,8 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
         try {
             const res = await fetch("/api/agents/lead-groups", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: newName.trim(), channel: newChannel }),
+                // Sent explicitly: LeadGroup.channel still defaults to "sms" in the database.
+                body: JSON.stringify({ name: newName.trim(), channel: "email" }),
             });
             if (res.ok) { showToast("Group created"); setNewName(""); setShowCreate(false); fetchGroups(); }
             else showToast("Failed to create group", "error");
@@ -2191,21 +1909,9 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
         setSavingTemplate(false);
     };
 
-    const sendToGroup = async () => {
-        if (!selectedGroupId) return;
-        if (!confirm(`Send this template to ${members.length} leads? This action cannot be undone.`)) return;
-        setSending(true);
-        try {
-            const res = await fetch("/api/agents/lead-groups/send", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ groupId: selectedGroupId, confirm: true }),
-            });
-            const data = await res.json();
-            if (res.ok) { showToast(data.message || `Sent ${data.sent} messages`); fetchGroups(); fetchMembers(selectedGroupId); }
-            else showToast(data.error || "Send failed", "error");
-        } catch { showToast("Send failed", "error"); }
-        setSending(false);
-    };
+    // The group send handler was removed with the SMS path. Lead Groups now only build Cold
+    // Email audiences; sending happens through the canonical campaign builder, which validates
+    // a template's [variables] before a campaign can launch.
 
     const removeMember = async (leadId: string) => {
         if (!selectedGroupId) return;
@@ -2238,12 +1944,10 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
                         <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Group name..."
                             style={{ width: "100%", padding: "8px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, marginBottom: 8, outline: "none" }} />
+                        {/* No channel picker: email is the only channel. The LeadGroup.channel
+                            column still exists and still defaults to "sms" in the database, so
+                            createGroup sends "email" explicitly rather than relying on it. */}
                         <div style={{ display: "flex", gap: 6 }}>
-                            <select value={newChannel} onChange={e => setNewChannel(e.target.value as "sms" | "email")}
-                                style={{ padding: "6px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, flex: 1 }}>
-                                <option value="sms">SMS</option>
-                                <option value="email">Email</option>
-                            </select>
                             <button className="btn btn-xs btn-primary" onClick={createGroup} disabled={!newName.trim()} style={{ fontSize: 11 }}>Create</button>
                         </div>
                     </div>
@@ -2291,17 +1995,12 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                                 style={{ background: editTemplate ? "rgba(255,107,0,0.08)" : "var(--surface)", border: "1px solid var(--border)", color: editTemplate ? "var(--orange)" : "var(--text-light)" }}>
                                 {editTemplate ? "Cancel Edit" : "Edit Template"}
                             </button>
-                            {selectedGroup.channel === "email" ? (
-                                <Link className="btn btn-xs btn-primary" href="/cold-email/campaigns/new">
-                                    Build Cold Email Campaign
-                                </Link>
-                            ) : (
-                                <button className="btn btn-xs btn-primary" onClick={sendToGroup}
-                                    disabled={sending || !selectedGroup.templateBody || selectedGroup.memberCount === 0}
-                                    style={{ opacity: !selectedGroup.templateBody || selectedGroup.memberCount === 0 ? 0.4 : 1 }}>
-                                    {sending ? "Sending..." : `Send to ${selectedGroup.memberCount} Leads`}
-                                </button>
-                            )}
+                            {/* Every group routes to the campaign builder now. Legacy sms-channel
+                                groups still exist in the database, so they get the same link
+                                rather than a dead send button. */}
+                            <Link className="btn btn-xs btn-primary" href="/cold-email/campaigns/new">
+                                Build Cold Email Campaign
+                            </Link>
                             <button className="btn btn-xs" onClick={() => deleteGroup(selectedGroup.id)}
                                 style={{ color: "var(--danger)", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>Delete</button>
                         </div>
@@ -2433,53 +2132,7 @@ function MessagesTab() {
     const [convos, setConvos] = useState<ConvoSummary[]>([]);
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [thread, setThread] = useState<ThreadMessage[]>([]);
-    const [compose, setCompose] = useState("");
-    const [sendChannel, setSendChannel] = useState<"sms" | "email">("sms");
-    const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [newConvo, setNewConvo] = useState(false);
-    const [newPhone, setNewPhone] = useState("");
-    const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
-    const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
-    const [autoReplyPrompt, setAutoReplyPrompt] = useState("");
-    const [editingPrompt, setEditingPrompt] = useState(false);
-    const [savingSettings, setSavingSettings] = useState(false);
-    const [editDraftId, setEditDraftId] = useState<string | null>(null);
-    const [editDraftContent, setEditDraftContent] = useState("");
-    const showToast = (msg: string, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
-
-    // Fetch auto-reply settings on mount
-    useEffect(() => {
-        fetch("/api/agents/autoreply-settings").then(r => r.json()).then(d => {
-            setAutoReplyEnabled(d.enabled || false);
-            setAutoReplyPrompt(d.prompt || "");
-        }).catch(() => {});
-    }, []);
-
-    const saveAutoReplySettings = async () => {
-        setSavingSettings(true);
-        try {
-            const res = await fetch("/api/agents/autoreply-settings", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: autoReplyEnabled, prompt: autoReplyPrompt }),
-            });
-            if (res.ok) { showToast("Auto-reply settings saved"); setEditingPrompt(false); }
-            else showToast("Failed to save settings", "error");
-        } catch { showToast("Failed to save settings", "error"); }
-        setSavingSettings(false);
-    };
-
-    const toggleAutoReply = async () => {
-        const newVal = !autoReplyEnabled;
-        setAutoReplyEnabled(newVal);
-        try {
-            await fetch("/api/agents/autoreply-settings", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: newVal }),
-            });
-            showToast(newVal ? "Auto-reply enabled" : "Auto-reply disabled");
-        } catch { showToast("Failed to toggle auto-reply", "error"); setAutoReplyEnabled(!newVal); }
-    };
 
     const fetchConvos = useCallback(async () => {
         try {
@@ -2503,63 +2156,10 @@ function MessagesTab() {
             if (document.visibilityState === "visible") {
                 fetchConvos();
                 if (selectedLeadId) fetchThread(selectedLeadId);
-                // Process any pending auto-replies that are due
-                fetch("/api/agents/process-replies", { method: "POST" }).catch(() => {});
             }
         }, 15_000);
         return () => clearInterval(interval);
     }, [fetchConvos, fetchThread, selectedLeadId]);
-
-    const sendDraft = async (logId: string, content: string) => {
-        if (!selectedLeadId || sending) return;
-        setSending(true);
-        try {
-            const res = await fetch("/api/agents/send-message", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadId: selectedLeadId, channel: "sms", content }),
-            });
-            const data = await res.json();
-            if (res.ok && data.ok) {
-                showToast("Reply sent");
-                setEditDraftId(null);
-                if (selectedLeadId) fetchThread(selectedLeadId);
-                fetchConvos();
-            } else showToast(data.error || "Failed to send", "error");
-        } catch { showToast("Failed to send", "error"); }
-        setSending(false);
-    };
-
-    const sendMessage = async () => {
-        if (!compose.trim() || sending) return;
-        // Direct phone message (new convo)
-        if (newConvo && newPhone.trim()) {
-            setSending(true);
-            try {
-                const res = await fetch("/api/agents/send-message", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ phone: newPhone.trim(), channel: "sms", content: compose }),
-                });
-                const data = await res.json();
-                if (res.ok && data.ok) { showToast("Message sent"); setCompose(""); setNewPhone(""); setNewConvo(false); fetchConvos(); }
-                else showToast(data.error || "Failed to send", "error");
-            } catch { showToast("Failed to send", "error"); }
-            setSending(false);
-            return;
-        }
-        // Lead-based message
-        if (!selectedLeadId) return;
-        setSending(true);
-        try {
-            const res = await fetch("/api/agents/send-message", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadId: selectedLeadId, channel: sendChannel, content: compose }),
-            });
-            const data = await res.json();
-            if (res.ok && data.ok) { showToast("Message sent"); setCompose(""); fetchThread(selectedLeadId); fetchConvos(); }
-            else showToast(data.error || "Failed to send", "error");
-        } catch { showToast("Failed to send", "error"); }
-        setSending(false);
-    };
 
     const selectedConvo = convos.find(c => c.leadId === selectedLeadId);
     const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
@@ -2573,36 +2173,12 @@ function MessagesTab() {
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                         <span style={{ fontWeight: 700, fontSize: 14 }}>Conversations</span>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
-                            <button onClick={() => { setNewConvo(true); setSelectedLeadId(null); }} title="New Conversation"
-                                style={{ background: "var(--orange)", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
-                        </div>
+                        {/* No "new conversation" button: nothing can be sent from this tab. */}
+                        {totalUnread > 0 && <span style={{ background: "var(--danger)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totalUnread}</span>}
                     </div>
-                    {/* Auto-reply toggle */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: autoReplyEnabled ? "var(--success)" : "var(--text-faint)" }}>Auto-Reply</span>
-                            {autoReplyEnabled && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "rgba(0,216,74,0.12)", color: "#00A83A", fontWeight: 700 }}>ON</span>}
-                        </div>
-                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                            <button onClick={() => setEditingPrompt(!editingPrompt)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-faint)" }} title="Edit auto-reply prompt">⚙️</button>
-                            <button onClick={toggleAutoReply}
-                                style={{ width: 32, height: 18, borderRadius: 9, border: "none", cursor: "pointer", background: autoReplyEnabled ? "var(--success)" : "var(--border)", position: "relative", transition: "background 0.2s", padding: 0 }}>
-                                <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: autoReplyEnabled ? 16 : 2, transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.15)" }} />
-                            </button>
-                        </div>
+                    <div style={{ fontSize: 10, color: "var(--text-faint)", lineHeight: 1.4 }}>
+                        Read-only history. Outreach is sent from Cold Email campaigns.
                     </div>
-                    {editingPrompt && (
-                        <div style={{ marginTop: 6, padding: "8px 0" }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-faint)", marginBottom: 4 }}>Claude System Prompt</div>
-                            <textarea value={autoReplyPrompt} onChange={e => setAutoReplyPrompt(e.target.value)} placeholder="Describe how Claude should respond to leads..."
-                                rows={4} style={{ width: "100%", padding: "8px 10px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
-                            <button className="btn btn-xs btn-primary" onClick={saveAutoReplySettings} disabled={savingSettings} style={{ marginTop: 4, fontSize: 10, width: "100%" }}>
-                                {savingSettings ? "Saving..." : "Save Prompt"}
-                            </button>
-                        </div>
-                    )}
                 </div>
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {convos.map(c => {
@@ -2655,32 +2231,15 @@ function MessagesTab() {
                                             <span>{m.sender === "agent" ? "🤖 Claude" : m.sender === "user" ? "👤 You" : "↩️ Reply"}</span>
                                             <span>• {m.channel === "sms" ? "💬 SMS" : "📧 Email"}</span>
                                             {m.status === "failed" && <span style={{ color: "var(--danger)" }}>• ❌ Failed</span>}
-                                            {m.status === "draft" && <span style={{ color: "var(--warn-dark)", fontWeight: 700 }}>• DRAFT</span>}
-                                            {m.status === "pending" && <span style={{ color: "var(--info)", fontWeight: 700 }}>• PENDING ({new Date(m.sentAt) > new Date() ? `sends in ${Math.ceil((new Date(m.sentAt).getTime() - Date.now()) / 60000)}m` : "sending..."})</span>}
+                                            {/* "draft"/"pending" rows are history: the auto-reply generator that produced them
+                                                was removed (see api/agents/incoming-message/route.ts:111) and nothing sends them,
+                                                so a countdown or "sending..." here would promise an event that can never happen. */}
+                                            {(m.status === "draft" || m.status === "pending") && <span style={{ color: "var(--text-faint)", fontWeight: 700 }}>• UNSENT DRAFT</span>}
                                         </div>
                                         {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Re: {m.subject}</div>}
-                                        {/* Editable draft content */}
-                                        {m.status === "draft" && editDraftId === m.id ? (
-                                            <>
-                                                <textarea value={editDraftContent} onChange={e => setEditDraftContent(e.target.value)}
-                                                    rows={3} style={{ width: "100%", padding: "8px 10px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, marginBottom: 6 }} />
-                                                <div style={{ display: "flex", gap: 4 }}>
-                                                    <button className="btn btn-xs btn-primary" onClick={() => sendDraft(m.id, editDraftContent)} disabled={sending} style={{ fontSize: 10 }}>{sending ? "..." : "Send"}</button>
-                                                    <button className="btn btn-xs btn-ghost" onClick={() => setEditDraftId(null)} style={{ fontSize: 10 }}>Cancel</button>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</div>
-                                        )}
-                                        {/* Draft action buttons */}
-                                        {m.status === "draft" && editDraftId !== m.id && (
-                                            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                                                <button className="btn btn-xs btn-primary" onClick={() => sendDraft(m.id, m.content)} disabled={sending} style={{ fontSize: 10 }}>Send Now</button>
-                                                <button className="btn btn-xs btn-ghost" onClick={() => { setEditDraftId(m.id); setEditDraftContent(m.content); }} style={{ fontSize: 10 }}>Edit</button>
-                                            </div>
-                                        )}
+                                        <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</div>
                                         <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6, textAlign: isOut ? "right" : "left" }}>
-                                            {m.status === "pending" ? "Scheduled" : new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                                            {new Date(m.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
                                             {new Date(m.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                                         </div>
                                     </div>
@@ -2689,43 +2248,7 @@ function MessagesTab() {
                         })}
                         {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 12, padding: 20 }}>No messages yet</div>}
                     </div>
-                    <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-                        <textarea value={compose} onChange={e => setCompose(e.target.value)} placeholder="Type a message..."
-                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                            style={{
-                                flex: 1, padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)",
-                                borderRadius: 10, background: "var(--white)", color: "var(--text)",
-                                outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "inherit"
-                            }} />
-                        <select value={sendChannel} onChange={e => setSendChannel(e.target.value as "sms" | "email")}
-                            style={{ padding: "8px 6px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", height: 42 }}>
-                            <option value="sms">SMS</option>
-                            <option value="email">Email</option>
-                        </select>
-                        <button className="btn btn-xs btn-primary" onClick={sendMessage} disabled={sending || !compose.trim()}
-                            style={{ padding: "10px 18px", borderRadius: 10, height: 42, whiteSpace: "nowrap" }}>
-                            {sending ? "..." : sendChannel === "sms" ? "Send 💬" : "Send 📧"}
-                        </button>
-                    </div>
-                </>) : newConvo ? (
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)" }}>
-                            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text)", marginBottom: 8 }}>New Conversation</div>
-                            <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Enter phone number (e.g. 5551234567)"
-                                style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, background: "var(--white)", color: "var(--text)", outline: "none", fontFamily: "inherit" }} />
-                        </div>
-                        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12 }}>Enter a phone number and type your message below</div>
-                        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-                            <textarea value={compose} onChange={e => setCompose(e.target.value)} placeholder="Type a message..."
-                                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                                style={{ flex: 1, padding: "10px 14px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 10, background: "var(--white)", color: "var(--text)", outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "inherit" }} />
-                            <button className="btn btn-xs btn-primary" onClick={sendMessage} disabled={sending || !compose.trim() || !newPhone.trim()}
-                                style={{ padding: "10px 18px", borderRadius: 10, height: 42, whiteSpace: "nowrap" }}>
-                                {sending ? "Sending..." : "Send SMS 💬"}
-                            </button>
-                        </div>
-                    </div>
-                ) : (
+                </>) : (
                     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-faint)" }}>
                         <span style={{ fontSize: 40 }}>💬</span>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>Select a conversation</span>

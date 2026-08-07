@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
             data: {
                 name: name.trim(),
                 description: description?.trim() || null,
-                channel: channel || "sms",
+                // Defaults to email: SMS outreach is deprecated, and only email groups are
+                // selectable in the Cold Email campaign wizard. Every caller passes channel
+                // explicitly today, so this default is a safety net rather than a behaviour.
+                channel: channel || "email",
                 templateSubject: templateSubject?.trim() || null,
                 templateBody: templateBody?.trim() || null,
             },

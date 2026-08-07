@@ -4,14 +4,25 @@ import { getSession } from "@/lib/auth";
 
 /**
  * POST /api/agents/send-message
- * Send a message from the dashboard to a lead.
- * SMS uses BlueBubbles. Direct email is intentionally blocked until a real sender is wired.
+ *
+ * Terminal for every channel — this endpoint no longer sends anything.
+ *
+ * SMS outreach was removed outright. Direct dashboard email was never wired: it always returned
+ * 501 pointing the operator at a Cold Email campaign. Both are now explicit rejections, and the
+ * unreachable log/status-update tail is gone.
+ *
+ * Kept as a rejecting route rather than deleted: it is in the middleware matcher-bypass list
+ * (src/middleware.ts), so requests reach the handler — the session check below is what gates
+ * them — and a stale client should fail loudly with a reason instead of 404-ing.
+ *
+ * The lead lookup is retained so email callers still get the specific "no address" /
+ * "not deliverable" diagnosis rather than a bare 501.
  */
 export async function POST(req: Request) {
     if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const body = await req.json();
-        const { leadId, phone: rawPhone, channel, content, subject } = body;
+        const { leadId, phone: rawPhone, channel, content } = body;
 
         if (!channel || !content) {
             return NextResponse.json({ error: "channel and content are required" }, { status: 400 });
@@ -20,70 +31,21 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "leadId or phone is required" }, { status: 400 });
         }
 
-        // Get lead info (optional — may be sending to a raw phone number)
-        let lead: {
-            id: string;
-            phone: string | null;
-            email: string | null;
-            archivedAt: Date | null;
-            emailDeliverable: boolean | null;
-            emailVerificationState: string | null;
-        } | null = null;
-        if (leadId) {
-            lead = await prisma.scrapedLead.findUnique({
-                where: { id: leadId },
-                select: { id: true, phone: true, email: true, archivedAt: true, emailDeliverable: true, emailVerificationState: true },
-            });
-            if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
-            if (lead.archivedAt) return NextResponse.json({ error: "Lead is archived and cannot be contacted" }, { status: 400 });
-        }
-
-        let sendResult: { ok: boolean; error?: string } = { ok: false, error: "Unknown channel" };
-
         if (channel === "sms") {
-            // Send via BlueBubbles
-            const bbUrl = process.env.BLUEBUBBLES_URL;
-            const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
-
-            if (!bbUrl || !bbPassword) {
-                return NextResponse.json({ error: "BlueBubbles not configured. Set BLUEBUBBLES_URL and BLUEBUBBLES_PASSWORD env vars." }, { status: 500 });
-            }
-
-            const rawPhoneNum = lead?.phone || rawPhone;
-            if (!rawPhoneNum) {
-                return NextResponse.json({ error: "No phone number provided" }, { status: 400 });
-            }
-
-            // Normalize phone number
-            let phone = rawPhoneNum.replace(/[^+\d]/g, "");
-            if (phone.length === 10) phone = "+1" + phone;
-            if (phone.length === 11 && !phone.startsWith("+")) phone = "+" + phone;
-
-            try {
-                const tempGuid = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-                const bbRes = await fetch(`${bbUrl}/api/v1/message/text?password=${bbPassword}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        chatGuid: `iMessage;-;${phone}`,
-                        tempGuid,
-                        message: content,
-                        method: "apple-script",
-                    }),
-                });
-
-                if (bbRes.ok) {
-                    sendResult = { ok: true };
-                } else {
-                    const errText = await bbRes.text();
-                    sendResult = { ok: false, error: `BlueBubbles: ${bbRes.status} ${errText.slice(0, 200)}` };
-                }
-            } catch (e) {
-                sendResult = { ok: false, error: `BlueBubbles connection failed: ${e}` };
-            }
+            return NextResponse.json({
+                error: "SMS sending has been removed. Outreach goes out through Cold Email only.",
+            }, { status: 410 });
         }
 
         if (channel === "email") {
+            const lead = leadId
+                ? await prisma.scrapedLead.findUnique({
+                    where: { id: leadId },
+                    select: { id: true, email: true, archivedAt: true, emailDeliverable: true, emailVerificationState: true },
+                })
+                : null;
+            if (leadId && !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+            if (lead?.archivedAt) return NextResponse.json({ error: "Lead is archived and cannot be contacted" }, { status: 400 });
             if (!lead?.email) {
                 return NextResponse.json({ error: "Direct email sends require a lead with an email address" }, { status: 400 });
             }
@@ -95,35 +57,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Direct dashboard email sending is not configured. Use an email lead group campaign instead." }, { status: 501 });
         }
 
-        // Log the message (leadId is optional for direct phone messages)
-        const log = await prisma.outreachLog.create({
-            data: {
-                ...(lead ? { leadId: lead.id } : {}),
-                channel,
-                direction: "outbound",
-                sender: "user",
-                subject: subject || null,
-                content: content.slice(0, 2000),
-                status: sendResult.ok ? "sent" : "failed",
-            },
-        });
-
-        // Update lead outreach status (only if we have a lead)
-        if (sendResult.ok && lead) {
-            await prisma.scrapedLead.update({
-                where: { id: lead.id },
-                data: {
-                    outreachStatus: channel === "sms" ? "sms_sent" : "emailed",
-                    ...(channel === "sms" ? { smsSentAt: new Date() } : { emailedAt: new Date() }),
-                },
-            });
-        }
-
-        return NextResponse.json({
-            ok: sendResult.ok,
-            messageId: log.id,
-            error: sendResult.error,
-        });
+        // Explicit terminal case. Without it an unrecognised channel would fall out of the
+        // handler with no return — a runtime 500 that no typecheck or test would catch, since
+        // nothing here executes routes.
+        return NextResponse.json({ error: `Unknown channel: ${String(channel)}` }, { status: 400 });
     } catch (error) {
         console.error("POST /api/agents/send-message error:", error);
         return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
