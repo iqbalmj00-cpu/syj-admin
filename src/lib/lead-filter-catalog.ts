@@ -17,6 +17,8 @@
 // Labels are derived from the column name rather than rewritten, so a filter in the UI
 // always maps back to a known field.
 
+import { PAIN_TAGS, PRAISE_TAGS } from "./pain-taxonomy.ts";
+
 export type FilterOption = { value: string; label: string };
 
 export type FilterControl =
@@ -38,7 +40,7 @@ export type FilterDef = {
     control: FilterControl;
 };
 
-// ── Segment filters (28) ───────────────────────────────────────────────────────
+// ── Segment filters ────────────────────────────────────────────────────────────
 
 export const SEGMENT_FILTERS: FilterDef[] = [
     {
@@ -156,9 +158,55 @@ export const SEGMENT_FILTERS: FilterDef[] = [
         },
     },
     { key: "loadTimeSeconds", field: "loadTimeSeconds", label: "Load Time", section: "Web Presence", control: { kind: "range", minKey: "loadTimeSecondsMin", maxKey: "loadTimeSecondsMax", step: 0.5, hint: "seconds" } },
+
+    // The three below were already accepted by BOTH where-builders and already listed in
+    // LEAD_FILTER_KEYS, but were absent from this catalog — so they were only reachable by
+    // hand-editing the URL. They are the enrichment signals with the widest coverage, which
+    // makes them the most useful segment builders available.
+    //
+    // primaryBottleneck is `in` over a comma-separated list, so OR (multiAny).
+    // painTags/praiseTags push one `has` clause per selected tag, so AND (multiAll) —
+    // selecting two tags returns leads carrying BOTH.
+    //
+    // Tag options come from pain-taxonomy.ts, which CLAUDE.md designates the canonical list
+    // and which must be hand-diffed against CANONICAL_PAIN_TAGS / CANONICAL_PRAISE_TAGS in the
+    // enrichment agent's review_analyzer.py. Sourcing them here keeps one definition rather
+    // than a second hand-copied list.
+    {
+        key: "primaryBottleneck",
+        field: "primaryBottleneck",
+        label: "Primary Bottleneck",
+        section: "Lead Quality",
+        control: {
+            kind: "multiAny",
+            options: [
+                { value: "outdated_website", label: "Outdated Website" },
+                { value: "no_online_booking", label: "No Online Booking" },
+                { value: "no_reviews", label: "No Reviews" },
+                { value: "stale_reviews", label: "Stale Reviews" },
+                { value: "poor_response_rate", label: "Poor Response Rate" },
+                { value: "missed_calls", label: "Missed Calls" },
+                { value: "negative_review_trend", label: "Negative Review Trend" },
+            ],
+        },
+    },
+    {
+        key: "painTags",
+        field: "painTags",
+        label: "Pain Tags",
+        section: "Lead Quality",
+        control: { kind: "multiAll", options: PAIN_TAGS.map(t => ({ value: t.id, label: t.label })) },
+    },
+    {
+        key: "praiseTags",
+        field: "praiseTags",
+        label: "Praise Tags",
+        section: "Lead Quality",
+        control: { kind: "multiAll", options: PRAISE_TAGS.map(t => ({ value: t.id, label: t.label })) },
+    },
 ];
 
-// ── Operational filters (15) ───────────────────────────────────────────────────
+// ── Operational filters ────────────────────────────────────────────────────────
 // Gate who is contactable rather than describing the business. Rendered in the top
 // bar, above the segment panel.
 
@@ -281,6 +329,7 @@ export const SEGMENT_SECTIONS = [
     "Google Reviews",
     "Service Mix",
     "Web Presence",
+    "Lead Quality",
 ] as const;
 
 // Filter values that are NOT "all" by default. The pre-rebuild page defaulted

@@ -92,8 +92,11 @@ test("every declared section has at least one filter", () => {
     }
 });
 
-test("catalog holds 28 segment and 18 operational filters", () => {
-    assert.equal(SEGMENT_FILTERS.length, 28);
+test("catalog holds 31 segment and 18 operational filters", () => {
+    // 31 = the original 28 plus primaryBottleneck, painTags and praiseTags, which were already
+    // implemented in both where-builders and listed in LEAD_FILTER_KEYS but were unreachable
+    // from the panel until they were added to the catalog.
+    assert.equal(SEGMENT_FILTERS.length, 31);
     assert.equal(OPERATIONAL_FILTERS.length, 18);
 });
 
@@ -411,6 +414,7 @@ const VOCAB_COLUMNS: Array<[string, string]> = [
     ["companyType", "companyType"],
     ["outreachStatus", "outreachStatus"],
     ["phoneLineType", "phoneLineType"],
+    ["primaryBottleneck", "primaryBottleneck"],
 ];
 
 test("every catalog option exists in the column's documented vocabulary", () => {
@@ -439,6 +443,21 @@ test("outreachStatus deliberately omits opted_out", () => {
     const def = OPERATIONAL_FILTERS.find((d) => d.key === "outreachStatus")!;
     const offered = def.control.kind === "multiAny" ? def.control.options.map((o) => o.value) : [];
     assert.equal(offered.includes("opted_out"), false);
+});
+
+test("primaryBottleneck offers every documented value except the recorded omission", () => {
+    // The vocabulary test above is one-directional: it catches an option that is not a real
+    // stored value, but not a real value with no option — which is how negative_review_trend
+    // (enrichment agent main.py:1921) stayed unreachable from the panel. This pins the other
+    // direction for the one column whose vocabulary is an outreach-angle target.
+    //
+    // "none" is deliberately not offered: primaryBottleneck names the angle to write the email
+    // around, and "none" is the absence of an angle, so a segment built on it has nothing to
+    // say. Recorded here so the omission is not "fixed" later by mistake.
+    const def = SEGMENT_FILTERS.find((d) => d.key === "primaryBottleneck")!;
+    const offered = def.control.kind === "multiAny" ? def.control.options.map((o) => o.value) : [];
+    const expected = declaredValues("primaryBottleneck").filter((v) => v !== "none");
+    assert.deepEqual([...offered].sort(), [...expected].sort());
 });
 
 // `archived: "all"` means "do not filter on archive state", so building no clause is the

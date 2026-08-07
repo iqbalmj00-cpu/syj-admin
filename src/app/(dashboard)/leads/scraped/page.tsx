@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, type CSSProperties } from "react";
+import { useEffect, useState, useCallback, useRef, type CSSProperties } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Kpi } from "@/components/ui/Kpi";
 import { PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
@@ -255,7 +255,30 @@ export default function ScrapedLeadsPage() {
             else next[key] = value;
             return next;
         });
+        // Changing a filter changes the matching set, so the current page number and any
+        // existing selection are both stale. Without the page reset, narrowing a filter while
+        // on page 5 requests skip=200 against a smaller result set and renders "No leads match
+        // the criteria" with the pagination controls hidden (they only render when
+        // totalPages > 1), leaving no way back. Clearing the selection stops a stale
+        // cross-page selection staying armed behind the bulk actions.
+        setPage(1);
+        setSelectedIds(new Set());
+        setSelectAllMatching(false);
     }, []);
+
+    // The search box is debounced. Every committed keystroke re-runs the leads query, which is
+    // six database round trips in src/app/api/agents/leads/route.ts — findMany, count, and four
+    // UNFILTERED groupBys (outreachStatus, market, state, companyType); the market groupBy alone
+    // spans well over a thousand groups. Typing "junk" previously fired thirty of them.
+    // A local buffer keeps typing responsive while the committed filter lags by 300ms.
+    const [searchInput, setSearchInput] = useState(filters.search ?? "");
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const onSearchChange = useCallback((value: string) => {
+        setSearchInput(value);
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => setFilter("search", value), 300);
+    }, [setFilter]);
+    useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
     const clearSegmentFilters = useCallback(() => {
         setFilters(prev => {
@@ -265,6 +288,11 @@ export default function ScrapedLeadsPage() {
             }
             return next;
         });
+        // This bypasses setFilter, so repeat its staleness reset: dropping segment filters
+        // changes the matching set, making the page number and selection stale.
+        setPage(1);
+        setSelectedIds(new Set());
+        setSelectAllMatching(false);
     }, []);
 
     const activeSegmentCount = SEGMENT_PARAM_KEYS_LIST.filter(k => filters[k]).length;
@@ -275,7 +303,6 @@ export default function ScrapedLeadsPage() {
     const [deleting, setDeleting] = useState(false);
     const [enriching, setEnriching] = useState(false);
     const [cleaningEmails, setCleaningEmails] = useState(false);
-    const [sendingOutreach, setSendingOutreach] = useState(false);
     const [addingToGroup, setAddingToGroup] = useState(false);
     const [groups, setGroups] = useState<Array<{ id: string; name: string; memberCount: number }>>([]);
     const [showGroupSelect, setShowGroupSelect] = useState(false);
@@ -352,7 +379,12 @@ export default function ScrapedLeadsPage() {
         try {
             const createRes = await fetch("/api/agents/lead-groups", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: newGroupName.trim(), channel: "sms" }),
+                // MUST be "email". The Cold Email campaign wizard's Lead Group picker filters
+                // on channel: "email" (src/lib/cold-email-catalog-store.ts:68), so a group
+                // created as "sms" is invisible there and approving a campaign against it
+                // fails with the misleading "the selected email Lead Group has no members".
+                // SMS outreach is deprecated; every group built here is for cold email.
+                body: JSON.stringify({ name: newGroupName.trim(), channel: "email" }),
             });
             if (!createRes.ok) { showToast("Failed to create group", "error"); setAddingToGroup(false); return; }
             const group = await createRes.json();
@@ -391,7 +423,12 @@ export default function ScrapedLeadsPage() {
                     body: JSON.stringify({ groupId: group.id, leadIds: ids }),
                 });
             }
-            showToast(`Created email segment "${group.name}" with ${ids.length} lead(s)`);
+            showToast(
+                idsData.truncated
+                    ? `Created email segment "${group.name}" with the first ${ids.length} lead(s) — the result exceeded the server limit`
+                    : `Created email segment "${group.name}" with ${ids.length} lead(s)`,
+                idsData.truncated ? "error" : "success",
+            );
             setNewGroupName("");
             fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {});
         } catch { showToast("Failed to create email segment", "error"); }
@@ -445,7 +482,14 @@ export default function ScrapedLeadsPage() {
             const data = await res.json();
             setSelectedIds(new Set(data.ids));
             setSelectAllMatching(true);
-            showToast(`Selected all ${data.total} matching leads`);
+            // The endpoint caps bulk fetches. Say so rather than claiming "all" when the
+            // selection is a capped prefix of the matching set.
+            showToast(
+                data.truncated
+                    ? `Selected the first ${data.total} matching leads — the result exceeded the server limit`
+                    : `Selected all ${data.total} matching leads`,
+                data.truncated ? "error" : "success",
+            );
         } catch {
             showToast("Failed to select all matching leads", "error");
         }
@@ -652,51 +696,97 @@ export default function ScrapedLeadsPage() {
         setAddingLead(false);
     };
 
-    const sendToOutreach = async () => {
-        if (selectedIds.size === 0) return;
-        setSendingOutreach(true);
-        try {
-            const res = await fetch("/api/agents/outreach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadIds: Array.from(selectedIds), leads: leads.filter(l => selectedIds.has(l.id)) }) });
-            if (res.ok) { showToast(`Sent leads to outreach`); setSelectedIds(new Set()); setSelectAllMatching(false); fetchLeads(); }
-        } catch { showToast("Failed to send to outreach", "error"); }
-        setSendingOutreach(false);
+    // The "Trigger Campaign" action was removed deliberately. It POSTed to
+    // /api/agents/outreach, which never sent anything: it wrote a row into OutreachQueue
+    // (which no live code drains) and stamped outreachStatus to "emailed"/"sms_sent". That
+    // stamp is a permanent skip condition, so the only lasting effect was to exclude the
+    // lead from all future outreach. It also routed to SMS for any lead without a
+    // verified-deliverable email, and SMS is deprecated. Cold email campaigns are launched
+    // from /cold-email instead. The route has since been deleted along with its last caller.
+
+    // `leads` holds ONLY the current 50-row page. After "Select all N matching" the selection
+    // spans the entire result set, so reading contacts from the page array copied at most 50
+    // values while reporting every other selected lead as "had no email". Fall back to the
+    // server whenever the selection is larger than what is on screen. Safe because changing a
+    // filter now clears the selection, so selectedIds always belongs to the current query.
+    type SelectedContacts = {
+        contacts: Array<{ id: string; email: string | null; phone: string | null }>;
+        // True when the server hit its bulk row cap, so `contacts` is a prefix of the selection
+        // rather than all of it. Without this the caller counts the shortfall as "had no email".
+        truncated: boolean;
+    };
+    const fetchSelectedContacts = async (): Promise<SelectedContacts> => {
+        const onPage = leads.filter(l => selectedIds.has(l.id));
+        if (onPage.length === selectedIds.size) {
+            return { contacts: onPage.map(l => ({ id: l.id, email: l.email ?? null, phone: l.phone ?? null })), truncated: false };
+        }
+        const res = await fetch(`/api/agents/leads?${lastQuery}&contactsOnly=true`);
+        if (!res.ok) throw new Error("Failed to load selected leads");
+        const data = await res.json();
+        const all: Array<{ id: string; email: string | null; phone: string | null }> = Array.isArray(data.contacts) ? data.contacts : [];
+        return { contacts: all.filter(c => selectedIds.has(c.id)), truncated: data.truncated === true };
     };
 
-    const copyEmails = async () => {
+    // Safari revokes the click's transient activation once `await fetch()` resumes in a later
+    // task, so calling writeText after fetchSelectedContacts hits the network (:700) throws
+    // NotAllowedError on the select-all-matching path. clipboard.write(ClipboardItem) is
+    // called synchronously inside the click task and hands the browser a PROMISE of the text,
+    // which it awaits itself. writeText stays as the fallback for older Firefox (< 127), which
+    // lacks ClipboardItem but permits writes across awaits.
+    const copyContacts = async (field: "email" | "phone") => {
         if (selectedIds.size === 0) return;
-        const selected = leads.filter(l => selectedIds.has(l.id));
-        const emails = selected.map(l => l.email).filter((e): e is string => !!e && e.trim().length > 0);
-        const missing = selectedIds.size - emails.length;
-        if (emails.length === 0) {
-            showToast("None of the selected leads have an email", "error");
-            return;
-        }
+        const noun = field === "email" ? "email" : "phone number";
+        // Captured by buildText so the toast can still report counts after the write resolves.
+        let copied = 0;
+        let missing = 0;
+        // clipboard.write is not guaranteed to propagate the item promise's rejection reason
+        // to the catch below, so the empty case is flagged rather than matched on the error.
+        let nothingToCopy = false;
+        // Genuinely partial only when the server could not return a row for every selected
+        // lead. The server's own `truncated` flag is NOT the right test: the selection was
+        // itself built from the identically-capped, identically-ordered idsOnly prefix, so a
+        // capped contacts response normally still covers the whole selection. Comparing
+        // coverage avoids warning "partial copy" on a copy that is in fact complete.
+        let unresolved = 0;
+        const buildText = async (): Promise<string> => {
+            const result = await fetchSelectedContacts();
+            unresolved = selectedIds.size - result.contacts.length;
+            const values = result.contacts.map(c => c[field]).filter((v): v is string => !!v && v.trim().length > 0);
+            copied = values.length;
+            // Counted against rows we actually received, so leads the server never returned
+            // are not misreported as "had no email".
+            missing = result.contacts.length - values.length;
+            if (values.length === 0) {
+                nothingToCopy = true;
+                throw new Error(`No ${noun}s to copy`);
+            }
+            return values.join("\n");
+        };
         try {
-            await navigator.clipboard.writeText(emails.join("\n"));
-            showToast(`Copied ${emails.length} email${emails.length === 1 ? "" : "s"}${missing > 0 ? ` (${missing} lead${missing === 1 ? "" : "s"} had no email)` : ""}`);
+            if (typeof ClipboardItem !== "undefined") {
+                const blobPromise = buildText().then(text => new Blob([text], { type: "text/plain" }));
+                await navigator.clipboard.write([new ClipboardItem({ "text/plain": blobPromise })]);
+            } else {
+                await navigator.clipboard.writeText(await buildText());
+            }
+            const parts: string[] = [];
+            if (missing > 0) parts.push(`${missing} had no ${noun}`);
+            if (unresolved > 0) parts.push(`${unresolved} exceeded the server limit and were not copied`);
+            const suffix = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+            showToast(`Copied ${copied} ${noun}${copied === 1 ? "" : "s"}${suffix}`, unresolved > 0 ? "error" : "success");
         } catch {
-            showToast("Failed to copy — clipboard access denied", "error");
+            if (nothingToCopy) showToast(`None of the selected leads have a ${noun}`, "error");
+            else showToast(`Failed to copy ${noun}s`, "error");
         }
     };
 
-    const copyPhones = async () => {
-        if (selectedIds.size === 0) return;
-        const selected = leads.filter(l => selectedIds.has(l.id));
-        const phones = selected.map(l => l.phone).filter((p): p is string => !!p && p.trim().length > 0);
-        const missing = selectedIds.size - phones.length;
-        if (phones.length === 0) {
-            showToast("None of the selected leads have a phone number", "error");
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(phones.join("\n"));
-            showToast(`Copied ${phones.length} phone number${phones.length === 1 ? "" : "s"}${missing > 0 ? ` (${missing} lead${missing === 1 ? "" : "s"} had no phone)` : ""}`);
-        } catch {
-            showToast("Failed to copy — clipboard access denied", "error");
-        }
-    };
+    const copyEmails = () => copyContacts("email");
+    const copyPhones = () => copyContacts("phone");
 
-    const handleSort = (field: string) => { sortBy === field ? setSortOrder(sortOrder === "asc" ? "desc" : "asc") : (setSortBy(field), setSortOrder(field === "name" || field === "market" ? "asc" : "desc")); };
+    // Re-sorting reshuffles which rows land on which page, so page 5 of the old order is
+    // meaningless in the new one. The selection is left intact deliberately: sorting does not
+    // change the matching set, only its order.
+    const handleSort = (field: string) => { sortBy === field ? setSortOrder(sortOrder === "asc" ? "desc" : "asc") : (setSortBy(field), setSortOrder(field === "name" || field === "market" ? "asc" : "desc")); setPage(1); };
 
     const SortHeader = ({ label, field, w }: { label: string; field: string; w?: number }) => (
         <th style={{ width: w, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }} onClick={() => handleSort(field)}>
@@ -842,7 +932,6 @@ export default function ScrapedLeadsPage() {
                         <div style={{ width: 1, height: 16, background: "var(--border)" }} />
                         <button onClick={() => enrichSelected()} disabled={enriching} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--accent-border)", borderRadius: 4, background: "var(--accent-soft)", color: "var(--accent-strong)", cursor: "pointer" }}>{enriching ? "Enriching..." : "Enrich Selected"}</button>
                         <button onClick={cleanSelectedEmails} disabled={cleaningEmails} title="Verify selected lead emails with Emailable; archive hard failures and keep uncertain emails for review" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: cleaningEmails ? "wait" : "pointer" }}>{cleaningEmails ? "Cleaning..." : "Clean List"}</button>
-                        <button onClick={sendToOutreach} disabled={sendingOutreach} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", cursor: "pointer" }}>{sendingOutreach ? "Sending..." : "Trigger Campaign"}</button>
                         <button onClick={copyEmails} title="Copy emails of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--info-border)", borderRadius: 4, background: "var(--info-bg)", color: "var(--info)", cursor: "pointer" }}>Copy Emails</button>
                         <button onClick={copyPhones} title="Copy phone numbers of selected leads to clipboard (newline-separated)" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-border)", borderRadius: 4, background: "var(--success-bg)", color: "var(--success-dark)", cursor: "pointer" }}>Copy Phones</button>
                         <div style={{ position: "relative" }}>
@@ -891,7 +980,7 @@ export default function ScrapedLeadsPage() {
                 {/* Grade, outreach status, enrichment, email verification and archive state now
                     live in the Operational block above. usingCompetitor moved to the segment
                     panel; phoneType was dropped in favour of Twilio's phoneLineType. */}
-                <input placeholder="Search company..." value={filters.search ?? ""} onChange={e => setFilter("search", e.target.value)}
+                <input placeholder="Search company..." value={searchInput} onChange={e => onSearchChange(e.target.value)}
                     style={{ padding: "6px 12px", fontSize: 12, border: "1px solid var(--line)", borderRadius: 6, background: "var(--surface-raised)", width: 160, outline: "none" }} />
             </div>
 

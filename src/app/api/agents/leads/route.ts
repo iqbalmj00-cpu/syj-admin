@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const hasSession = !!session;
     if (!hasSecret && !hasSession) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const idsOnly = searchParams.get("idsOnly") === "true"; // returns { ids: [...] } for "select all across pages"
+    const contactsOnly = searchParams.get("contactsOnly") === "true"; // returns { contacts: [{id,email,phone}] } for clipboard exports
     const grade = searchParams.get("grade"); // "A" or "A,B"
     const market = searchParams.get("market");
     const state = searchParams.get("state"); // 2-letter US state code, used for region/pilot observability
@@ -644,12 +645,38 @@ export async function GET(req: NextRequest) {
         // "Select all matching" short-circuit — returns every matching ID with no pagination,
         // used by the leads-table bulk-action "Select all X matching" banner. Skips funnel/markets
         // computation since the caller only needs the ID list.
+        // Both bulk branches are capped. Uncapped they pull every matching row into memory and
+        // onto the wire — the unfiltered table is larger than this cap, so "select all" was an
+        // ordinary request, not an edge case. Fetching CAP+1 lets the caller distinguish "hit
+        // the cap" from "exactly CAP rows", and the deterministic order makes a truncated
+        // result a stable prefix rather than an arbitrary subset.
+        const BULK_ROW_CAP = 100_000;
+
         if (idsOnly) {
-            const allMatching = await prisma.scrapedLead.findMany({
+            const rows = await prisma.scrapedLead.findMany({
                 where,
                 select: { id: true },
+                orderBy: { id: "asc" },
+                take: BULK_ROW_CAP + 1,
             });
-            return NextResponse.json({ ids: allMatching.map(l => l.id), total: allMatching.length });
+            const truncated = rows.length > BULK_ROW_CAP;
+            const kept = truncated ? rows.slice(0, BULK_ROW_CAP) : rows;
+            return NextResponse.json({ ids: kept.map(l => l.id), total: kept.length, truncated });
+        }
+
+        // Same shape as idsOnly, but carries the contact columns. Used by the leads-table
+        // Copy Emails / Copy Phones actions, which previously read from the 50-row page array
+        // and so silently truncated any selection spanning more than one page.
+        if (contactsOnly) {
+            const rows = await prisma.scrapedLead.findMany({
+                where,
+                select: { id: true, email: true, phone: true },
+                orderBy: { id: "asc" },
+                take: BULK_ROW_CAP + 1,
+            });
+            const truncated = rows.length > BULK_ROW_CAP;
+            const kept = truncated ? rows.slice(0, BULK_ROW_CAP) : rows;
+            return NextResponse.json({ contacts: kept, total: kept.length, truncated });
         }
 
         const [leads, total] = await Promise.all([
