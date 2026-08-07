@@ -181,16 +181,19 @@ export type DomainMetricsResult = {
  * currently produce. Declared rather than omitted so a blank column is never mistaken for a zero.
  *
  * Three distinct causes, worded differently on purpose:
- *  - open/click/unsubscribe: Instantly supports the webhook, but nothing registers or processes it
- *    here (createInstantlyWebhook has no runtime caller).
+ *  - open/click/unsubscribe: the provider emits these events and this system receives and
+ *    classifies them, but no counter is persisted, so there is nothing to total per domain.
+ *    The wording deliberately does NOT claim the webhook is unregistered: registration happens in
+ *    the provider's own dashboard, which this repository cannot observe. classifyInstantlyEvent
+ *    returns "engagement" for open and click events and nothing consumes that classification.
  *  - inboxPlacement: structural — ColdEmailPlacementTest has no sending-domain relation at all.
  *  - delivered/complaint: the provider exposes no authoritative source. Wording is copied verbatim
  *    from cold-email-deliverability-store.ts so the two tabs cannot disagree.
  */
 export const DOMAIN_UNAVAILABLE_METRICS: Record<string, string> = {
-    openRate: "Instantly supports email_opened webhooks, but webhook ingestion is not registered or processed yet",
-    clickRate: "Instantly supports email_link_clicked webhooks, but webhook ingestion is not registered or processed yet",
-    unsubscribes: "Instantly supports lead_unsubscribed webhooks, but no per-domain counter is persisted",
+    openRate: "Open events are received and classified but never counted; no per-domain open counter is persisted",
+    clickRate: "Click events are received and classified but never counted; no per-domain click counter is persisted",
+    unsubscribes: "Unsubscribe events are received but no per-domain counter is persisted",
     inboxPlacement: "Placement tests are workspace-level; placement records carry no sending-domain relation",
     delivered: "No verified authoritative delivered event source",
     complaintRate: "No verified complaint event source",
