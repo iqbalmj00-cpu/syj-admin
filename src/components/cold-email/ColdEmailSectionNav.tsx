@@ -12,6 +12,7 @@ const ITEMS = [
     ["/cold-email/templates", "Templates"],
     ["/cold-email/accounts", "Accounts"],
     ["/cold-email/deliverability", "Deliverability"],
+    ["/cold-email/domains", "Domains"],
     ["/cold-email/reports", "Reports"],
     ["/cold-email/do-not-contact", "Do Not Contact"],
     ["/cold-email/settings", "Settings"],

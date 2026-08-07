@@ -16,6 +16,22 @@
     {
       "path": "/api/cron/cold-email-capabilities",
       "schedule": "10 */6 * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-worker",
+      "schedule": "3,8,13,18,23,28,33,38,43,48,53,58 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-audience",
+      "schedule": "5,20,35,50 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-poll",
+      "schedule": "11,26,41,56 * * * *"
+    },
+    {
+      "path": "/api/cron/cold-email-events",
+      "schedule": "14,29,44,59 * * * *"
     }
   ]
 }

@@ -10,6 +10,8 @@ import { runProviderOperationWorker } from "@/lib/cold-email-worker";
 import { executeColdEmailProviderOperation } from "@/lib/cold-email-operation-executor";
 import { canonicalColdEmailProviderMutationsEnabled, coldEmailControlPlaneMode } from "@/lib/cold-email-cutover";
 
+export const maxDuration = 300;
+
 async function handle(req: NextRequest) {
     if (!verifyColdEmailCronRequest(req)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

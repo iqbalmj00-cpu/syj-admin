@@ -10,6 +10,8 @@ import {
 import { runProviderEventWorker } from "@/lib/cold-email-event-worker";
 import { projectInstantlyProviderEvent } from "@/lib/instantly-event-processor";
 
+export const maxDuration = 300;
+
 async function handle(req: NextRequest) {
     if (!verifyColdEmailCronRequest(req)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

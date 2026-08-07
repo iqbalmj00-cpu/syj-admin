@@ -6,6 +6,8 @@ import {
     runColdEmailAudienceWorker,
 } from "@/lib/cold-email-audience-store";
 
+export const maxDuration = 300;
+
 async function handle(req: NextRequest) {
     if (!verifyColdEmailCronRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (!isColdEmailAudienceStoreReady()) return NextResponse.json({ error: "Canonical Cold Email audience persistence is not ready" }, { status: 503 });
