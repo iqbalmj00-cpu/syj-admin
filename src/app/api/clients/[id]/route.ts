@@ -33,14 +33,55 @@ export async function GET(_req: Request, { params }: Params) {
     try {
         const client = await prisma.user.findUnique({
             where: { id: id, isDemoAccount: false },
-            include: {
+            // Explicit select: `include` serialises every User scalar — password (bcrypt hash),
+            // gaAccessToken/gaRefreshToken (live OAuth credentials) and inviteToken — into the
+            // JSON sent to the browser. Only the scalars the client detail page reads are kept.
+            // siteToken stays: it is rendered on purpose with a Copy control on the page.
+            select: {
+                id: true, name: true, email: true, emailVerified: true, company: true,
+                role: true, isDemoAccount: true, lastLoginAt: true, createdAt: true,
+                onboardingComplete: true, siteToken: true,
+                notifyNewLead: true, notifyBooking: true, notifyWeeklyReport: true,
+                dailyDigest: true, reportFrequency: true, reportRecipients: true,
+                planTier: true, planStatus: true, platformBillingSource: true,
+                saasStripeCustomerId: true, stripeSubscriptionId: true, stripePriceId: true,
+                billingCancelledAt: true, cancelReason: true, cancelFeedback: true,
+                retentionOfferShown: true, dataDeletedAt: true,
                 websiteConfig: true,
                 phoneConfig: true,
                 agentConfig: true,
                 companyProfile: true,
-                automationConfig: true,
+                // Explicit select: a bare `true` would serialise googleCalendarToken — labelled
+                // an OAuth refresh token in the schema — and googleCalendarEmail. Neither is
+                // read by the page. (Both appear to be unwritten in practice; the live Google
+                // Calendar flow stores its tokens encrypted on Integration instead. Narrowed
+                // anyway — same bug class already guarded twice in this query.)
+                // NOTE: `client` is typed `any` on the consuming page, so a future edit reading
+                // a field missing from this list renders undefined silently. Add fields here.
+                automationConfig: {
+                    select: {
+                        autoFollowUp: true, followUpDelayHours: true,
+                        autoReviewRequest: true, reviewRequestDelay: true,
+                        autoPaymentReminders: true, aiPipelineEnabled: true,
+                        autoReEngagement: true, reEngagementMonths: true,
+                        paymentMode: true, recoveryDiscountPercent: true,
+                        googleReviewUrl: true, yelpReviewUrl: true,
+                        notifyBookingConfirm: true, emailBookingConfirm: true,
+                        notifyDayBefore: true, emailDayBefore: true,
+                        notifyEnRoute: true, emailEnRoute: true,
+                        notifyJobComplete: true, emailJobComplete: true,
+                    },
+                },
                 onboarding: true,
-                integrations: true,
+                // Explicit select: a bare `true` would serialise accessToken/refreshToken —
+                // live OAuth credentials — into the JSON sent to the browser.
+                integrations: {
+                    select: {
+                        id: true, userId: true, provider: true, status: true,
+                        expiresAt: true, config: true, connectedAt: true,
+                        createdAt: true, updatedAt: true,
+                    },
+                },
                 platformPromoRedemptions: {
                     include: { platformPromoCode: true },
                     orderBy: { redeemedAt: "desc" },
@@ -48,7 +89,22 @@ export async function GET(_req: Request, { params }: Params) {
                 },
                 stripeConnectAccount: true,
                 scheduleConfig: true,
-                twilioSubAccount: true,
+                // Explicit select: a bare `true` would serialise subAccountAuthToken — a live
+                // Twilio credential — into the JSON sent to the browser. Every other column is
+                // retained so the A2P tab keeps working.
+                twilioSubAccount: {
+                    select: {
+                        id: true, userId: true, subAccountSid: true,
+                        customerProfileSid: true, customerProfileStatus: true,
+                        trustProductSid: true, trustProductStatus: true,
+                        brandSid: true, brandStatus: true, brandType: true, otpVerified: true,
+                        campaignSid: true, campaignStatus: true,
+                        messagingServiceSid: true, messagingServiceStatus: true,
+                        voiceEnabled: true, smsEnabled: true, registrationType: true,
+                        a2pStarted: true, lastError: true, lastSyncAt: true,
+                        createdAt: true, updatedAt: true,
+                    },
+                },
                 supportTickets: {
                     include: { messages: true },
                     orderBy: { createdAt: "desc" },
@@ -109,6 +165,8 @@ export async function PATCH(req: Request, { params }: Params) {
             const updated = await prisma.user.update({
                 where: { id },
                 data: { planStatus: "active" },
+                // Without a select the full row — password hash included — goes on the wire.
+                select: { id: true, planStatus: true, planTier: true },
             });
             await audit(id, "reactivate", { previousStatus: client.planStatus });
             return NextResponse.json({ ...updated, warning: stripeWarning });
@@ -119,6 +177,8 @@ export async function PATCH(req: Request, { params }: Params) {
             const updated = await prisma.user.update({
                 where: { id },
                 data: { planTier: plan },
+                // Without a select the full row — password hash included — goes on the wire.
+                select: { id: true, planStatus: true, planTier: true },
             });
             await audit(id, "change_plan", { previousPlan, newPlan: plan });
             const warning = isPromoLifetimeBilling(client.platformBillingSource)
@@ -145,6 +205,9 @@ export async function PATCH(req: Request, { params }: Params) {
                 const updated = await prisma.user.update({
                     where: { id },
                     data: allowed,
+                    // Without a select the full row — password hash included — goes on the wire.
+                    // Return the editable fields so the page could refresh from the response.
+                    select: { id: true, name: true, email: true, company: true },
                 });
                 await audit(id, "update_profile", { fields: Object.keys(allowed), values: allowed });
                 return NextResponse.json(updated);

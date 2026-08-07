@@ -57,6 +57,27 @@ function InfoRow({ label, value, mono }: { label: string; value: React.ReactNode
     );
 }
 
+// Masks a sensitive value until the operator explicitly clicks to reveal it, so a tax
+// identifier is not left on screen during a screen-share or for anyone walking past.
+// Declared at module scope, not inside the tab component, so React does not remount it (and
+// lose the hidden/shown state) on every parent render.
+function RevealValue({ value }: { value?: string | null }) {
+    const [shown, setShown] = useState(false);
+    if (!value) return <>—</>;
+    return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+            <span style={{ fontFamily: "monospace" }}>{shown ? value : "•".repeat(Math.min(value.length, 11))}</span>
+            <button
+                onClick={() => setShown(s => !s)}
+                aria-label={shown ? "Hide value" : "Reveal value"}
+                style={{ padding: "2px 8px", fontSize: 11, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 4, background: "var(--white)", color: "var(--text-light)", cursor: "pointer", flexShrink: 0 }}
+            >
+                {shown ? "Hide" : "Reveal"}
+            </button>
+        </span>
+    );
+}
+
 function BoolIcon({ val }: { val: boolean | null | undefined }) {
     return <span style={{ fontSize: 12, fontWeight: 800, color: val ? "var(--success-dark)" : "var(--danger)" }}>{val ? "Yes" : "No"}</span>;
 }
@@ -390,8 +411,16 @@ function OverviewTab({ client, onProfileSave, showToast }: { client: any; onProf
                 <div className="card">
                     <div className="card-header"><h3>Onboarding Submission</h3></div>
                     <div className="card-body">
+                        {/* Owner contact first — this is the human to call. Distinct from the
+                            provisioned Twilio line (Phone tab) and from Company Profile's
+                            forwarding number, both of which are different numbers. */}
+                        <InfoRow label="Owner Name" value={[ob.ownerFirstName, ob.ownerLastName].filter(Boolean).join(" ") || "—"} />
+                        <InfoRow label="Owner Mobile" value={ob.ownerMobilePhone || "—"} />
+                        <InfoRow label="Owner Email" value={ob.ownerEmail || "—"} />
                         <InfoRow label="Business Name" value={ob.businessName} />
+                        <InfoRow label="Legal Business Name" value={ob.legalBusinessName || "—"} />
                         <InfoRow label="Location" value={ob.location} />
+                        <InfoRow label="Business Address" value={[ob.businessStreet, ob.businessCity, ob.businessState, ob.businessZip].filter(Boolean).join(", ") || "—"} />
                         <InfoRow label="Fleet Size" value={ob.fleetSize} />
                         <InfoRow label="Service Radius" value={ob.serviceRadius ? `${ob.serviceRadius} mi` : "—"} />
                         <InfoRow label="Base Rate" value={ob.baseRate ? `$${ob.baseRate}` : "—"} />
@@ -399,6 +428,15 @@ function OverviewTab({ client, onProfileSave, showToast }: { client: any; onProf
                         <InfoRow label="Min Load Fee" value={ob.minLoadFee ? `$${ob.minLoadFee}` : "—"} />
                         <InfoRow label="Current CRM" value={ob.currentCRM || "None"} />
                         <InfoRow label="Website Mode" value={ob.websiteMode} />
+                        {/* A2P / brand registration — what Twilio needs to approve messaging. */}
+                        <InfoRow label="Business Type" value={ob.businessType || "—"} />
+                        <InfoRow label="Registration Type" value={ob.registrationType || "—"} />
+                        <InfoRow label="Has EIN" value={ob.hasEin === null || ob.hasEin === undefined ? "Not answered" : <BoolIcon val={ob.hasEin} />} />
+                        <InfoRow label="EIN" value={<RevealValue value={ob.ein} />} />
+                        <InfoRow label="Authorized Rep Title" value={ob.authorizedRepTitle || "—"} />
+                        <InfoRow label="A2P Opt-In URL" value={ob.a2pOptInUrl || "—"} />
+                        <InfoRow label="A2P Privacy URL" value={ob.a2pPrivacyUrl || "—"} />
+                        <InfoRow label="A2P Terms URL" value={ob.a2pTermsUrl || "—"} />
                     </div>
                 </div>
             )}

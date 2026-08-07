@@ -164,21 +164,39 @@ model User {
 }
 
 model OnboardingSubmission {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessName  String
-  location      String
-  fleetSize     String
-  serviceRadius Int?
-  baseRate      Float?
-  perCubicYard  Float?
-  minLoadFee    Float?
-  currentCRM    String?
-  websiteURL    String?
-  websiteMode   String   @default("syj_hosted") // "syj_hosted" | "widget_embed"
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName       String
+  location           String
+  fleetSize          String
+  serviceRadius      Int?
+  baseRate           Float?
+  perCubicYard       Float?
+  minLoadFee         Float?
+  currentCRM         String?
+  websiteURL         String?
+  websiteMode        String   @default("syj_hosted") // "syj_hosted" | "widget_embed"
+  a2pOptInUrl        String?
+  a2pPrivacyUrl      String?
+  a2pTermsUrl        String?
+  // ── A2P Registration Fields ──
+  hasEin             Boolean? // null = not yet answered (force explicit choice)
+  registrationType   String? // sole_proprietor | standard (derived from hasEin)
+  ein                String? // EIN (standard brands only)
+  legalBusinessName  String? // Legal name (may differ from display name)
+  businessType       String? // sole_proprietorship | llc | corporation | partnership
+  ownerFirstName     String?
+  ownerLastName      String?
+  ownerMobilePhone   String? // For OTP verification (sole proprietor)
+  ownerEmail         String?
+  businessStreet     String?
+  businessCity       String?
+  businessState      String?
+  businessZip        String?
+  authorizedRepTitle String?  @default("Owner")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model Lead {

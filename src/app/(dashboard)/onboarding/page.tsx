@@ -53,11 +53,15 @@ export default function OnboardingPage() {
                 <div className="card-header"><h3>Per-Client Progress</h3></div>
                 <div className="card-body no-pad" style={{ overflowX: "auto" }}>
                     <table>
-                        <thead><tr>{["Company", "Step", "Website", "Phone", "Billing", "Status", "Last Activity"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
+                        {/* "AI Line" is the provisioned Twilio number (a presence badge);
+                            "Owner Mobile" is the number the owner submitted at onboarding. They
+                            are different numbers — the old "Phone" header conflated them. */}
+                        <thead><tr>{["Company", "Owner Mobile", "Step", "Website", "AI Line", "Billing", "Status", "Last Activity"].map(h => <th key={h} className="table-head">{h}</th>)}</tr></thead>
                         <tbody>
                             {data.clients?.map((c: any) => (
                                 <tr key={c.id} className="table-row" style={{ cursor: "pointer" }} onClick={() => window.location.href = `/clients/${c.id}`}>
                                     <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>{c.company}</td>
+                                    <td style={{ padding: "10px 14px", fontSize: 12, color: c.ownerMobilePhone ? "var(--text)" : "var(--text-faint)", whiteSpace: "nowrap" }}>{c.ownerMobilePhone || "—"}</td>
                                     <td style={{ padding: "10px 14px", fontSize: 12 }}>
                                         <span style={{ fontWeight: 700, color: "var(--orange)", fontFamily: "var(--font-heading)" }}>{c.currentStep}/7</span>
                                         <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 6 }}>{c.currentStepLabel}</span>
