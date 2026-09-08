@@ -1,3 +1,4 @@
+import { isDynamicLeadGroup, leadGroupSnapshotIssue } from "./lead-group-policy.ts";
 import { prisma } from "@/lib/prisma";
 import { COLD_EMAIL_PERSONALIZATION_LEAD_SELECT } from "@/lib/cold-email";
 import {
@@ -5,7 +6,6 @@ import {
     coldEmailCapacityReservationDate,
     coldEmailPreparationCapacityIssue,
     coldEmailRequestFingerprint,
-    leadGroupRefreshIsFresh,
     type CampaignWizard,
     validateCampaignWizard,
 } from "@/lib/cold-email-campaign";
@@ -42,7 +42,7 @@ type CampaignClient = {
     coldEmailAuditEvent?: Delegate;
     coldEmailBlackoutDate?: Delegate;
     leadGroup?: Delegate;
-    $transaction?<T>(run: (tx: CampaignClient) => Promise<T>): Promise<T>;
+    $transaction?<T>(run: (tx: CampaignClient) => Promise<T>, options?: { isolationLevel: "Serializable" }): Promise<T>;
 };
 
 type CampaignVersionRow = {
@@ -533,6 +533,11 @@ export async function createCanonicalColdEmailCampaign(input: { wizard: Campaign
     if (issues.length) throw new ColdEmailCampaignValidationError(issues);
     const client = transactionClient();
     return client.$transaction!(async (tx) => {
+        const group = await delegateFrom(tx, "leadGroup", ["findUnique"]).findUnique!({ where: { id: wizard.audience!.leadGroupId }, select: { channel: true, filterDefinition: true } }) as { channel: string; filterDefinition: unknown } | null;
+        if (!group || group.channel !== "email") throw new Error("Select an email Lead Group");
+        if (wizard.audience?.refreshBeforeSnapshot && !isDynamicLeadGroup(group.filterDefinition)) {
+            throw new Error("Static Lead Groups cannot be refreshed. Turn off the refresh requirement before creating the draft.");
+        }
         const campaign = await delegateFrom(tx, "coldEmailCampaign", ["create"]).create!({
             data: {
                 name: wizard.details!.name,
@@ -644,6 +649,7 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
                     channel: true,
                     updatedAt: true,
                     lastRefreshedAt: true,
+                    filterDefinition: true,
                     members: {
                         orderBy: { leadId: "asc" },
                         select: { leadId: true, lead: { select: COLD_EMAIL_PERSONALIZATION_LEAD_SELECT } },
@@ -653,16 +659,15 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
         ]) as [
             { id: string; status: string; steps: Array<{ id: string }> } | null,
             { id: string; active: boolean; memberships: Array<{ id: string }> } | null,
-            { id: string; name: string; channel: string; updatedAt: Date; lastRefreshedAt: Date | null; members: Array<{ leadId: string; lead: Record<string, unknown> }> } | null,
+            { id: string; name: string; channel: string; updatedAt: Date; lastRefreshedAt: Date | null; filterDefinition: unknown; members: Array<{ leadId: string; lead: Record<string, unknown> }> } | null,
         ];
         if (!sequence || sequence.status !== "approved" || sequence.steps.length === 0) throw new Error("The selected sequence is not approved or has no steps");
         if (!pool?.active || pool.memberships.length === 0) throw new Error("The selected sending pool has no ready account");
         if (!group || group.channel !== "email" || group.members.length === 0) throw new Error("The selected email Lead Group has no members");
-        if (!leadGroupRefreshIsFresh({ refreshRequired: Boolean(wizard.audience?.refreshBeforeSnapshot), versionCreatedAt: version.createdAt, lastRefreshedAt: group.lastRefreshedAt })) {
-            throw new Error("Refresh the selected Lead Group after this campaign draft was created before approving its audience snapshot");
-        }
+        const refreshIssue = leadGroupSnapshotIssue({ filterDefinition: group.filterDefinition, refreshRequired: Boolean(wizard.audience?.refreshBeforeSnapshot), versionCreatedAt: version.createdAt, lastRefreshedAt: group.lastRefreshedAt });
+        if (refreshIssue) throw new Error(refreshIssue);
 
-        const sourceHash = coldEmailRequestFingerprint({ groupId: group.id, updatedAt: group.updatedAt, lastRefreshedAt: group.lastRefreshedAt, leadIds: group.members.map((member) => member.leadId) });
+        const sourceHash = coldEmailRequestFingerprint({ groupId: group.id, updatedAt: group.updatedAt, lastRefreshedAt: group.lastRefreshedAt, filterDefinition: group.filterDefinition, leadIds: group.members.map((member) => member.leadId) });
         const snapshot = await delegateFrom(tx, "coldEmailAudienceSnapshot", ["create"]).create!({
             data: {
                 campaignVersionId: version.id,
@@ -706,7 +711,7 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
             evidence: { sourceHash, audienceCount: group.members.length, sequenceVersionId: sequence.id, sendingPoolId: pool.id },
         });
         return { campaignId: version.campaignId, versionId: version.id, audienceSnapshotId: snapshot.id, audienceCount: group.members.length };
-    });
+    }, { isolationLevel: "Serializable" });
 }
 
 export async function requestCanonicalColdEmailCampaignPreparation(input: { versionId: string; actorId: string; workspaceId: string }) {

@@ -74,10 +74,10 @@ test("worker renews the active provider-operation lease during a long call", asy
 
 test("unclassified executor failures reconcile instead of retrying", async () => {
     let available = true;
-    let settlement: ProviderOperationSettlement | null = null;
+    const settlements: ProviderOperationSettlement[] = [];
     const repository: ProviderOperationRepository = {
         async claimNext() { if (!available) return null; available = false; return operation(); },
-        async settle(value) { settlement = value; return true; },
+        async settle(value) { settlements.push(value); return true; },
     };
     const result = await runProviderOperationWorker({
         owner: "worker-1",
@@ -85,7 +85,8 @@ test("unclassified executor failures reconcile instead of retrying", async () =>
         execute: async () => { throw new Error("socket closed"); },
     });
     assert.equal(result.counts.reconciliation_required, 1);
-    assert.equal(settlement?.result.kind, "ambiguous_timeout");
+    assert.equal(settlements.length, 1);
+    assert.equal(settlements[0].result.kind, "ambiguous_timeout");
 });
 
 test("Instantly executor treats a mutation 5xx as ambiguous with one dispatch", async () => {

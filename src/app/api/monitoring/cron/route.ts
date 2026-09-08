@@ -1,3 +1,4 @@
+import sourceSchedule from "../../../../../vercel.json";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -51,7 +52,7 @@ export async function GET() {
             })
         );
 
-        return NextResponse.json({ jobs: latestRuns });
+        return NextResponse.json({ jobs: latestRuns, sourceSchedule: sourceSchedule.crons, scheduleEvidence: "SOURCE_VERIFIED; deployment and invocation evidence UNKNOWN", generalJobOwnership: "Not established by this Admin source schedule" });
     } catch (err) {
         console.error("GET /api/monitoring/cron error:", err);
         return NextResponse.json({ error: "Failed to fetch cron data" }, { status: 500 });

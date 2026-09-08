@@ -186,6 +186,7 @@ export async function POST(req: NextRequest) {
         const agent = await ensureEmailCleanerAgent();
         agentIdForFailure = agent.id;
         const runConfig: EmailCleanerRunConfig = {
+            scope: dryRunSummary,
             leadIds,
             emailToLeadIds: targets.emailToLeadIds,
             emailCandidatesByLead: targets.emailCandidatesByLead,
@@ -224,11 +225,11 @@ export async function POST(req: NextRequest) {
                 data: {
                     status: "completed",
                     completedAt: new Date(),
-                    results: { summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
+                    results: { scope: dryRunSummary, summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
                 },
             });
             await prisma.syjAgent.update({ where: { id: agent.id }, data: { status: "idle" } });
-            return NextResponse.json({ ok: true, runId: run.id, mode: "sync", summary, ...dryRunSummary });
+            return NextResponse.json({ ok: true, runId: run.id, mode: "sync", summary, scope: dryRunSummary, ...dryRunSummary });
         }
 
         if (useBatch) {
@@ -246,6 +247,7 @@ export async function POST(req: NextRequest) {
                 data: {
                     config: batchConfig as unknown as Prisma.InputJsonValue,
                     results: {
+                        scope: dryRunSummary,
                         provider: "emailable",
                         mode: "batch",
                         batchId: batch.id,
@@ -259,6 +261,7 @@ export async function POST(req: NextRequest) {
                 runId: run.id,
                 mode: "batch",
                 batchId: batch.id,
+                scope: dryRunSummary,
                 queued: targets.validEmails.length,
                 immediateSummary: summary,
                 message: `Email cleaning batch queued for ${targets.validEmails.length} unique email(s). Emailable will call back when verification finishes.`,
@@ -281,7 +284,7 @@ export async function POST(req: NextRequest) {
             data: {
                 status: "completed",
                 completedAt: new Date(),
-                results: { summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
+                results: { scope: dryRunSummary, summary, provider: "emailable", mode: "sync" } as unknown as Prisma.InputJsonValue,
             },
         });
         await prisma.syjAgent.update({ where: { id: agent.id }, data: { status: "idle" } });
@@ -291,6 +294,7 @@ export async function POST(req: NextRequest) {
             runId: run.id,
             mode: "sync",
             summary,
+            scope: dryRunSummary,
             message: `Email cleaning finished. ${summary.deliverable} deliverable, ${summary.archived} hard failures archived.`,
         });
     } catch (error) {

@@ -1,3 +1,4 @@
+import type { EmailCleaningScope } from "./email-cleaner-presentation";
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/emailable";
 
 export interface EmailCleanerRunConfig {
+    scope?: EmailCleaningScope;
     leadIds: string[];
     emailToLeadIds: Record<string, string[]>;
     emailCandidatesByLead?: Record<string, EmailCandidate[]>;
@@ -193,6 +195,7 @@ function candidateFromUnknown(raw: unknown, fallbackSource: string, primaryEmail
         domainMatchesWebsite: typeof record.domainMatchesWebsite === "boolean" ? record.domainMatchesWebsite : null,
         contextText: typeof record.contextText === "string" ? record.contextText.slice(0, 260) : null,
         isMailto: typeof record.isMailto === "boolean" ? record.isMailto : null,
+        verification: record.verification && typeof record.verification === "object" && !Array.isArray(record.verification) ? record.verification as Record<string, unknown> : null,
         isPrimary: typeof record.isPrimary === "boolean" ? record.isPrimary : primaryEmail === email,
         generated: typeof record.generated === "boolean" ? record.generated : null,
         requiresVerification: typeof record.requiresVerification === "boolean" ? record.requiresVerification : null,
@@ -222,6 +225,7 @@ function mergeCandidate(existing: EmailCandidate, incoming: EmailCandidate): Ema
         isMailto: base.isMailto || existing.isMailto || incoming.isMailto || null,
         generated: base.generated || existing.generated || incoming.generated || null,
         requiresVerification: base.requiresVerification || existing.requiresVerification || incoming.requiresVerification || null,
+        verification: base.verification || existing.verification || incoming.verification || null,
         sources: Array.from(sources),
     };
 }
@@ -299,6 +303,7 @@ export function parseEmailCleanerRunConfig(value: Prisma.JsonValue | null): Emai
     return {
         leadIds: Array.isArray(record.leadIds) ? record.leadIds.filter((id): id is string => typeof id === "string") : [],
         emailToLeadIds: normalizedMap,
+        scope: record.scope && typeof record.scope === "object" && !Array.isArray(record.scope) ? record.scope as EmailCleaningScope : undefined,
         emailCandidatesByLead: parseEmailCandidatesByLead(record.emailCandidatesByLead),
         policy: mergeEmailCleanPolicy(record.policy as Partial<EmailCleanPolicy> | undefined),
         missingLeadIds: Array.isArray(record.missingLeadIds) ? record.missingLeadIds.filter((id): id is string => typeof id === "string") : [],
@@ -393,7 +398,7 @@ function annotateCandidates(candidates: EmailCandidate[], resultByEmail: Map<str
         const result = normalized ? resultByEmail.get(normalized) : undefined;
         return {
             ...candidate,
-            verification: result ? resultSnapshot(result) : null,
+            verification: result ? resultSnapshot(result) : candidate.verification ?? null,
         };
     });
 }
@@ -478,6 +483,15 @@ async function applyCandidateEmailCleaningResults(params: {
             continue;
         }
 
+        // Batch callbacks can arrive after the primary address changes. Only a
+        // verified alternative may replace it; otherwise its own result wins.
+        let primaryEmail: string | null;
+        try {
+            const current = await prisma.scrapedLead.findUnique({ where: { id: leadId }, select: { email: true } });
+            if (!current) { summary.failed += 1; continue; }
+            primaryEmail = current.email;
+        } catch { summary.failed += 1; continue; }
+
         const promotable = candidatesWithResults
             .filter(({ candidate, result }) => canPromoteCandidate(candidate, result))
             .sort(sortCandidateResults);
@@ -485,7 +499,8 @@ async function applyCandidateEmailCleaningResults(params: {
             .filter(({ candidate }) => !isGeneratedOwnerCandidate(candidate))
             .sort(sortCandidateResults);
         const selectedForPrimary = promotable[0] || null;
-        const selected = selectedForPrimary || nonGenerated[0] || [...candidatesWithResults].sort(sortCandidateResults)[0];
+        const primaryResult = candidatesWithResults.find(({ candidate }) => normalizeEmail(candidate.email) === normalizeEmail(primaryEmail));
+        const selected = selectedForPrimary || primaryResult || nonGenerated[0] || [...candidatesWithResults].sort(sortCandidateResults)[0];
         const selectedIsUnpromotedGenerated = isGeneratedOwnerCandidate(selected.candidate) && !selectedForPrimary;
         const rawDecision = getEmailCleanDecision(selected.result, params.policy);
         const decision = selectedIsUnpromotedGenerated
@@ -504,6 +519,18 @@ async function applyCandidateEmailCleaningResults(params: {
             emailCandidates: annotatedCandidates as unknown as Prisma.InputJsonValue,
             emailsDiscovered: candidates.map(candidate => candidate.email),
         };
+
+        // A secondary result must never relabel an untested primary address.
+        if (!selectedForPrimary && normalizeEmail(selected.candidate.email) !== normalizeEmail(primaryEmail)) {
+            try {
+                await prisma.scrapedLead.update({ where: { id: leadId }, data: {
+                    emailCandidates: annotatedCandidates as unknown as Prisma.InputJsonValue,
+                    emailsDiscovered: candidates.map(candidate => candidate.email),
+                } });
+                incrementSummary(summary, selected.result, 0, 1);
+            } catch { summary.failed += 1; }
+            continue;
+        }
 
         if (!selected.result.error) {
             data.emailDeliverable = decision.deliverable;
@@ -533,7 +560,7 @@ async function applyCandidateEmailCleaningResults(params: {
         let updated = 0;
         try {
             await prisma.scrapedLead.update({
-                where: { id: leadId },
+                where: { id: leadId, email: primaryEmail },
                 data,
             });
             updated = 1;

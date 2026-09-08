@@ -1,5 +1,6 @@
 "use client";
 
+import { isDynamicLeadGroup } from "@/lib/lead-group-policy";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
@@ -88,6 +89,8 @@ export function ColdEmailCampaignWizardPage() {
     const [wizard, setWizard] = useState<Wizard>(initialWizard);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const selectedGroup = (catalog.data?.leadGroups || []).find(group => group.id === wizard.audience.leadGroupId);
+    const dynamicGroup = isDynamicLeadGroup(selectedGroup?.filterDefinition);
     const selectedSequence = (catalog.data?.sequences || []).find((sequence) => sequence.id === wizard.messaging.sequenceVersionId) || null;
     const selectedPool = (infrastructure.data?.pools || []).find((pool) => pool.id === wizard.infrastructure.sendingPoolId) || null;
     const sequencePreviews = useMemo(() => coldEmailSequencePreviews(selectedSequence), [selectedSequence]);
@@ -118,10 +121,10 @@ export function ColdEmailCampaignWizardPage() {
                     <Field label="Priority"><input type="number" min="1" className={styles.control} value={wizard.details.priority} onChange={(e) => setSection("details", { ...wizard.details, priority: Number(e.target.value) })} /></Field>
                 </div>}
                 {stage === 1 && <div className={styles.formGrid}>
-                    <Field label="Lead Group" help="The group is frozen to an auditable snapshot during preparation."><select required className={styles.control} value={wizard.audience.leadGroupId} onChange={(e) => setSection("audience", { ...wizard.audience, leadGroupId: e.target.value })}><option value="">Choose a Lead Group</option>{(catalog.data?.leadGroups || []).map((group) => <option key={text(group.id)} value={text(group.id)}>{text(group.name)} ({relationCount(group)})</option>)}</select></Field>
+                    <Field label="Lead Group" help="Approval freezes group membership. Eligibility evaluation follows approval."><select required className={styles.control} value={wizard.audience.leadGroupId} onChange={(e) => setSection("audience", { ...wizard.audience, leadGroupId: e.target.value, refreshBeforeSnapshot: isDynamicLeadGroup(catalog.data?.leadGroups.find(group => group.id === e.target.value)?.filterDefinition) })}><option value="">Choose a Lead Group</option>{(catalog.data?.leadGroups || []).map((group) => <option key={text(group.id)} value={text(group.id)}>{text(group.name)} ({relationCount(group)})</option>)}</select></Field>
                     <Field label="Cooldown days"><input type="number" min="0" className={styles.control} value={wizard.audience.cooldownDays} onChange={(e) => setSection("audience", { ...wizard.audience, cooldownDays: Number(e.target.value) })} /></Field>
                     <Field label="Contacts per company"><input type="number" min="1" className={styles.control} value={wizard.audience.companyContactCap} onChange={(e) => setSection("audience", { ...wizard.audience, companyContactCap: Number(e.target.value) })} /></Field>
-                    <Field label="Snapshot refresh"><Check label="Refresh Lead Group before freezing audience" checked={wizard.audience.refreshBeforeSnapshot} onChange={(value) => setSection("audience", { ...wizard.audience, refreshBeforeSnapshot: value })} /></Field>
+                    <Field label="Snapshot refresh" help={dynamicGroup ? "After creating the draft, refresh this dynamic group from the campaign detail page before approval." : "Static membership is manually curated. Review it before approval; no refresh is required."}><Check label="Require a dynamic group refresh after draft creation" disabled={!dynamicGroup} checked={dynamicGroup && wizard.audience.refreshBeforeSnapshot} onChange={(value) => setSection("audience", { ...wizard.audience, refreshBeforeSnapshot: value })} /></Field>
                 </div>}
                 {stage === 2 && <div className={styles.formGrid}>
                     <Field label="Approved sequence version" help="Only the selected immutable sequence version will be projected to the provider." span><select required className={styles.control} value={wizard.messaging.sequenceVersionId} onChange={(e) => setSection("messaging", { sequenceVersionId: e.target.value })}><option value="">Choose a sequence</option>{(catalog.data?.sequences || []).map((sequence) => <option key={text(sequence.id)} value={text(sequence.id)} disabled={sequence.status !== "approved"}>{text(sequence.name)} · v{text(sequence.version)} · {text(sequence.status)}</option>)}</select></Field>
@@ -150,14 +153,14 @@ export function ColdEmailCampaignWizardPage() {
                     <Check label="Bounce protection (required)" checked={wizard.policies.bounceProtectionEnabled} disabled onChange={() => undefined} />
                     <Check label="Stop other contacts at the company" checked={wizard.policies.stopForCompany} onChange={(value) => setSection("policies", { ...wizard.policies, stopForCompany: value })} />
                     <Check label="Stop on automatic reply" checked={wizard.policies.stopOnAutoReply} onChange={(value) => setSection("policies", { ...wizard.policies, stopOnAutoReply: value })} />
-                    <Check label="Allow risky contacts" checked={wizard.policies.allowRiskyContacts} onChange={(value) => setSection("policies", { ...wizard.policies, allowRiskyContacts: value })} />
+                    <Check label="Provider risky-contact option (local eligibility still requires verified-deliverable email)" checked={wizard.policies.allowRiskyContacts} onChange={(value) => setSection("policies", { ...wizard.policies, allowRiskyContacts: value })} />
                     <Check label="Match lead email provider" checked={wizard.policies.matchLeadEsp} onChange={(value) => setSection("policies", { ...wizard.policies, matchLeadEsp: value })} />
                     <Check label="Open tracking" checked={wizard.policies.openTracking} onChange={(value) => setSection("policies", { ...wizard.policies, openTracking: value })} />
                     <Check label="Link tracking" checked={wizard.policies.linkTracking} onChange={(value) => setSection("policies", { ...wizard.policies, linkTracking: value })} />
                 </div>}
                 {stage === 6 && <div className={styles.list}>
                     <div className={styles.metricGrid}><Metric label="Campaign" value={wizard.details.name || "Unnamed"} sub={wizard.details.objective || "No objective"} /><Metric label="Audience" value={(catalog.data?.leadGroups || []).find((group) => group.id === wizard.audience.leadGroupId)?.name as string || "Not selected"} sub={`${wizard.audience.cooldownDays}-day cooldown`} /><Metric label="Volume" value={wizard.schedule.dailyMaxNewLeads} sub={`${wizard.schedule.dailyLimit} maximum sends/day`} /><Metric label="Timezone" value={wizard.schedule.timezone} sub={`${wizard.schedule.windows[0].from}–${wizard.schedule.windows[0].to}`} /></div>
-                    <Notice title="Creation does not send email">The new campaign starts as a draft. Preparation, approval, capacity reservation, test send, and activation are separately confirmed actions.</Notice>
+                    <Notice title="Creation does not send email">The new campaign starts as a draft. Refresh the dynamic group if required, approve to freeze membership, wait for eligibility evaluation, forecast and reserve capacity, prepare, reconcile provider operations, test this version, then activate.</Notice>
                     {reviewIssues.length ? reviewIssues.map((issue) => <Notice title={`Stage ${issue.stage} is blocked`} tone="danger" key={issue.code}>{issue.message}</Notice>) : <Notice title="Launch definition is internally complete" tone="success">The selected audience, approved sequence, ready sending pool, schedule, and required safety policies have source-defined review evidence. Provider capability, capacity reservation, test, and final activation remain separate gates.</Notice>}
                     {sequencePreviews.length > 0 && <details><summary className="btn btn-xs btn-ghost">Representative message previews</summary><div className={styles.list} style={{ marginTop: 8 }}>{sequencePreviews.map((preview) => <div className={styles.listItem} key={preview.key}><strong>Step {preview.stepOrder} · {preview.label} · {preview.subject}</strong><pre className={styles.mono} style={{ marginTop: 6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{preview.body || "No text preview"}</pre></div>)}</div></details>}
                     <Check label="I confirm this campaign definition is ready to create" checked={wizard.review.confirmed} onChange={(value) => setSection("review", { confirmed: value })} />
@@ -200,7 +203,7 @@ export function ColdEmailCampaignDetailPage() {
         try {
             await coldEmailMutation(`/api/cold-email/platform/campaigns/${encodeURIComponent(id)}/actions`, { action: name, confirm: true, versionId: version.id, ...(name === "test" ? { recipient, sendingAccountId } : {}) });
             setMessage({ tone: "success", text: `${name.replaceAll("_", " ")} was accepted and recorded.` });
-            await api.reload();
+            await Promise.all([api.reload(), audienceEvidence.reload()]);
         } catch (error) { setMessage({ tone: "danger", text: error instanceof Error ? error.message : "Campaign action failed" }); }
         finally { setBusy(null); }
     }
@@ -224,6 +227,34 @@ export function ColdEmailCampaignDetailPage() {
     const sendingPoolFacts = diagnosisFacts?.sendingPool as RecordValue | null | undefined;
     const capacityFacts = diagnosisFacts?.capacity as RecordValue | undefined;
     const timezoneGroupFacts = (diagnosisFacts?.timezoneGroups as RecordValue[] | undefined) || [];
+    const audienceRules = rules?.audience as RecordValue | undefined;
+    async function refreshAudienceGroup() {
+        if (!audienceRules?.leadGroupId) return;
+        setBusy("refresh_group"); setMessage(null);
+        try {
+            const result = await coldEmailMutation<{ total: number }>("/api/agents/lead-groups/refresh", { groupId: audienceRules.leadGroupId });
+            setMessage({ tone: "success", text: `Group refresh confirmed: ${result.total} members. Review membership before approving.` });
+            await api.reload();
+        } catch (error) { setMessage({ tone: "danger", text: error instanceof Error ? error.message : "Group refresh failed" }); }
+        finally { setBusy(null); }
+    }
+    function actionBlock(name: string): string | null {
+        if (name === "approve") return version?.status !== "draft" ? "Only a draft can be approved" : null;
+        if (name === "prepare") {
+            if (version?.status !== "approved") return "Approve this version first";
+            if (audienceEvidence.loading || audienceEvidence.error || !diagnosis) return "Reload audience eligibility and capacity evidence";
+            const blocker = diagnosisIssues.find(issue => ["audience_not_frozen", "audience_evaluation_pending", "no_eligible_audience", "capacity_not_reserved", "capacity_uncertain"].includes(String(issue.code)));
+            return blocker ? String(blocker.detail) : null;
+        }
+        if (name === "activate" || name === "resume") {
+            if (campaign?.status !== (name === "resume" ? "paused" : "scheduled")) return name === "resume" ? "Only a paused campaign can resume" : "Finish preparation and provider reconciliation first";
+            if (version?.testState !== "confirmed" || version?.testedFingerprint !== version?.immutableHash) return "Confirm a test of this exact version first";
+        }
+        if (name === "pause" && !["active", "scheduled"].includes(String(campaign?.status))) return "Only active or scheduled campaigns can pause";
+        if (name === "complete" && !["active", "paused"].includes(String(campaign?.status))) return "Only active or paused campaigns can complete";
+        if (name === "archive" && !["draft", "scheduled", "paused", "completed"].includes(String(campaign?.status))) return "Pause an active campaign before archiving";
+        return null;
+    }
     const totalCapacityAllocated = ((capacity?.allocations as RecordValue[] | undefined) || []).reduce((sum, row) => sum + Number(row.followUpAllocated || 0) + Number(row.newLeadAllocated || 0), 0);
     return <ColdEmailWorkspace title={text(campaign?.name, "Campaign")} description={text(campaign?.objective, "Campaign lifecycle, immutable version, provider projection, and recovery evidence.")} actions={<PageLink href="/cold-email/campaigns">All campaigns</PageLink>}>
         {message && <Notice title={message.tone === "success" ? "Action recorded" : "Action blocked"} tone={message.tone}>{message.text}</Notice>}
@@ -231,9 +262,11 @@ export function ColdEmailCampaignDetailPage() {
             {campaign && <>
                 <div className={styles.metricGrid}><Metric label="Lifecycle" value={<StatusBadge value={text(campaign.status)} />} sub={`Version record ${text(campaign.recordVersion)}`} /><Metric label="Health" value={<StatusBadge value={text(campaign.health)} />} /><Metric label="Latest version" value={`v${text(version?.version)}`} sub={text(version?.status)} /><Metric label="Test state" value={<StatusBadge value={text(version?.testState)} />} sub={version?.lastTestedAt ? formatDate(version.lastTestedAt, true) : "No version-bound test"} /><Metric label="Eligible audience" value={text(audience?.eligibleCount)} sub={`${text(audience?.excludedCount, "0")} excluded`} /><Metric label="Last updated" value={formatDate(campaign.updatedAt)} /></div>
                 <Panel title="Lifecycle actions" description="Every action requires explicit confirmation. Provider-changing actions stay blocked until canonical cutover and the mutation kill switch are both enabled.">
-                    <div className={styles.actions}>{["prepare", "approve", "activate", "pause", "resume", "complete", "archive"].map((name) => <button className={`btn btn-sm ${name === "activate" ? "btn-primary" : "btn-ghost"}`} key={name} disabled={busy !== null} onClick={() => void action(name)}>{busy === name ? "Working…" : name.replaceAll("_", " ")}</button>)}</div>
+                    <p className={styles.listMeta}>Approve → eligibility evaluation → forecast and reserve capacity → prepare → provider reconciliation → controlled test → activate. Server checks remain required at each step.</p>
+                    {version?.status === "draft" && audienceRules?.refreshBeforeSnapshot === true && <div className={styles.actions}><button className="btn btn-sm btn-ghost" disabled={busy !== null} onClick={() => void refreshAudienceGroup()}>Refresh audience group</button><PageLink href="/cold-email/lead-groups">Review membership</PageLink><span className={styles.listMeta}>A dynamic group refresh is required after draft creation. Static drafts with this setting must be corrected or recreated with refresh off.</span></div>}
+                    <div className={styles.actions}>{["approve", "prepare", "activate", "pause", "resume", "complete", "archive"].map((name) => <button className={`btn btn-sm ${name === "activate" ? "btn-primary" : "btn-ghost"}`} key={name} title={actionBlock(name) || undefined} disabled={busy !== null || Boolean(actionBlock(name))} onClick={() => void action(name)}>{busy === name ? "Working…" : name.replaceAll("_", " ")}</button>)}</div>
                     <div className={styles.formGrid} style={{ marginTop: 14 }}><Field label="Test recipient"><input className={styles.control} type="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="approved test address" /></Field><Field label="Sending account ID"><input className={styles.control} value={sendingAccountId} onChange={(event) => setSendingAccountId(event.target.value)} placeholder="ready mailbox ID" /></Field></div>
-                    <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} disabled={busy !== null || !recipient || !sendingAccountId} onClick={() => void action("test")}>{busy === "test" ? "Queuing…" : "Queue controlled test"}</button>
+                    <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} disabled={busy !== null || !recipient || !sendingAccountId || version?.status !== "scheduled"} onClick={() => void action("test")}>{busy === "test" ? "Queuing…" : "Queue controlled test"}</button>
                 </Panel>
                 <Panel title="Capacity forecast & reservation" description="Follow-ups are allocated first. New leads consume only the remaining ready mailbox and sender-domain capacity.">
                     <div className={styles.actions}><input className={styles.control} aria-label="Capacity date" type="date" value={capacityDate} onChange={(event) => setCapacityDate(event.target.value)} /><button className="btn btn-sm btn-ghost" disabled={busy !== null} onClick={() => void capacityAction(false)}>Forecast</button><button className="btn btn-sm btn-primary" disabled={busy !== null} onClick={() => void capacityAction(true)}>Confirm reservation</button></div>

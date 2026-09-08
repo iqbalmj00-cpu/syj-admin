@@ -1,5 +1,7 @@
 "use client";
 
+import { AGENT_DESCRIPTIONS, enrichmentRunObservation } from "@/lib/agent-presentation";
+
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { Kpi } from "@/components/ui/Kpi";
@@ -165,6 +167,7 @@ const TABS: { id: TabId; label: string }[] = [
 export default function AgentsPage() {
     const [tab, setTab] = useState<TabId>("agents");
     const [agents, setAgents] = useState<Agent[]>([]);
+    const [inventoryState, setInventoryState] = useState<"checking" | "ready" | "unavailable">("checking");
     const [blogs, setBlogs] = useState<BlogPostPreview[]>([]);
     const [blogCounts, setBlogCounts] = useState<Record<string, number>>({ draft: 0, approved: 0, published: 0, rejected: 0 });
     const [contentVideos, setContentVideos] = useState<GeneratedVideo[]>([]);
@@ -182,8 +185,11 @@ export default function AgentsPage() {
     const fetchAgents = useCallback(async () => {
         try {
             const res = await fetch("/api/agents");
-            if (res.ok) setAgents(await res.json());
-        } catch { /* ignore */ }
+            if (!res.ok) throw new Error("Agent inventory unavailable");
+            const inventory = await res.json();
+            if (!Array.isArray(inventory)) throw new Error("Agent inventory unavailable");
+            setAgents(inventory); setInventoryState("ready");
+        } catch { setInventoryState("unavailable"); }
     }, []);
 
     const fetchBlogs = useCallback(async () => {
@@ -386,7 +392,7 @@ export default function AgentsPage() {
                                 style={{ fontSize: 11, padding: "3px 8px", color: a.color }}>Copy</button>
                         </div>
                     ))}
-                    <AgentsTab agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} onRefresh={fetchAgents} />
+                    <AgentsTab inventoryState={inventoryState} agents={agents} onRun={triggerRun} onToggle={toggleAgent} showToast={showToast} onRefresh={fetchAgents} />
                 </>
             )}
             {tab === "groups" && <GroupsTab showToast={showToast} />}
@@ -421,7 +427,7 @@ export default function AgentsPage() {
 
 /* ─── Agents Tab ────────────────────────────────────────────────────── */
 
-function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void; onRefresh: () => void }) {
+function AgentsTab({ agents, inventoryState, onRun, onToggle, showToast, onRefresh }: { inventoryState: "checking" | "ready" | "unavailable"; agents: Agent[]; onRun: (a: Agent) => void; onToggle: (a: Agent) => void; showToast: (m: string, t?: string) => void; onRefresh: () => void }) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editConfig, setEditConfig] = useState<Record<string, unknown>>({});
     const [editSchedule, setEditSchedule] = useState<string | null>(null);
@@ -474,8 +480,12 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
 
     return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+            {inventoryState === "unavailable" && <div role="alert" className="card" style={{ padding: 16, gridColumn: "1 / -1" }}>Agent inventory unavailable. Retry before diagnosing a missing agent record.</div>}
+            {inventoryState === "ready" && !agents.some(agent => agent.slug === "lead_cleaner") && <div role="alert" className="card" style={{ padding: 16, gridColumn: "1 / -1" }}>Lead Cleaner setup incomplete: no Lead Cleaner record was returned in this inventory. The deployment and database owner must verify the existing agent and schema before provisioning. Selected enrichment can require a cleaner review.</div>}
             {agents.map(a => {
-                const st = STATUS_MAP[a.status] || STATUS_MAP.idle;
+                const st = a.status === "running" && ["lead_enrichment", "lead_scraper"].includes(a.slug)
+                    ? { ...STATUS_MAP.idle, label: a.slug === "lead_enrichment" && a.lastRun?.trigger === "manual" ? "Queued" : "Run requested" }
+                    : STATUS_MAP[a.status] || STATUS_MAP.idle;
                 const icon = AGENT_ICONS[a.slug] || "AI";
                 const isExpanded = expandedId === a.id;
                 return (
@@ -491,7 +501,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                                 </div>
                                 <Badge {...st} />
                             </div>
-                            {a.description && <p style={{ fontSize: 12, color: "var(--text-light)", marginTop: 10, lineHeight: 1.5 }}>{a.description}</p>}
+                            {(AGENT_DESCRIPTIONS[a.slug] || a.description) && <p style={{ fontSize: 12, color: "var(--text-light)", marginTop: 10, lineHeight: 1.5 }}>{AGENT_DESCRIPTIONS[a.slug] || a.description}</p>}
                         </div>
 
                         <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
@@ -501,6 +511,7 @@ function AgentsTab({ agents, onRun, onToggle, showToast, onRefresh }: { agents: 
                                     {a.lastRun ? `${relTime(a.lastRun.startedAt)} — ${fmtDuration(a.lastRun.durationMs)}` : "Never"}
                                 </span>
                             </div>
+                            {a.slug === "lead_enrichment" && enrichmentRunObservation(a.lastRun) && <p role="status" style={{ fontSize: 12, color: "var(--text-light)", marginTop: 8 }}>{enrichmentRunObservation(a.lastRun)}</p>}
                             {a.lastRun?.status && (
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                     <span style={{ color: "var(--text-light)" }}>Last result</span>
@@ -730,7 +741,7 @@ function LeadScraperControls({
         + outboxPending;
     const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
     const staleMin = progress?.updatedAt ? (Date.now() - new Date(progress.updatedAt).getTime()) / 60000 : null;
-    const offline = active && staleMin !== null && staleMin > 10;
+    const offline = active && (staleMin === null || !Number.isFinite(staleMin) || staleMin > 10);
     const targetLabel = progress?.discoveryMode === "city" ? "targets" : "ZIPs";
     const leadsLabel = progress?.createdLeads !== undefined || progress?.updatedLeads !== undefined
         ? `${progress?.acceptedLeads ?? 0} accepted / ${(progress?.createdLeads ?? 0) + (progress?.updatedLeads ?? 0)} upserted`
@@ -769,6 +780,7 @@ function LeadScraperControls({
                 )}
             </div>
 
+            {active && <div role="status" style={{ fontSize: 11, color: "var(--text-light)" }}>Requested: active. Observed: {offline ? "stale or unknown worker progress" : "recent progress callback"}. A start request does not establish worker health.</div>}
             {(active || progress) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div style={{ height: 6, background: "var(--neutral-bg)", borderRadius: 3, overflow: "hidden" }}>
@@ -2107,7 +2119,7 @@ function GroupsTab({ showToast }: { showToast: (msg: string, type?: string) => v
                     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-faint)" }}>
                         <span style={{ fontSize: 40 }}>📋</span>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>Select a group</span>
-                        <span style={{ fontSize: 12 }}>Create a group, add leads from the Scraped Leads page, then set a template and send</span>
+                        <span style={{ fontSize: 12 }}>Create an email group and add leads from Scraped Leads, then create the sequence and campaign in Cold Email</span>
                     </div>
                 )}
             </div>

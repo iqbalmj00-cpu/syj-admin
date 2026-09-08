@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
                 status: "completed",
                 completedAt: new Date(),
                 results: {
+                    scope: config.scope,
                     provider: "emailable",
                     mode: "batch",
                     batchId: body.id || config.batchId || null,
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
             data: { status: "idle", lastError: null },
         });
 
-        return NextResponse.json({ ok: true, runId: run.id, summary });
+        return NextResponse.json({ ok: true, runId: run.id, summary, scope: config.scope });
     } catch (error) {
         console.error("POST /api/agents/email-cleaner/callback error:", error);
         if (runId) {

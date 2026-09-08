@@ -1,3 +1,5 @@
+import { leadGeography } from "./lead-geography.ts";
+
 /**
  * Outreach template variable system — shared between the template editor UI
  * (agents/page.tsx) and the Cold Email campaign path, which validates a template's tokens at
@@ -53,10 +55,9 @@ function firstName(fullName: unknown): string {
 }
 
 function formatLocation(l: LeadData): string {
-    const city = str(l.city || l.market).trim();
-    const state = str(l.state).trim();
+    const { city, state } = leadGeography(l);
     if (city && state) return `${city}, ${state}`;
-    return city || state;
+    return city || state || "";
 }
 
 export function daysSince(dateValue: unknown): number | null {
@@ -409,7 +410,7 @@ const ALL_VARIABLES = {
     // Location
     "[location]": formatLocation,
     "[Location]": formatLocation,
-    "[city]": (l) => str(l.city || l.market),
+    "[city]": (l) => leadGeography(l).city || "",
     "[market]": (l) => str(l.market),
     "[state]": (l) => str(l.state),
 

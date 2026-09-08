@@ -41,7 +41,9 @@ function CronTab() {
     if (!data) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading cron data...</div>;
     return (
         <div className="card">
-            <div className="card-header"><h3>Cron Job Status</h3></div>
+            <div className="card-header"><h3>Reported general jobs</h3></div>
+            <p style={{ padding: "0 16px", fontSize: 12 }}>These records come from the general job logger. Job ownership and deployment are unverified; missing records do not establish failed execution.</p>
+            <details style={{ padding: 16 }} open><summary>Admin source schedule · deployment and invocation evidence unknown</summary><div className="op-table-wrapper"><table className="op-table"><thead><tr><th>Admin route</th><th>Source schedule (UTC)</th><th>Execution evidence</th></tr></thead><tbody>{data.sourceSchedule?.map((job: { path: string; schedule: string }) => <tr key={job.path}><td>{job.path}</td><td>{job.schedule}</td><td>Not checked</td></tr>)}</tbody></table></div><p style={{ fontSize: 12 }}>These Cold Email routes use separate worker and synchronization records. See <a href="/cold-email/settings">Cold Email settings</a> for gates and health evidence. Stripe projection remains deferred.</p></details>
             <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
                 <table className="op-table">
                     <thead><tr>{["Job Name", "Last Run", "Status", "Duration", "Errors", "Total Runs"].map(h => <th key={h}>{h}</th>)}</tr></thead>
@@ -52,7 +54,7 @@ function CronTab() {
                                 <tr key={j.jobName}>
                                     <td style={{ fontWeight: 600, fontFamily: "monospace", fontSize: 13 }}>{j.jobName}</td>
                                     <td style={{ color: "var(--text-light)" }}>
-                                        {j.lastRun?.ranAt ? new Date(j.lastRun.ranAt).toLocaleString() : "Never"}
+                                        {j.lastRun?.ranAt ? new Date(j.lastRun.ranAt).toLocaleString() : "No logged evidence"}
                                     </td>
                                     <td><Badge bg={sc.bg} color={sc.color} label={j.lastRun?.status || "No data"} /></td>
                                     <td>{j.lastRun?.duration ? `${j.lastRun.duration}ms` : "—"}</td>

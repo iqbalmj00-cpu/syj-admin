@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type CSSProperties } from "react";
+import { refreshEmailSegment } from "@/lib/lead-segment-client";
+import { inspectBusinessWebsite } from "@/lib/lead-website";
+import { emailCleaningScopeText, emailCleaningResultText, type EmailCleaningScope } from "@/lib/email-cleaner-presentation";
 import { Badge } from "@/components/ui/Badge";
 import { Kpi } from "@/components/ui/Kpi";
 import { PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
@@ -33,7 +36,7 @@ interface FunnelData { total: number; new: number; emailed: number; sms_sent: nu
 function displayMarketCity(market: string | null | undefined) {
     const clean = market?.trim();
     if (!clean) return "—";
-    return clean.split(",")[0]?.trim() || clean;
+    return clean; // Preserve the full raw value; do not hide state or malformed input.
 }
 
 // ── Catalog-driven filter controls ────────────────────────────────────────────
@@ -226,6 +229,9 @@ export default function ScrapedLeadsPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [funnel, setFunnel] = useState<FunnelData>({ total: 0, new: 0, emailed: 0, sms_sent: 0, replied: 0, converted: 0, skipped: 0 });
     const [loading, setLoading] = useState(true);
+    const [pendingSegment, setPendingSegment] = useState<{ id: string; name: string } | null>(null);
+    const [segmentError, setSegmentError] = useState<string | null>(null);
+    const [emailCleaningReport, setEmailCleaningReport] = useState<string | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
 
     // Filters — every catalog filter lives in one object keyed by its query-param name, so
@@ -400,7 +406,7 @@ export default function ScrapedLeadsPage() {
     // saves the filter as the group's filterDefinition and auto-includes every matching lead.
     // Membership can be re-evaluated later from the Cold Email console (refresh).
     const createEmailSegment = async () => {
-        if (!newGroupName.trim()) return;
+        if (!newGroupName.trim() || pendingSegment) return;
         setAddingToGroup(true);
         try {
             const qp = new URLSearchParams(lastQuery);
@@ -414,21 +420,16 @@ export default function ScrapedLeadsPage() {
             if (!createRes.ok) { showToast("Failed to create segment", "error"); setAddingToGroup(false); return; }
             const group = await createRes.json();
 
-            const idsRes = await fetch(`/api/agents/leads?${lastQuery}&idsOnly=true`);
-            const idsData = await idsRes.json();
-            const ids: string[] = Array.isArray(idsData.ids) ? idsData.ids : [];
-            if (ids.length > 0) {
-                await fetch("/api/agents/lead-groups/members", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ groupId: group.id, leadIds: ids }),
-                });
+            setPendingSegment({ id: group.id, name: group.name });
+            setShowGroupSelect(false);
+            setSegmentError(null);
+            try {
+                const total = await refreshEmailSegment(group.id);
+                showToast(`Created email segment "${group.name}" with ${total} persisted lead(s)`);
+                setPendingSegment(null);
+            } catch (error) {
+                setSegmentError(error instanceof Error ? error.message : "Membership refresh failed");
             }
-            showToast(
-                idsData.truncated
-                    ? `Created email segment "${group.name}" with the first ${ids.length} lead(s) — the result exceeded the server limit`
-                    : `Created email segment "${group.name}" with ${ids.length} lead(s)`,
-                idsData.truncated ? "error" : "success",
-            );
             setNewGroupName("");
             fetch("/api/agents/lead-groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {});
         } catch { showToast("Failed to create email segment", "error"); }
@@ -495,23 +496,6 @@ export default function ScrapedLeadsPage() {
         }
         setLoadingSelectAll(false);
     };
-
-    // Drag-to-select: hold mouse down and drag across checkboxes to SELECT multiple
-    // Deselecting is click-only (no drag deselect)
-    const [isDragging, setIsDragging] = useState(false);
-    const handleDragStart = (id: string) => {
-        // Only start drag-select from an unchecked box
-        if (!selectedIds.has(id)) {
-            setIsDragging(true);
-            setSelectedIds(prev => new Set(prev).add(id));
-        }
-    };
-    const handleDragEnter = (id: string) => {
-        if (!isDragging) return;
-        setSelectedIds(prev => new Set(prev).add(id));
-    };
-    const handleDragEnd = () => setIsDragging(false);
-    useEffect(() => { window.addEventListener("mouseup", handleDragEnd); return () => window.removeEventListener("mouseup", handleDragEnd); }, []);
 
     // Default "Discard" is now a reversible soft-archive (excludes leads from
     // the active enrichment pool but keeps them restorable via PATCH restore).
@@ -605,7 +589,7 @@ export default function ScrapedLeadsPage() {
         setEnriching(false);
     };
 
-    const pollEmailCleanerBatch = (runId: string) => {
+    const pollEmailCleanerBatch = (runId: string, scope: EmailCleaningScope) => {
         let attempts = 0;
         const poll = async () => {
             attempts++;
@@ -614,7 +598,8 @@ export default function ScrapedLeadsPage() {
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.status === "completed") {
                     const summary = data.summary || data.results?.summary;
-                    showToast(summary ? `Email cleaning finished: ${summary.deliverable || 0} deliverable, ${summary.archived || 0} hard failures archived` : "Email cleaning finished");
+                    setEmailCleaningReport(`${emailCleaningScopeText(data.scope || scope)} Results: ${emailCleaningResultText(summary)}`);
+                    showToast("Email cleaning finished. Review the result summary.");
                     fetchLeads();
                     return;
                 }
@@ -626,38 +611,49 @@ export default function ScrapedLeadsPage() {
                 // keep polling; the callback may still complete independently
             }
             if (attempts < 18) setTimeout(poll, 10000);
+            else setEmailCleaningReport(`${emailCleaningScopeText(scope)} Batch ${runId}: completion has not been confirmed. Check the Email Cleaner run before retrying.`);
         };
         setTimeout(poll, 10000);
     };
 
     const cleanSelectedEmails = async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Verify ${selectedIds.size} selected lead(s) with Emailable? Hard failures will be archived; risky or unknown emails will stay active for review.`)) return;
+        const leadIds = Array.from(selectedIds);
         setCleaningEmails(true);
         try {
+            const previewRes = await fetch("/api/agents/email-cleaner", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ leadIds, dryRun: true }),
+            });
+            const preview = await previewRes.json();
+            if (!previewRes.ok) throw new Error(preview.error || "Email verification preview failed");
+            const scope = preview as EmailCleaningScope;
+            setEmailCleaningReport(emailCleaningScopeText(scope));
+            if (scope.willVerify === 0 && scope.missingEmail === 0 && scope.invalidEmail === 0) {
+                showToast("No supported verification targets. No email cleaning run started.");
+                return;
+            }
+            if (!confirm(`${emailCleaningScopeText(scope)}\n\n${scope.willVerify === 0 ? "No provider verification will run. Apply local missing/invalid-email policy?" : "Verify these targets with Emailable?"} Hard failures will be archived; risky or unknown results stay active for review.`)) return;
             const res = await fetch("/api/agents/email-cleaner", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+                body: JSON.stringify({ leadIds }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
                 const summary = data.summary || data.immediateSummary;
-                const summaryText = summary
-                    ? `${summary.deliverable || 0} deliverable, ${summary.archived || 0} archived`
-                    : data.message || "Email cleaning queued";
-                showToast(data.mode === "batch" ? data.message || "Email cleaning batch queued" : `Email cleaning finished: ${summaryText}`);
+                setEmailCleaningReport(`${emailCleaningScopeText(data.scope || scope)} ${data.mode === "batch" ? "Batch queued. " : "Results: "}${emailCleaningResultText(summary)}`);
+                showToast(data.mode === "batch" ? "Email cleaning batch queued" : "Email cleaning finished. Review the result summary.");
                 setSelectedIds(new Set());
                 setSelectAllMatching(false);
-                if (data.mode === "batch" && data.runId) pollEmailCleanerBatch(data.runId);
+                if (data.mode === "batch" && data.runId) pollEmailCleanerBatch(data.runId, data.scope || scope);
                 setTimeout(() => fetchLeads(), data.mode === "batch" ? 5000 : 1000);
             } else {
                 showToast(data.error || "Email cleaning failed", "error");
             }
-        } catch {
-            showToast("Email cleaning failed", "error");
-        }
-        setCleaningEmails(false);
+        } catch (error) {
+            showToast(error instanceof Error ? error.message : "Email cleaning failed", "error");
+        } finally { setCleaningEmails(false); }
     };
 
     const addManualLead = async () => {
@@ -683,14 +679,14 @@ export default function ScrapedLeadsPage() {
                     }],
                 }),
             });
-            if (res.ok) {
-                showToast("Lead added");
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && (data.created > 0 || data.updated > 0)) {
+                showToast(data.updated ? "Lead updated" : "Lead added");
                 setNewLead({ name: "", phone: "", email: "", website: "", market: "", ownerName: "" });
                 setShowAddLead(false);
                 fetchLeads();
             } else {
-                const data = await res.json().catch(() => ({}));
-                showToast(data.error || "Failed to add lead", "error");
+                showToast(data.results?.[0]?.reason || data.error || "Failed to add lead", "error");
             }
         } catch { showToast("Failed to add lead", "error"); }
         setAddingLead(false);
@@ -800,7 +796,7 @@ export default function ScrapedLeadsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                     <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px", fontFamily: "var(--font-heading)" }}>Outbound Scraped Leads</h1>
-                    <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review, curate, enrich, and trigger campaigns for outbound leads.</p>
+                    <p style={{ fontSize: 13, color: "var(--text-light)", margin: 0 }}>Review and select leads, then add them to an email group. Create the sequence and campaign in Cold Email.</p>
                 </div>
                 <button className="btn btn-sm btn-primary" onClick={() => setShowAddLead(!showAddLead)}>
                     {showAddLead ? "Cancel" : "+ Add Lead"}
@@ -957,7 +953,7 @@ export default function ScrapedLeadsPage() {
                                                 style={{ flex: 1, padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, outline: "none" }}
                                                 onKeyDown={e => e.key === "Enter" && createGroupAndAdd()} />
                                             <button className="btn btn-xs btn-primary" onClick={createGroupAndAdd} disabled={!newGroupName.trim()} style={{ fontSize: 10, padding: "3px 8px" }}>Create</button>
-                                            <button className="btn btn-xs" onClick={createEmailSegment} disabled={!newGroupName.trim()} title="Create a dynamic EMAIL segment from the current filter — auto-includes all matching leads and is refreshable from the Cold Email console" style={{ fontSize: 10, padding: "3px 8px" }}>+ Email segment</button>
+                                            <button className="btn btn-xs" onClick={createEmailSegment} disabled={!newGroupName.trim() || addingToGroup || Boolean(pendingSegment)} title="Create a dynamic EMAIL segment from the current filter — auto-includes all matching leads and is refreshable from the Cold Email console" style={{ fontSize: 10, padding: "3px 8px" }}>+ Email segment</button>
                                         </div>
                                     </div>
                                 </div>
@@ -972,7 +968,7 @@ export default function ScrapedLeadsPage() {
                         <button onClick={deleteSelected} disabled={deleting} title="Soft-archive: excluded from enrichment but restorable" style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "1px solid var(--danger-border)", borderRadius: 4, background: "var(--danger-bg)", color: "var(--danger)", cursor: "pointer" }}>{deleting ? "Archiving..." : "Discard"}</button>
                     </>
                 ) : (
-                    <span style={{ fontSize: 12, color: "var(--text-light)" }}>Select rows to trigger outreach or discard.</span>
+                    <span style={{ fontSize: 12, color: "var(--text-light)" }}>Select leads to enrich, verify emails, add to a group, or archive.</span>
                 )}
                 
                 <div style={{ flex: 1 }} />
@@ -1023,7 +1019,20 @@ export default function ScrapedLeadsPage() {
             )}
 
             {/* Data Table */}
-            <div className="op-table-wrapper">
+            {pendingSegment && <div role="alert" className="card" style={{ padding: 12, marginBottom: 12 }}>
+                Group “{pendingSegment.name}” created; membership needs retry. {segmentError}
+                <button className="btn btn-sm btn-ghost" disabled={addingToGroup} onClick={async () => {
+                    setAddingToGroup(true);
+                    try {
+                        const total = await refreshEmailSegment(pendingSegment.id);
+                        showToast(`Segment "${pendingSegment.name}" now has ${total} persisted lead(s)`);
+                        setPendingSegment(null); setSegmentError(null);
+                    } catch (error) { setSegmentError(error instanceof Error ? error.message : "Membership refresh failed"); }
+                    finally { setAddingToGroup(false); }
+                }}>Retry membership</button> <a href="/cold-email/lead-groups">Open Lead Groups</a>
+            </div>}
+            {emailCleaningReport && <div role="status" className="card" style={{ padding: 12, marginBottom: 12 }}>{emailCleaningReport}</div>}
+            <div className="op-table-wrapper" tabIndex={0} role="region" aria-label="Scraped leads table">
                 {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 12 }}>Loading leads...</div> : 
                 <table className="op-table">
                     <thead>
@@ -1038,7 +1047,7 @@ export default function ScrapedLeadsPage() {
                             <SortHeader label="Score" field="leadScore" w={50} />
                             <th style={{ width: 70 }}>Services</th>
                             <th>Website</th>
-                            <th style={{ width: 55 }}>Phone</th>
+                            <th style={{ minWidth: "14rem" }}>Phone</th>
                             <th style={{ width: 40 }}>Mkt</th>
                             <th style={{ width: 65 }}>CMS</th>
                             <th style={{ width: 70 }}>Competitor</th>
@@ -1052,11 +1061,8 @@ export default function ScrapedLeadsPage() {
                             <><tr key={l.id} style={{ background: selectedIds.has(l.id) ? "var(--surface)" : undefined }}>
                                 <td style={{ textAlign: "center" }}>
                                     <input type="checkbox" checked={selectedIds.has(l.id)}
-                                        onChange={() => {}}
-                                        onClick={() => { if (!isDragging) toggleSelect(l.id); }}
-                                        onMouseDown={(e) => { e.preventDefault(); handleDragStart(l.id); }}
-                                        onMouseEnter={() => handleDragEnter(l.id)}
-                                        onMouseUp={handleDragEnd}
+                                        aria-label={`Select ${l.name}`}
+                                        onChange={() => toggleSelect(l.id)}
                                         style={{ cursor: "pointer" }} />
                                 </td>
                                 <td style={{ fontWeight: 600, cursor: "pointer" }} onClick={() => setExpandedLeadId(expandedLeadId === l.id ? null : l.id)}>
@@ -1080,8 +1086,8 @@ export default function ScrapedLeadsPage() {
                                 <td style={{ fontSize: 11 }}>
                                     {l.serviceTypes?.length ? l.serviceTypes.map(t => t.replace("_", " ")).join(", ") : "—"}
                                 </td>
-                                <td>{l.website ? <a href={l.website.startsWith("http") ? l.website : `https://${l.website}`} target="_blank" rel="noopener noreferrer" style={{ color: l.hasActiveWebsite ? "var(--info)" : "var(--text-faint)", textDecoration: "none", fontSize: 11 }}>{l.website.replace(/^https?:\/\//, "").slice(0, 20)}{l.hasActiveWebsite === false && l.enrichedAt ? " ✗" : ""}</a> : "—"}</td>
-                                <td style={{ fontFamily: "monospace", color: "var(--text-light)", fontSize: 11 }}>
+                                <td>{inspectBusinessWebsite(l.website).reason ? <span style={{ color: "var(--danger)" }} title={`${l.website}: website and derived research need review`}>Website needs review</span> : l.website ? <a href={l.website.startsWith("http") ? l.website : `https://${l.website}`} target="_blank" rel="noopener noreferrer" style={{ color: l.hasActiveWebsite ? "var(--info)" : "var(--text-faint)", textDecoration: "none", fontSize: 11 }}>{l.website.replace(/^https?:\/\//, "").slice(0, 20)}{l.hasActiveWebsite === false && l.enrichedAt ? " ✗" : ""}</a> : "—"}</td>
+                                <td style={{ fontFamily: "monospace", color: "var(--text-light)", fontSize: 11, minWidth: "14rem", whiteSpace: "nowrap" }}>
                                     {l.phone || "—"}
                                     {l.phoneType && l.phoneType !== "none" && <span style={{ fontSize: 9, marginLeft: 4, color: l.phoneType === "toll_free" ? "var(--info)" : "var(--text-faint)" }}>{l.phoneType === "toll_free" ? "TF" : "L"}</span>}
                                     <span

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { inspectBusinessWebsite } from "@/lib/lead-website";
 import { prisma } from "@/lib/prisma";
 import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 
@@ -6,7 +7,7 @@ import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
  * POST /api/agents/enrichment-results
  * Accepts per-lead enrichment results from the standalone enrichment agent.
  * Handles three actions: "enrich" (write data), "delete" (remove irrelevant), "skip" (mark existing client).
- * Also updates agent progress description and checks for cancel flag.
+ * Also records run progress and checks for cancel flag.
  */
 
 // Allowed fields that can be written to ScrapedLead via enrichment
@@ -161,12 +162,14 @@ async function validateTargetLead(leadId: string, claimedRunId: string | null) {
     const target = await loose.findUnique({
         where: { id: leadId },
         select: schemaCapable
-            ? { id: true, archivedAt: true, cleanedAt: true }
-            : { id: true, archivedAt: true },
+            ? { id: true, archivedAt: true, cleanedAt: true, website: true }
+            : { id: true, archivedAt: true, website: true },
     });
     if (!target) {
         return { ok: false as const, status: 404, body: { ok: false, skipped: "not_found", leadId, error: "Lead not found" } };
     }
+    const website = inspectBusinessWebsite(target.website);
+    if (website.reason) return { ok: false as const, status: 409, body: { ok: false, skipped: "website_needs_review", leadId, error: "Business website needs review; enrichment results were not written", reason: website.reason } };
     if (target.archivedAt) {
         const forced = await runForceApprovalCoversLead(leadId, claimedRunId);
         if (!forced) {
@@ -323,17 +326,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(validation.body, { status: validation.status });
         }
 
-        // Update agent progress description (non-blocking)
-        if (progress) {
+        // Attach callback progress to the identified running run; never overwrite capability copy.
+        // This records observations only and does not grant or renew worker ownership.
+        if (progress && claimedRunId) {
             try {
-                const agent = await prisma.syjAgent.findFirst({ where: { slug: "lead_enrichment" } });
-                if (agent) {
-                    await prisma.syjAgent.update({
-                        where: { id: agent.id },
-                        data: { description: `Enriching ${progress.current}/${progress.total} — ${progress.leadName || "..."} (${progress.enriched || 0} done, ${progress.errors || 0} errors)` },
+                const run = await prisma.syjAgentRun.findUnique({ where: { id: claimedRunId }, select: { results: true, agent: { select: { slug: true } } } });
+                if (run?.agent.slug === "lead_enrichment") {
+                    const previous = run.results && typeof run.results === "object" && !Array.isArray(run.results) ? run.results : {};
+                    await prisma.syjAgentRun.updateMany({
+                        where: { id: claimedRunId, status: "running" },
+                        data: { results: { ...previous, progress: { current: Number(progress.current) || 0, total: Number(progress.total) || 0, enriched: Number(progress.enriched) || 0, errors: Number(progress.errors) || 0, recordedAt: new Date().toISOString() } } },
                     });
                 }
-            } catch { /* non-blocking */ }
+            } catch { /* Progress evidence is best effort; result validation still applies. */ }
         }
 
         // Check for cancel flag
@@ -343,16 +348,6 @@ export async function POST(req: NextRequest) {
             if (cancelFlag?.value === "true") {
                 cancelled = true;
                 await prisma.adminSetting.delete({ where: { key: "enrichment_cancel" } });
-                // Restore agent description
-                try {
-                    const agent = await prisma.syjAgent.findFirst({ where: { slug: "lead_enrichment" } });
-                    if (agent) {
-                        await prisma.syjAgent.update({
-                            where: { id: agent.id },
-                            data: { description: "Enriches scraped leads with website analysis, SEO/UX scoring, competitor detection, service classification, and existing client filtering." },
-                        });
-                    }
-                } catch { /* non-blocking */ }
             }
         } catch { /* ignore */ }
 
