@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 ok: true,
                 runId: run.id,
+                scope: config?.scope,
                 status: run.status,
                 mode: config?.mode || "sync",
                 results: run.results || null,
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 ok: true,
                 runId: run.id,
+                scope: config?.scope,
                 status: run.status,
                 mode: "batch",
                 batchId: config.batchId,
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest) {
                 where: { id: run.id },
                 data: {
                     results: {
+                        scope: config.scope,
                         provider: "emailable",
                         mode: "batch",
                         batchId: config.batchId,
@@ -116,6 +119,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 ok: true,
                 runId: run.id,
+                scope: config?.scope,
                 status: "running",
                 mode: "batch",
                 batchId: config.batchId,
@@ -145,6 +149,7 @@ export async function GET(req: NextRequest) {
                 status: "completed",
                 completedAt: new Date(),
                 results: {
+                    scope: config.scope,
                     provider: "emailable",
                     mode: "batch",
                     batchId: config.batchId,
@@ -163,6 +168,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             ok: true,
             runId: run.id,
+            scope: config?.scope,
             status: "completed",
             mode: "batch",
             batchId: config.batchId,

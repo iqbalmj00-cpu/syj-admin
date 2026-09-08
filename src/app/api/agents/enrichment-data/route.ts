@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { inspectBusinessWebsite } from "@/lib/lead-website";
 import { prisma } from "@/lib/prisma";
 import { getEnrichmentEligibleWhere, isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 
@@ -143,6 +144,16 @@ async function getEnrichmentPayload(limit: number, specificLeadIds?: string[], c
         });
     }
 
+    // Do not turn an invalid URL into a missing-site diagnosis. Withhold the lead
+    // with a specific reason until its URL and dependent evidence are reviewed.
+    const websiteReview = leads.flatMap(lead => {
+        const reason = inspectBusinessWebsite(lead.website).reason;
+        return reason ? [{ leadId: String(lead.id), reason }] : [];
+    });
+    const websiteBlocked = new Set(websiteReview.map(item => item.leadId));
+    leads = leads.filter(lead => !websiteBlocked.has(String(lead.id)));
+    excludedLeadIds = [...new Set([...excludedLeadIds, ...websiteBlocked])];
+
     // Fetch existing clients for filtering
     const existingClients = await prisma.user.findMany({
         where: { role: "owner", orgId: null, isDemoAccount: false },
@@ -175,6 +186,7 @@ async function getEnrichmentPayload(limit: number, specificLeadIds?: string[], c
         existingClients: { names: clientNames, emails: clientEmails },
         marketLeads,
         excludedLeadIds,
+        websiteReview,
         cleanerSchemaActive: schemaCapable,
         ...(cleanerGated ? { cleanerGated } : {}),
     };

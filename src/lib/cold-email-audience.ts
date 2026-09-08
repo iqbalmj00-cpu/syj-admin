@@ -48,6 +48,7 @@ export function evaluateAudienceMember(input: {
 }) {
     return evaluateColdEmailEligibility({
         now: input.now,
+        website: input.lead.website,
         email: typeof input.lead.email === "string" ? input.lead.email : null,
         emailDeliverable: input.lead.emailDeliverable === true,
         emailVerificationState: typeof input.lead.emailVerificationState === "string" ? input.lead.emailVerificationState : null,
@@ -96,6 +97,7 @@ export type PreEnrollmentEligibilityInput = {
 export function evaluatePreEnrollmentMember(input: PreEnrollmentEligibilityInput) {
     return evaluateColdEmailEligibility({
         now: input.now,
+        website: input.lead.website,
         email: input.email,
         emailDeliverable: input.emailDeliverabilityState === "deliverable",
         emailVerificationState: input.emailDeliverabilityState,

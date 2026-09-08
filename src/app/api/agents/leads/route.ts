@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { inspectBusinessWebsite, businessWebsiteChangeNeedsReview } from "@/lib/lead-website";
+import { leadGeography, normalizeLeadState } from "@/lib/lead-geography";
 import { getSession } from "@/lib/auth";
 import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 import { canPermanentlyDeleteLeads, PERMANENT_LEAD_DELETE_CONFIRMATION } from "@/lib/lead-deletion";
@@ -834,7 +836,14 @@ function sanitizeLeadPayload(input: unknown): { data?: Record<string, unknown>; 
 
     if (typeof data.name !== "string" || data.name.trim() === "") return { error: "name is required" };
     if (typeof data.market !== "string" || data.market.trim() === "") return { error: "market is required" };
-    if (typeof data.state === "string") data.state = data.state.trim().toUpperCase();
+    if (data.state && !normalizeLeadState(data.state)) return { error: "Unrecognized state; supply a US state name or two-letter code" };
+    const geography = leadGeography(data);
+    if (data.city && !geography.city) return { error: "City needs review; supply a city name, not an address" };
+    if (geography.city) data.city = geography.city;
+    if (geography.state) data.state = geography.state;
+    const website = inspectBusinessWebsite(data.website);
+    if (website.reason) return { error: `${website.reason}: supply a business website or omit website; the lead was not written` };
+    if (website.url) data.website = website.url;
 
     return { data };
 }
@@ -952,6 +961,11 @@ export async function POST(req: NextRequest) {
                 const existing = await findExistingLead(lead);
 
                 if (existing) {
+                    if (businessWebsiteChangeNeedsReview(existing, lead.website)) {
+                        skipped++;
+                        results.push({ index, name: String(lead.name), status: "skipped", id: existing.id, reason: "website_change_requires_review: a researched lead needs a reviewed URL correction and dependent-evidence invalidation by the database owner" });
+                        continue;
+                    }
                     const saved = await prisma.scrapedLead.update({
                         where: { id: existing.id },
                         data: updateData,

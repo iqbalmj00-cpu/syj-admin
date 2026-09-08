@@ -1,7 +1,8 @@
+import type { Prisma } from "@prisma/client";
+import { isDynamicLeadGroup } from "@/lib/lead-group-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { setLeadGroupFilter } from "@/lib/cold-email-db";
 
 /**
  * GET  /api/agents/lead-groups — list all groups with member counts
@@ -39,9 +40,13 @@ export async function POST(req: NextRequest) {
 
         if (!name?.trim()) return NextResponse.json({ error: "Group name is required" }, { status: 400 });
 
+        if (filterDefinition != null && !isDynamicLeadGroup(filterDefinition)) {
+            return NextResponse.json({ error: "filterDefinition must be an object" }, { status: 400 });
+        }
         const group = await prisma.leadGroup.create({
             data: {
                 name: name.trim(),
+                ...(isDynamicLeadGroup(filterDefinition) ? { filterDefinition: filterDefinition as Prisma.InputJsonObject } : {}),
                 description: description?.trim() || null,
                 // Defaults to email: SMS outreach is deprecated, and only email groups are
                 // selectable in the Cold Email campaign wizard. Every caller passes channel
@@ -51,12 +56,6 @@ export async function POST(req: NextRequest) {
                 templateBody: templateBody?.trim() || null,
             },
         });
-
-        // Dynamic segment: persist the originating Scraped-Leads filter (raw SQL — the
-        // generated client predates the column) so membership can re-evaluate on refresh.
-        if (filterDefinition && typeof filterDefinition === "object") {
-            await setLeadGroupFilter(group.id, filterDefinition);
-        }
 
         return NextResponse.json(group, { status: 201 });
     } catch (error) {

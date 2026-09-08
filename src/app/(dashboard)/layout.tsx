@@ -256,7 +256,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
     const [collapsed, setCollapsed] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
-    const [systemStatus, setSystemStatus] = useState<"ok" | "warning" | "error">("ok");
+    const [systemStatus, setSystemStatus] = useState<"ok" | "warning" | "error" | "unknown">("unknown");
 
     const title = getPageTitle(pathname);
     const subtitle = getPageSubtitle(pathname);
@@ -266,14 +266,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         const check = async () => {
             try {
                 const res = await fetch("/api/alerts");
-                if (!res.ok) return;
+                if (!res.ok) throw new Error("Alerts unavailable");
                 const data = await res.json();
                 if (!mounted) return;
+                if (!Number.isFinite(data.counts?.critical) || !Number.isFinite(data.counts?.warning)) { setSystemStatus("unknown"); return; }
                 if (data.counts?.critical > 0) setSystemStatus("error");
                 else if (data.counts?.warning > 0) setSystemStatus("warning");
                 else setSystemStatus("ok");
             } catch {
-                /* Keep the last known status if the lightweight poll fails. */
+                if (mounted) setSystemStatus("unknown");
             }
         };
 
@@ -297,7 +298,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
-    const statusLabel = systemStatus === "ok" ? "System OK" : systemStatus === "warning" ? "Warnings" : "Issues";
+    const statusLabel = systemStatus === "ok" ? "No general alerts" : systemStatus === "warning" ? "General warnings" : systemStatus === "error" ? "General alerts" : "Alerts unknown";
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
     return (
@@ -367,7 +368,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             <kbd className="keyboard-key">Cmd K</kbd>
                         </button>
                         <span className="topbar-date">{today}</span>
-                        <button type="button" className={`status-pill ${systemStatus}`} onClick={() => router.push("/alerts")}>
+                        <button type="button" className={`status-pill ${systemStatus === "unknown" ? "warning" : systemStatus}`} title="General alert feed only. Check agent progress and Cold Email readiness separately." onClick={() => router.push("/alerts")}>
                             <span className="status-dot" />
                             <span>{statusLabel}</span>
                         </button>

@@ -1,3 +1,5 @@
+import { inspectBusinessWebsite } from "./lead-website.ts";
+
 export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "completed" | "archived";
 export type ProviderCampaignStatus = "not_created" | "inactive" | "active" | "paused" | "completed" | "unknown";
 export type ProviderOperationState =
@@ -35,6 +37,7 @@ export type EligibilityDecision = {
 
 export type EligibilityInput = {
     now: Date;
+    website?: unknown;
     email?: string | null;
     emailDeliverable?: boolean | null;
     emailVerificationState?: string | null;
@@ -222,6 +225,8 @@ export function evaluateColdEmailEligibility(input: EligibilityInput): Eligibili
     if (input.emailDeliverable !== true) {
         return block("data_quality", "email_not_verified_deliverable", { state: input.emailVerificationState || "unknown" });
     }
+    const website = inspectBusinessWebsite(input.website);
+    if (website.reason) return block("data_quality", "business_website_needs_review", { reason: website.reason });
     if (input.ambiguousIdentity) return block("identity", "identity_review_required");
     if (input.activeEnrollmentElsewhere) return block("concurrency", "active_enrollment_elsewhere");
     if (input.concurrentCompanyContacts >= Math.max(1, input.companyContactCap)) {

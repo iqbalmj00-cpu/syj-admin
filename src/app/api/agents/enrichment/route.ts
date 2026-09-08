@@ -40,6 +40,8 @@ export async function POST(req: Request) {
 
         const gate = await findSelectedLeadsNeedingCleaner(leadIds);
         if (gate.totalBlocked > 0 && !force) {
+            const cleaner = await prisma.syjAgent.findUnique({ where: { slug: "lead_cleaner" }, select: { id: true } });
+            if (!cleaner) return NextResponse.json({ error: "Lead Cleaner setup incomplete: no cleaner agent record is available. Ask the deployment and database owner to verify the cleaner record and schema before provisioning.", setupIncomplete: true }, { status: 409 });
             return NextResponse.json({
                 error: "Some selected leads are archived or have not passed Lead Cleaner yet. Re-submit with force=true to enrich them intentionally.",
                 leadCleanerGate: {
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
         });
         if (!agent) {
             return NextResponse.json(
-                { error: "lead_enrichment agent not found — run /api/agents/seed first" },
+                { error: "Enrichment setup incomplete: ask the deployment and database owner to verify the agent record" },
                 { status: 500 },
             );
         }
