@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { publicReportDownloadUrl, verifyReportPdfDeliverable } from "@/lib/research-report-delivery";
 
 /**
  * GET    /api/agents/research-reports/:id — full report detail
@@ -85,6 +86,15 @@ export async function PATCH(
                 );
             }
 
+            // Read the complete private PDF before any fixture or publication write.
+            // The public route independently requires published state on every read.
+            const deliveryUrl = publicReportDownloadUrl(id);
+            try {
+                await verifyReportPdfDeliverable(report.draftPdfUrl);
+            } catch {
+                return NextResponse.json({ error: "Report PDF is not deliverable; publication was not started" }, { status: 503 });
+            }
+
             // Build the JSON fixture matching the website developer's ReportFixture type
             const publishedAt = new Date();
             const publishedDate = publishedAt.toISOString().slice(0, 10);
@@ -100,7 +110,7 @@ export async function PATCH(
                 publishedDate,
                 updatedDate: publishedDate,
                 pdf: {
-                    url: report.draftPdfUrl || "",
+                    url: deliveryUrl,
                     sizeMb: report.pdfSizeMb,
                     pageCount: report.pageCount,
                 },
@@ -130,7 +140,7 @@ export async function PATCH(
             try {
                 const sha = await commitReportFixtureToGitHub(fixture);
                 const updated = await prisma.researchReport.update({
-                    where: { id },
+                    where: { id, status: "approved", updatedAt: report.updatedAt },
                     data: {
                         status: "published",
                         publishedAt,

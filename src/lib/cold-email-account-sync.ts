@@ -175,15 +175,19 @@ export async function settleInstantlyAccountCursor(input: {
     nextCursor: string | null;
     now: Date;
     error?: boolean;
+    failures?: { validation: number; persistence: number };
+    reason?: "invalid_page" | "sync_failed";
 }) {
     const updated = await delegate("coldEmailSyncCursor", ["updateMany"]).updateMany!({
-        where: { id: input.id, status: "running", leaseOwner: input.owner },
+        where: { id: input.id, status: "running", leaseOwner: input.owner, leaseExpiresAt: { gt: input.now } },
         data: input.error
             ? {
                 status: "error",
                 leaseOwner: null,
                 leaseExpiresAt: null,
-                redactedError: "Instantly account synchronization failed",
+                redactedError: input.failures
+                    ? `Instantly account page failed: validation=${input.failures.validation}, persistence=${input.failures.persistence}; page retained for retry`
+                    : `Instantly account synchronization failed (${input.reason || "sync_failed"}); page retained for retry`,
             }
             : {
                 status: "ready",
@@ -191,7 +195,7 @@ export async function settleInstantlyAccountCursor(input: {
                 watermarkAt: input.nextCursor ? undefined : input.now,
                 leaseOwner: null,
                 leaseExpiresAt: null,
-                lastSuccessfulAt: input.now,
+                lastSuccessfulAt: input.nextCursor ? undefined : input.now,
                 redactedError: null,
             },
     });

@@ -178,6 +178,27 @@ export function listFromInstantlyPayload(payload: unknown): unknown[] {
     return [];
 }
 
+export class InstantlyAccountPageError extends Error {
+    constructor() { super("Unsupported Instantly account page or pagination"); this.name = "InstantlyAccountPageError"; }
+}
+
+// Account synchronization must distinguish an empty page from an unknown shape.
+// Keep the permissive helper above unchanged for other provider resources.
+export function parseInstantlyAccountPage(payload: unknown, currentCursor: string | null) {
+    if (Array.isArray(payload)) return { items: payload, nextStartingAfter: null };
+    if (!payload || typeof payload !== "object") throw new InstantlyAccountPageError();
+    const record = payload as Record<string, unknown>;
+    const listKeys = ["items", "data", "emails"].filter(key => Object.hasOwn(record, key));
+    if (listKeys.length !== 1 || !Array.isArray(record[listKeys[0]])) throw new InstantlyAccountPageError();
+    const next = record.next_starting_after;
+    if (next != null && (typeof next !== "string" || !next.trim())) throw new InstantlyAccountPageError();
+    if (record.has_more !== undefined && typeof record.has_more !== "boolean") throw new InstantlyAccountPageError();
+    const nextStartingAfter = typeof next === "string" ? next : null;
+    if ((record.has_more === true && !nextStartingAfter) || (record.has_more === false && nextStartingAfter) ||
+        (nextStartingAfter && nextStartingAfter === currentCursor)) throw new InstantlyAccountPageError();
+    return { items: record[listKeys[0]] as unknown[], nextStartingAfter };
+}
+
 export function normalizeEmail(value: unknown) {
     if (typeof value !== "string") return "";
     return value.trim().toLowerCase();

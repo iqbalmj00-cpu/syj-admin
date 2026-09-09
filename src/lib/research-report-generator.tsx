@@ -164,7 +164,8 @@ export async function generateResearchReport(
             {
                 access: "private",
                 contentType: "application/pdf",
-                allowOverwrite: true,
+                addRandomSuffix: true,
+                allowOverwrite: false,
             },
         );
 

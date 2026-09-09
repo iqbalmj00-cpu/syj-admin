@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { encryptIntegrationToken, requireIntegrationTokenKey } from "@/lib/integration-token-encryption";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CALENDAR_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || "";
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        requireIntegrationTokenKey();
         // Exchange authorization code for tokens
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",
@@ -45,8 +47,9 @@ export async function GET(req: NextRequest) {
         });
 
         const tokens = await tokenRes.json();
-        if (!tokenRes.ok || !tokens.access_token) {
-            console.error("[demo-scheduler/callback] Token exchange failed:", tokens);
+        if (!tokenRes.ok || typeof tokens.access_token !== "string" || !tokens.access_token ||
+            (tokens.refresh_token !== undefined && (typeof tokens.refresh_token !== "string" || !tokens.refresh_token))) {
+            console.error("[demo-scheduler/callback] Token exchange failed:", tokenRes.status);
             return NextResponse.redirect(`${settingsUrl}?error=token_exchange`);
         }
 
@@ -66,7 +69,9 @@ export async function GET(req: NextRequest) {
 
         // Upsert to AdminIntegration (singleton — provider is unique).
         // Preserve existing refresh_token on re-auth if Google doesn't return a new one.
-        const expiresAt = tokens.expires_in
+        const accessToken = encryptIntegrationToken(tokens.access_token);
+        const refreshToken = tokens.refresh_token ? encryptIntegrationToken(tokens.refresh_token) : null;
+        const expiresAt = typeof tokens.expires_in === "number" && tokens.expires_in > 0 && Number.isFinite(tokens.expires_in)
             ? new Date(Date.now() + tokens.expires_in * 1000)
             : null;
 
@@ -75,17 +80,17 @@ export async function GET(req: NextRequest) {
             create: {
                 provider: "google_calendar",
                 status: "connected",
-                accessToken: tokens.access_token,
-                refreshToken: tokens.refresh_token || null,
+                accessToken,
+                refreshToken,
                 expiresAt,
                 email,
                 connectedAt: new Date(),
             },
             update: {
                 status: "connected",
-                accessToken: tokens.access_token,
+                accessToken,
                 // Only overwrite refreshToken when Google returned a new one — otherwise keep existing
-                ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+                ...(refreshToken ? { refreshToken } : {}),
                 expiresAt,
                 email,
                 connectedAt: new Date(),
@@ -94,8 +99,8 @@ export async function GET(req: NextRequest) {
 
         console.log(`[demo-scheduler/callback] Connected: ${email}`);
         return NextResponse.redirect(`${settingsUrl}?success=connected`);
-    } catch (err) {
-        console.error("[demo-scheduler/callback] Error:", err);
+    } catch {
+        console.error("[demo-scheduler/callback] Token exchange or secure persistence failed");
         return NextResponse.redirect(`${settingsUrl}?error=server_error`);
     }
 }

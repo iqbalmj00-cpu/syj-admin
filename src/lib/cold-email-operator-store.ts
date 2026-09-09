@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { ColdEmailRole } from "@/lib/cold-email-role-policy";
 
 type Delegate = {
+    findUnique?(args: unknown): Promise<unknown>;
     findMany?(args: unknown): Promise<unknown[]>;
     upsert?(args: unknown): Promise<unknown>;
     deleteMany?(args: unknown): Promise<{ count: number }>;
@@ -28,13 +29,16 @@ async function ensureOperator(input: { email: string; role: ColdEmailRole }) {
 }
 
 export async function listColdEmailSavedViews(input: { email: string; role: ColdEmailRole; surface?: string | null }) {
-    const operator = await ensureOperator(input);
+    const operator = await delegate("coldEmailOperator", ["findUnique"]).findUnique!({
+        where: { normalizedEmail: input.email.trim().toLowerCase() },
+        select: { id: true },
+    }) as { id: string } | null;
     const rows = await delegate("coldEmailSavedView", ["findMany"]).findMany!({
-        where: { ...(input.surface ? { surface: input.surface } : {}), OR: [{ operatorId: operator.id }, { shared: true }] },
+        where: { ...(input.surface ? { surface: input.surface } : {}), OR: [...(operator ? [{ operatorId: operator.id }] : []), { shared: true }] },
         orderBy: [{ shared: "desc" }, { name: "asc" }],
         select: { id: true, name: true, surface: true, filters: true, sorting: true, columns: true, shared: true, operatorId: true, updatedAt: true },
     }) as Array<Record<string, unknown> & { operatorId: string }>;
-    return rows.map((row) => ({ ...row, owned: row.operatorId === operator.id }));
+    return rows.map((row) => ({ ...row, owned: operator !== null && row.operatorId === operator.id }));
 }
 
 export async function saveColdEmailView(input: { email: string; role: ColdEmailRole; name: string; surface: string; filters: Record<string, unknown>; sorting?: unknown; columns?: unknown; shared: boolean }) {

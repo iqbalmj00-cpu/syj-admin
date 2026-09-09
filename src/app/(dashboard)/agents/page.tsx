@@ -1,6 +1,6 @@
 "use client";
 
-import { AGENT_DESCRIPTIONS, enrichmentRunObservation } from "@/lib/agent-presentation";
+import { AGENT_DESCRIPTIONS, agentRunPresentation, scraperRunObservation } from "@/lib/agent-presentation";
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -352,7 +352,7 @@ export default function AgentsPage() {
 
     if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading AI Agents...</div>;
 
-    const runningCount = agents.filter(a => a.status === "running").length;
+    const pendingCount = agents.filter(a => agentRunPresentation(a).pending).length;
     const totalRuns = agents.reduce((s, a) => s + a.totalRuns, 0);
     const lastActivity = agents.map(a => a.lastRunAt).filter(Boolean).sort().reverse()[0] || null;
 
@@ -361,15 +361,15 @@ export default function AgentsPage() {
             {/* KPIs */}
             <div className="grid-4">
                 <Kpi label="Total Agents" value={agents.length} />
-                <Kpi label="Currently Running" value={runningCount} sub={runningCount > 0 ? "In progress" : "All idle"} />
+                <Kpi label="Open Run Requests" value={pendingCount} sub="Stored state; execution not confirmed" />
                 <Kpi label="Total Runs" value={totalRuns} />
                 <Kpi label="Last Activity" value={relTime(lastActivity)} />
             </div>
 
             {/* Tabs */}
-            <div className="tab-bar">
+            <div className="tab-bar" tabIndex={0} aria-label="Agent views" style={{ overflowX: "auto" }}>
                 {TABS.map(t => (
-                    <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`tab-button ${tab === t.id ? "active" : ""}`}>
+                    <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`tab-button ${tab === t.id ? "active" : ""}`} style={{ flexShrink: 0, minHeight: "2.75rem" }}>
                         {t.label}
                     </button>
                 ))}
@@ -382,9 +382,9 @@ export default function AgentsPage() {
                         <div key={a.label} style={{
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             padding: "10px 16px", background: "var(--surface-raised)", border: "1px solid var(--border)",
-                            borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4,
+                            borderRadius: 8, fontSize: 12, color: "var(--text-light)", marginBottom: 4, minWidth: 0, gap: "0.5rem",
                         }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflowWrap: "anywhere" }}>
                                 <span style={{ minWidth: 26, height: 22, borderRadius: 4, background: "var(--surface)", color: a.color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{a.icon}</span>
                                 <span><strong>{a.label}:</strong> <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{a.cmd}</code></span>
                             </div>
@@ -479,13 +479,15 @@ function AgentsTab({ agents, inventoryState, onRun, onToggle, showToast, onRefre
     const updateField = (key: string, value: unknown) => setEditConfig(prev => ({ ...prev, [key]: value }));
 
     return (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 21.25rem), 1fr))", gap: 16 }}>
             {inventoryState === "unavailable" && <div role="alert" className="card" style={{ padding: 16, gridColumn: "1 / -1" }}>Agent inventory unavailable. Retry before diagnosing a missing agent record.</div>}
             {inventoryState === "ready" && !agents.some(agent => agent.slug === "lead_cleaner") && <div role="alert" className="card" style={{ padding: 16, gridColumn: "1 / -1" }}>Lead Cleaner setup incomplete: no Lead Cleaner record was returned in this inventory. The deployment and database owner must verify the existing agent and schema before provisioning. Selected enrichment can require a cleaner review.</div>}
             {agents.map(a => {
-                const st = a.status === "running" && ["lead_enrichment", "lead_scraper"].includes(a.slug)
-                    ? { ...STATUS_MAP.idle, label: a.slug === "lead_enrichment" && a.lastRun?.trigger === "manual" ? "Queued" : "Run requested" }
-                    : STATUS_MAP[a.status] || STATUS_MAP.idle;
+                const presentation = agentRunPresentation(a);
+                const lastRunLabel = a.lastRun?.status === "running"
+                    ? agentRunPresentation({ slug: a.slug, status: a.lastRun.status, lastRun: a.lastRun }).label
+                    : null;
+                const st = presentation.pending ? { ...STATUS_MAP.idle, label: presentation.label } : STATUS_MAP[a.status] || STATUS_MAP.idle;
                 const icon = AGENT_ICONS[a.slug] || "AI";
                 const isExpanded = expandedId === a.id;
                 return (
@@ -511,11 +513,11 @@ function AgentsTab({ agents, inventoryState, onRun, onToggle, showToast, onRefre
                                     {a.lastRun ? `${relTime(a.lastRun.startedAt)} — ${fmtDuration(a.lastRun.durationMs)}` : "Never"}
                                 </span>
                             </div>
-                            {a.slug === "lead_enrichment" && enrichmentRunObservation(a.lastRun) && <p role="status" style={{ fontSize: 12, color: "var(--text-light)", marginTop: 8 }}>{enrichmentRunObservation(a.lastRun)}</p>}
+                            {presentation.observation && <p role="status" style={{ fontSize: "0.875rem", color: "var(--text-light)", marginTop: 8 }}>{presentation.observation}</p>}
                             {a.lastRun?.status && (
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                     <span style={{ color: "var(--text-light)" }}>Last result</span>
-                                    <Badge {...(STATUS_MAP[a.lastRun.status] || STATUS_MAP.idle)} />
+                                    <Badge {...(lastRunLabel ? { ...STATUS_MAP.idle, label: lastRunLabel } : STATUS_MAP[a.lastRun.status] || STATUS_MAP.idle)} />
                                 </div>
                             )}
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
@@ -550,12 +552,12 @@ function AgentsTab({ agents, inventoryState, onRun, onToggle, showToast, onRefre
                         {a.slug === "lead_scraper" ? (
                             <LeadScraperControls showToast={showToast} onRefresh={onRefresh} />
                         ) : (
-                        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", gap: 6, alignItems: "center" }}>
+                        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-light)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                             {/* Primary action: Run or Running indicator */}
-                            {a.status === "running" ? (
-                                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--info-bg)", borderRadius: 6 }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--info)", animation: "pulse 1.5s infinite" }} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--info)", flex: 1 }}>Running...</span>
+                            {presentation.pending ? (
+                                <div style={{ flex: "1 1 12rem", minWidth: 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--info-bg)", borderRadius: 6 }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--muted)" }} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--info)", flex: 1 }}>{presentation.label}</span>
                                     {(a.slug === "lead_enrichment" || a.slug === "content_generator") && (
                                         <button className="btn btn-xs" onClick={async (e) => {
                                             e.stopPropagation();
@@ -634,6 +636,7 @@ interface ScraperControl {
     startNonce: string | null;
     agentStatus: string;
     progress: {
+        startNonce?: string;
         state?: string;
         discoveryMode?: string;
         targetsDone?: number;
@@ -740,8 +743,8 @@ function LeadScraperControls({
         + (progress?.targetsSkippedBudget ?? 0)
         + outboxPending;
     const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-    const staleMin = progress?.updatedAt ? (Date.now() - new Date(progress.updatedAt).getTime()) / 60000 : null;
-    const offline = active && (staleMin === null || !Number.isFinite(staleMin) || staleMin > 10);
+    const observation = ctrl ? scraperRunObservation(ctrl) : "Control evidence unavailable.";
+    const offline = active && !observation.startsWith("Recent progress callback");
     const targetLabel = progress?.discoveryMode === "city" ? "targets" : "ZIPs";
     const leadsLabel = progress?.createdLeads !== undefined || progress?.updatedLeads !== undefined
         ? `${progress?.acceptedLeads ?? 0} accepted / ${(progress?.createdLeads ?? 0) + (progress?.updatedLeads ?? 0)} upserted`
@@ -771,7 +774,7 @@ function LeadScraperControls({
                 ) : (
                     <button
                         className="btn btn-xs btn-primary"
-                        onClick={() => post({ action: "start", target: selected }, `Lead Scraper started - ${selected}`)}
+                        onClick={() => post({ action: "start", target: selected }, `Lead Scraper run requested - ${selected}`)}
                         disabled={busy}
                         style={{ padding: "6px 14px" }}
                     >
@@ -780,7 +783,7 @@ function LeadScraperControls({
                 )}
             </div>
 
-            {active && <div role="status" style={{ fontSize: 11, color: "var(--text-light)" }}>Requested: active. Observed: {offline ? "stale or unknown worker progress" : "recent progress callback"}. A start request does not establish worker health.</div>}
+            {active && <div role="status" style={{ fontSize: 11, color: "var(--text-light)" }}>{observation}</div>}
             {(active || progress) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div style={{ height: 6, background: "var(--neutral-bg)", borderRadius: 3, overflow: "hidden" }}>
@@ -802,7 +805,7 @@ function LeadScraperControls({
                     )}
                     {outboxPending > 0 && (
                         <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
-                            {outboxPending} paid lead upload batch{outboxPending === 1 ? "" : "es"} preserved locally. Restart the worker/run to retry upload before any new Outscraper fetch.
+                            {outboxPending} paid lead upload batch{outboxPending === 1 ? "" : "es"} preserved locally. The worker owner must reconcile the ledger and provider jobs before resuming.
                         </div>
                     )}
                     {progress?.queriesSubmitted !== undefined && (
@@ -824,7 +827,7 @@ function LeadScraperControls({
                     )}
                     {offline && (
                         <div style={{ fontSize: 10, color: "var(--warn-dark)", background: "var(--warn-bg)", padding: "4px 8px", borderRadius: 6 }}>
-                            Worker may be offline. No progress in {Math.round(staleMin ?? 0)} min. Check the scraper process or press Stop to reset.
+                            No recent callback has been established for this request. The worker owner should check its process, run identity, and preserved jobs.
                         </div>
                     )}
                 </div>
@@ -1808,7 +1811,7 @@ function HistoryTab({ agents }: { agents: Agent[] }) {
                     <tbody>
                         {runs.map(r => {
                             const a = agentMap[r.agentId];
-                            const runStatus = STATUS_MAP[r.status] || { bg: "var(--neutral-bg)", color: "var(--muted)", label: r.status };
+                            const runStatus = r.status === "running" ? { ...STATUS_MAP.idle, label: agentRunPresentation({ slug: a?.slug || "", status: r.status, lastRun: r }).label } : STATUS_MAP[r.status] || { bg: "var(--neutral-bg)", color: "var(--muted)", label: r.status };
                             return (
                                 <tr key={r.id}>
                                     <td style={{ fontWeight: 600 }}>
@@ -2481,14 +2484,14 @@ function ResearchReportsTab({
                                         <span>• {r.pageCount}-page PDF ({r.pdfSizeMb} MB)</span>
                                         <span>• {r.sourceCount} sources</span>
                                         <span>• {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                                        {r.publishedPdfUrl && <span style={{ color: "var(--success)" }}>• ✓ Published</span>}
+                                        {r.status === "published" && <span style={{ color: "var(--success)" }}>• ✓ Published</span>}
                                         <span style={{ color: "var(--primary)", fontWeight: 500 }}>{isExpanded ? "▲ Close" : "▼ Preview"}</span>
                                     </div>
                                 </div>
                                 <div style={{ display: "flex", gap: 6, marginLeft: 16, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     {r.draftPdfUrl && (
                                         <a
-                                            href={r.draftPdfUrl}
+                                            href={`/api/agents/research-reports/${encodeURIComponent(r.id)}/pdf`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="btn btn-xs btn-ghost"

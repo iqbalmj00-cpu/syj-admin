@@ -6,7 +6,7 @@ import ts from "typescript";
 
 // Exercise real route/store code with an explicit import allowlist. No Prisma
 // client, auth module, environment file, network or application startup executes.
-export function isolatedModule(path: string, imports: Record<string, unknown>, env: Record<string, string> = {}) {
+export function isolatedModule(path: string, imports: Record<string, unknown>, env: Record<string, string> = {}, mocks: { fetch?: typeof fetch } = {}) {
     const filename = resolve(path);
     const code = ts.transpileModule(readFileSync(filename, "utf8"), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -23,8 +23,8 @@ export function isolatedModule(path: string, imports: Record<string, unknown>, e
         },
         process: { env: { ...env } },
         console: { log() {}, warn() {}, error() {} },
-        Date, URL, URLSearchParams, Set, Map, Buffer,
-        fetch: () => { throw new Error("Network disabled in isolated tests"); },
+        Date, URL, URLSearchParams, Set, Map, Buffer, Response, Headers, ReadableStream,
+        fetch: mocks.fetch || (() => { throw new Error("Network disabled in isolated tests"); }),
     }, { filename });
     return module.exports;
 }

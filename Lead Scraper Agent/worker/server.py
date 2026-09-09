@@ -92,6 +92,17 @@ async def _get_control() -> dict:
     return await control.get_control(ENV.dashboard_url, ENV.callback_secret)
 
 
+class RunSuperseded(Exception):
+    """Control no longer authorizes this sweep; preserve paid work for reconciliation."""
+
+
+async def _assert_run_current(target: str, start_nonce) -> None:
+    latest = await _get_control()
+    if (not start_nonce or not latest.get("active") or latest.get("target") != target
+            or latest.get("startNonce") != start_nonce):
+        raise RunSuperseded()
+
+
 def _target_terms(target: dict) -> list[str]:
     terms = list(cfg.search_terms)
     if target.get("targetType") == "grid":
@@ -441,9 +452,11 @@ async def _process_ready_target(state: str, target_key: str, start_nonce,
 
 
 async def _process_ready_targets(state: str, start_nonce, accepted_keys: set,
-                                 run_counters: dict) -> bool:
+                                 run_counters: dict, control_target: str | None = None) -> bool:
     budget_stopped = False
     for target_key in LEDGER.ready_target_keys(state, cfg.batch_target_count):
+        if control_target is not None:
+            await _assert_run_current(control_target, start_nonce)
         budget_stopped = await _process_ready_target(state, target_key, start_nonce,
                                                      accepted_keys, run_counters)
         if budget_stopped:
@@ -459,12 +472,14 @@ async def _ensure_provider_jobs_for_pending_targets(state: str) -> int:
     return added
 
 
-async def _submit_provider_jobs(state: str, start_nonce, run_counters: dict) -> bool:
+async def _submit_provider_jobs(state: str, start_nonce, run_counters: dict, control_target: str | None = None) -> bool:
     capacity = max(int(cfg.outscraper_job_concurrency or 1), 1) - LEDGER.submitted_provider_job_count(state)
     if capacity <= 0:
         return False
     pending = LEDGER.pending_provider_jobs(state, capacity)
     for job in pending:
+        if control_target is not None:
+            await _assert_run_current(control_target, start_nonce)
         if cfg.max_queries_per_run and run_counters["queries"] + 1 > cfg.max_queries_per_run:
             _state["budget_stop_reason"] = f"query cap reached ({cfg.max_queries_per_run})"
             await _report_progress(state, start_nonce)
@@ -507,7 +522,7 @@ async def _submit_provider_jobs(state: str, start_nonce, run_counters: dict) -> 
     return False
 
 
-async def _poll_provider_jobs(state: str) -> int:
+async def _poll_provider_jobs(state: str, start_nonce=None, control_target: str | None = None) -> int:
     activity = 0
     expired_targets = LEDGER.expire_stale_provider_jobs(state, cfg.outscraper_job_timeout_seconds)
     for target_key in expired_targets:
@@ -521,6 +536,8 @@ async def _poll_provider_jobs(state: str) -> int:
         limit=max(int(cfg.outscraper_job_concurrency or 1), 1),
     )
     for job in due:
+        if control_target is not None:
+            await _assert_run_current(control_target, start_nonce)
         try:
             result = await poll_outscraper_request(job["results_location"], ENV.outscraper_api_key)
             LEDGER.mark_provider_polled(job["id"])
@@ -669,7 +686,7 @@ async def _process_target(state: str, target: dict, start_nonce, accepted_keys: 
     return False
 
 
-async def _retry_outbox_for_state(state: str, start_nonce) -> bool:
+async def _retry_outbox_for_state(state: str, start_nonce, control_target: str | None = None) -> bool:
     """Retry locally preserved paid-for leads before spending on new fetches.
 
     Returns True when unresolved outbox rows remain and this run should halt
@@ -681,6 +698,8 @@ async def _retry_outbox_for_state(state: str, start_nonce) -> bool:
 
     logger.info("state=%s retrying %d preserved outbox lead(s) before new fetches", state, remaining)
     while True:
+        if control_target is not None:
+            await _assert_run_current(control_target, start_nonce)
         rows = LEDGER.pending_outbox(state, cfg.ingest_chunk_size)
         if not rows:
             break
@@ -738,92 +757,95 @@ async def _retry_outbox_for_state(state: str, start_nonce) -> bool:
 
 
 async def run_sweep(ctrl: dict) -> None:
-    """Sweep the control target end-to-end. Honors Stop between provider poll cycles."""
+    """Sweep the control target end-to-end. Stops superseded runs between operations; retains in-flight results and the outbox."""
     target = ctrl["target"]
     start_nonce = ctrl.get("startNonce")
-    stopped = False
     budget_stopped = False
     _state["budget_stop_reason"] = None
     accepted_keys: set = set()
     run_counters = {"queries": 0, "accepted": 0}
 
-    for st in region.expand(target):
-        if stopped or budget_stopped:
-            break
-        targets = region.discovery_targets_for_state(
-            st,
-            include_grid=cfg.enable_grid_expansion,
-            spacing_miles=cfg.grid_spacing_miles,
-            max_grid_points=cfg.max_grid_points_per_market,
-            grid_min_population=cfg.grid_min_population,
-            grid_min_zip_count=cfg.grid_min_zip_count,
-        )
-        if not targets:
-            logger.warning("no discovery targets for state %s — skipping", st)
-            continue
-        LEDGER.seed_targets(st, targets)
-        LEDGER.start_target_sweep_if_needed(st, start_nonce, cfg.skip_empty)
-        if await _retry_outbox_for_state(st, start_nonce):
-            budget_stopped = True
-            break
-
-        while True:
-            ctrl = await _get_control()
-            if not ctrl.get("active"):
-                stopped = True
-                break  # Stop -> leave WITHOUT post_done
-
-            activity = 0
-            _state["current_activity"] = "processing completed provider results"
-            if await _process_ready_targets(st, start_nonce, accepted_keys, run_counters):
+    try:
+        for st in region.expand(target):
+            if budget_stopped:
+                break
+            await _assert_run_current(target, start_nonce)
+            targets = region.discovery_targets_for_state(
+                st,
+                include_grid=cfg.enable_grid_expansion,
+                spacing_miles=cfg.grid_spacing_miles,
+                max_grid_points=cfg.max_grid_points_per_market,
+                grid_min_population=cfg.grid_min_population,
+                grid_min_zip_count=cfg.grid_min_zip_count,
+            )
+            if not targets:
+                logger.warning("no discovery targets for state %s — skipping", st)
+                continue
+            LEDGER.seed_targets(st, targets)
+            LEDGER.start_target_sweep_if_needed(st, start_nonce, cfg.skip_empty)
+            if await _retry_outbox_for_state(st, start_nonce, target):
                 budget_stopped = True
-            if LEDGER.outbox_remaining_for_state(st):
-                budget_stopped = True
-                _state["budget_stop_reason"] = (
-                    f"outbox retry pending ({LEDGER.outbox_remaining_for_state(st)} lead(s)); "
-                    "no new Outscraper spend"
-                )
+                break
 
-            if not budget_stopped:
-                _state["current_activity"] = "preparing provider jobs"
-                activity += await _ensure_provider_jobs_for_pending_targets(st)
-                _state["current_activity"] = "submitting provider jobs"
-                if await _submit_provider_jobs(st, start_nonce, run_counters):
+            while True:
+                await _assert_run_current(target, start_nonce)
+
+                activity = 0
+                _state["current_activity"] = "processing completed provider results"
+                if await _process_ready_targets(st, start_nonce, accepted_keys, run_counters, target):
+                    budget_stopped = True
+                if LEDGER.outbox_remaining_for_state(st):
+                    budget_stopped = True
+                    _state["budget_stop_reason"] = (
+                        f"outbox retry pending ({LEDGER.outbox_remaining_for_state(st)} lead(s)); "
+                        "no new Outscraper spend"
+                    )
+
+                await _assert_run_current(target, start_nonce)
+                if not budget_stopped:
+                    _state["current_activity"] = "preparing provider jobs"
+                    activity += await _ensure_provider_jobs_for_pending_targets(st)
+                    _state["current_activity"] = "submitting provider jobs"
+                    if await _submit_provider_jobs(st, start_nonce, run_counters, target):
+                        budget_stopped = True
+
+                await _assert_run_current(target, start_nonce)
+                _state["current_activity"] = "polling provider jobs"
+                activity += await _poll_provider_jobs(st, start_nonce, target)
+
+                await _assert_run_current(target, start_nonce)
+                _state["current_activity"] = "processing completed provider results"
+                if await _process_ready_targets(st, start_nonce, accepted_keys, run_counters, target):
                     budget_stopped = True
 
-            _state["current_activity"] = "polling provider jobs"
-            activity += await _poll_provider_jobs(st)
+                logger.info("state=%s progress=%s", st, LEDGER.target_progress(st))
+                await _report_progress(st, start_nonce)
+                provider_activity = LEDGER.provider_activity(st)
+                has_paid_provider_work = (
+                    provider_activity.get("providerJobsInFlight", 0) > 0
+                    or provider_activity.get("providerJobsFinished", 0) > 0
+                )
+                has_open_work = (
+                    _state_has_pending_targets(st)
+                    or LEDGER.state_has_open_provider_work(st)
+                    or LEDGER.outbox_remaining_for_state(st) > 0
+                )
+                if not has_open_work:
+                    break
+                if budget_stopped and not has_paid_provider_work:
+                    break
+                if activity == 0:
+                    await asyncio.sleep(max(float(cfg.outscraper_loop_sleep_seconds or 1.0), 0.1))
 
-            _state["current_activity"] = "processing completed provider results"
-            if await _process_ready_targets(st, start_nonce, accepted_keys, run_counters):
-                budget_stopped = True
-
-            logger.info("state=%s progress=%s", st, LEDGER.target_progress(st))
-            await _report_progress(st, start_nonce)
-            if stopped:
-                break
-            provider_activity = LEDGER.provider_activity(st)
-            has_paid_provider_work = (
-                provider_activity.get("providerJobsInFlight", 0) > 0
-                or provider_activity.get("providerJobsFinished", 0) > 0
-            )
-            has_open_work = (
-                _state_has_pending_targets(st)
-                or LEDGER.state_has_open_provider_work(st)
-                or LEDGER.outbox_remaining_for_state(st) > 0
-            )
-            if not has_open_work:
-                break
-            if budget_stopped and not has_paid_provider_work:
-                break
-            if activity == 0:
-                await asyncio.sleep(max(float(cfg.outscraper_loop_sleep_seconds or 1.0), 0.1))
-
-    if not stopped and not ENV.dry_run_target:
+        if not ENV.dry_run_target:
+            await _assert_run_current(target, start_nonce)
+            _state["current_activity"] = None
+            await control.post_done(ENV.dashboard_url, ENV.callback_secret, start_nonce)
+            logger.info("target '%s' finished — posted done%s", target,
+                        f" ({_state['budget_stop_reason']})" if budget_stopped else "")
+    except RunSuperseded:
         _state["current_activity"] = None
-        await control.post_done(ENV.dashboard_url, ENV.callback_secret, start_nonce)
-        logger.info("target '%s' finished — posted done%s", target,
-                    f" ({_state['budget_stop_reason']})" if budget_stopped else "")
+        logger.info("target '%s' stopped or superseded; ledger and outbox preserved", target)
 
 
 async def control_loop() -> None:

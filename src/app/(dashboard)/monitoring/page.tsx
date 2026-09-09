@@ -23,7 +23,7 @@ export default function MonitoringPage() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <TabBar tabs={TABS} active={tab} onChange={setTab} />
+            <TabBar tabs={TABS} active={tab} onChange={setTab} scrollableLabel="Monitoring views" />
             {tab === "cron" && <CronTab />}
             {tab === "integrations" && <IntegrationsTab />}
             {tab === "engagement" && <EngagementTab />}
@@ -37,22 +37,31 @@ export default function MonitoringPage() {
 /* ─── Cron Jobs ─────────────────────────────────────────────────────── */
 function CronTab() {
     const [data, setData] = useState<any>(null);
-    useEffect(() => { fetch("/api/monitoring/cron").then(r => r.json()).then(setData).catch(console.error); }, []);
+    const [error, setError] = useState(false);
+    useEffect(() => { fetch("/api/monitoring/cron").then(async r => {
+        if (!r.ok) throw new Error("Cron inventory unavailable");
+        const body = await r.json();
+        if (!Array.isArray(body.jobs)) throw new Error("Invalid cron inventory");
+        setData(body);
+    }).catch(() => setError(true)); }, []);
+    if (error) return <div role="alert" className="card" style={{ padding: "1rem" }}>Cron evidence is unavailable. Reload to retry; this does not establish an execution failure.</div>;
     if (!data) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading cron data...</div>;
     return (
         <div className="card">
             <div className="card-header"><h3>Reported general jobs</h3></div>
-            <p style={{ padding: "0 16px", fontSize: 12 }}>These records come from the general job logger. Job ownership and deployment are unverified; missing records do not establish failed execution.</p>
-            <details style={{ padding: 16 }} open><summary>Admin source schedule · deployment and invocation evidence unknown</summary><div className="op-table-wrapper"><table className="op-table"><thead><tr><th>Admin route</th><th>Source schedule (UTC)</th><th>Execution evidence</th></tr></thead><tbody>{data.sourceSchedule?.map((job: { path: string; schedule: string }) => <tr key={job.path}><td>{job.path}</td><td>{job.schedule}</td><td>Not checked</td></tr>)}</tbody></table></div><p style={{ fontSize: 12 }}>These Cold Email routes use separate worker and synchronization records. See <a href="/cold-email/settings">Cold Email settings</a> for gates and health evidence. Stripe projection remains deferred.</p></details>
-            <div className="op-table-wrapper" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
-                <table className="op-table">
-                    <thead><tr>{["Job Name", "Last Run", "Status", "Duration", "Errors", "Total Runs"].map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <p style={{ padding: "0 1rem", fontSize: "0.875rem" }}>This tracked subset belongs to ScaleYourJunk, based on source reviewed September 9, 2026. Provider invocation and business outcomes are not connected here. Missing logger records do not establish missed execution.</p>
+            <details style={{ padding: 16 }} open><summary>Admin source schedule · deployment and invocation evidence unknown</summary><div className="op-table-wrapper" tabIndex={0} aria-label="Admin source schedules"><table className="op-table"><thead><tr><th>Admin route</th><th>Source schedule (UTC)</th><th>Execution evidence</th></tr></thead><tbody>{data.sourceSchedule?.map((job: { path: string; schedule: string }) => <tr key={job.path}><td>{job.path}</td><td>{job.schedule}</td><td>Not checked</td></tr>)}</tbody></table></div><p style={{ fontSize: 12 }}>These Cold Email routes use separate worker and synchronization records. See <a href="/cold-email/settings">Cold Email settings</a> for gates and health evidence. Stripe projection remains deferred.</p></details>
+            <div className="op-table-wrapper" tabIndex={0} aria-label="Reported general job evidence" style={{ border: "none", borderRadius: 0, boxShadow: "none" }}>
+                <table className="op-table" style={{ minWidth: "62rem" }}>
+                    <thead><tr>{["Job / owner", "Reference route / schedule (UTC)", "Invocation evidence", "Last logged result", "Reported outcome", "Duration", "Logged errors", "Logged runs"].map(h => <th key={h}>{h}</th>)}</tr></thead>
                     <tbody>
                         {data.jobs?.map((j: any) => {
                             const sc = j.lastRun?.status === "success" ? STATUS_COLORS.success : j.lastRun?.status === "error" ? STATUS_COLORS.error : STATUS_COLORS.idle;
                             return (
                                 <tr key={j.jobName}>
-                                    <td style={{ fontWeight: 600, fontFamily: "monospace", fontSize: 13 }}>{j.jobName}</td>
+                                    <td style={{ fontWeight: 600, fontSize: 13 }}>{j.jobName}<div style={{ color: "var(--text-light)", fontWeight: 400 }}>{j.owner || "Owner unknown"}</div></td>
+                                    <td>{j.schedules?.length ? j.schedules.map((s: { path: string; schedule: string }) => <div key={s.path} style={{ marginBottom: "0.5rem" }}><code>{s.path}</code><div>{s.schedule}</div></div>) : "Not applicable: absent from reference schedule"}{j.schedules?.length > 1 && <div style={{ fontSize: "0.875rem" }}>Logger history is shared by job name; frequency is not recorded.</div>}</td>
+                                    <td>Not connected</td>
                                     <td style={{ color: "var(--text-light)" }}>
                                         {j.lastRun?.ranAt ? new Date(j.lastRun.ranAt).toLocaleString() : "No logged evidence"}
                                     </td>
