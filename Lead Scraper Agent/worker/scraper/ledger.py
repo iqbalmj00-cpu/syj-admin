@@ -427,6 +427,24 @@ class Ledger:
             )
         return added
 
+    def record_lead_eligibility(self, lead_key, status: str) -> None:
+        if status not in ("eligible", "pending_review", "suppressed", "terminal"): return
+        with self._conn() as c:
+            key = "junk_eligibility:" + json.dumps(lead_key)
+            # The terminal check and write are one SQLite statement, so a racing
+            # pending acknowledgment can never overwrite archive suppression.
+            c.execute("INSERT INTO meta(key, value) VALUES (?, ?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
+                      "WHERE meta.value != 'terminal'", (key, status))
+
+    def lead_eligibility(self, lead_key) -> str | None:
+        with self._conn() as c:
+            return self._meta_get(c, "junk_eligibility:" + json.dumps(lead_key))
+
+    def skip_disallowed_provider_job(self, job_id: int) -> None:
+        with self._conn() as c:
+            c.execute("UPDATE provider_jobs SET status='processed', last_error='eligibility:dumpster_only_discovery', processed_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND status='pending_submit'", (job_id,))
+
     def pending_provider_jobs(self, state: str, limit: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute(

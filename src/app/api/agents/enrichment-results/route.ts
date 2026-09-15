@@ -1,3 +1,7 @@
+import { preserveEligibilityNotes } from "@/lib/junk-eligibility";
+import { validateSignalPayload, type SignalPayload } from "@/lib/enrichment-signals-schema";
+import { requireSignalsAvailable } from "@/lib/enrichment-signals";
+import { mergeLegacyEvidence, persistSignalMerge } from "@/lib/enrichment-evidence";
 import { NextRequest, NextResponse } from "next/server";
 import { inspectBusinessWebsite } from "@/lib/lead-website";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +16,7 @@ import { isLeadCleanerSchemaReady } from "@/lib/lead-cleaner-db";
 
 // Allowed fields that can be written to ScrapedLead via enrichment
 const ALLOWED_FIELDS = new Set([
-    "serviceTypes", "phoneType", "hasActiveWebsite",
+    "serviceTypes", "phoneType", "hasActiveWebsite", "rating", "reviewCount",
     // Enrichment v2 contract + evidence
     "enrichmentVersion", "enrichmentRunId", "enrichmentEvidence", "enrichmentCompleteness",
     "contactStatus", "ownerStatus", "bookingStatus", "pricingStatus", "serviceAreaStatus",
@@ -315,12 +319,30 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "leadId and action are required" }, { status: 400 });
         }
 
+        let signalPayload: SignalPayload | null = null;
+        const incomingEvidence = data?.enrichmentEvidence;
+        if (incomingEvidence && typeof incomingEvidence === "object" && "signals" in incomingEvidence) {
+            if (!isV2Payload(data, version)) return NextResponse.json({ error: "Signals require outer transport v2" }, { status: 400 });
+            signalPayload = validateSignalPayload(incomingEvidence.signals, Date.now());
+            requireSignalsAvailable();
+        }
+        // Aggregates are accepted only with provenance from an already-requested provider
+        // response; old scraped input values cannot be stamped as fresh observations.
+        for (const [field, signal, maximum] of [["rating", "reviews.rating", 5], ["reviewCount", "reviews.total", 100_000_000]] as const) {
+            if (data?.[field] !== undefined) {
+                const value = data[field];
+                const fact = signalPayload?.records.find(r => r.key === signal && r.kind === "signal")?.facts[signal];
+                if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum || field === "reviewCount" && !Number.isInteger(value) || fact?.state !== "confirmed" || fact.value !== value) return NextResponse.json({ error: `Invalid or unverified ${field} aggregate` }, { status: 400 });
+            }
+        }
+
         // B8 guard: never write to archived (or unknown) leads by raw leadId.
         const claimedRunId = typeof body.runId === "string" && body.runId
             ? body.runId
             : (data && typeof data === "object" && typeof (data as Record<string, unknown>).enrichmentRunId === "string"
                 ? String((data as Record<string, unknown>).enrichmentRunId)
                 : null);
+        if (signalPayload && claimedRunId && signalPayload.runId !== claimedRunId) return NextResponse.json({ error: "Signal run identity differs from callback run" }, { status: 400 });
         const validation = await validateTargetLead(String(leadId), claimedRunId);
         if (!validation.ok) {
             return NextResponse.json(validation.body, { status: validation.status });
@@ -463,10 +485,24 @@ export async function POST(req: NextRequest) {
             // Still write the partial data — any signal captured is better than none.
 
             try {
-                await prisma.scrapedLead.update({
-                    where: { id: leadId },
-                    data: safeData,
-                });
+                // Signal merges retain up to 200 evidence rows and update changed rows
+                // individually. Give that bounded atomic write a finite 30s budget.
+                await prisma.$transaction(async tx => {
+                    await tx.$queryRaw`SELECT "id" FROM "ScrapedLead" WHERE "id" = ${leadId} FOR UPDATE`;
+                    const guard = await validateTargetLead(String(leadId), claimedRunId);
+                    if (!guard.ok) throw Object.assign(new Error(guard.body.error), { status: guard.status });
+                    const current = await tx.scrapedLead.findUnique({ where: { id: leadId }, select: { website: true, googlePlaceId: true, signalSourceWebsite: true, signalSourcePlaceId: true, enrichmentEvidence: true, notesFlags: true, name: true, categories: true, isExistingClient: true } });
+                    if (!current) throw Object.assign(new Error("Lead not found"), { status: 404 });
+                    if (safeData.notesFlags !== undefined) safeData.notesFlags = preserveEligibilityNotes(current.notesFlags,safeData.notesFlags);
+                    if (signalPayload) {
+                        await persistSignalMerge(tx as unknown as Parameters<typeof persistSignalMerge>[0], String(leadId), current, signalPayload, safeData, Date.now());
+                    } else {
+                        // Legacy siblings can change, but cannot erase/replace new signals.
+                        const legacyData = { ...safeData };
+                        if (legacyData.enrichmentEvidence !== undefined) legacyData.enrichmentEvidence = mergeLegacyEvidence(current.enrichmentEvidence, legacyData.enrichmentEvidence);
+                        await tx.scrapedLead.update({ where: { id: leadId }, data: legacyData });
+                    }
+                }, { isolationLevel: "Serializable", timeout: signalPayload ? 30_000 : 5_000 });
             } catch (error) {
                 const detail = errorDetail(error);
                 console.error("POST /api/agents/enrichment-results write error:", {
@@ -483,7 +519,7 @@ export async function POST(req: NextRequest) {
                     skippedNullFields,
                     skippedInvalidFields,
                     fieldCount: acceptedFields.length,
-                }, { status: 500 });
+                }, { status: (error as { code?: string }).code === "P2034" ? 409 : (error as { status?: number }).status || 500 });
             }
             return NextResponse.json({
                 ok: true,
@@ -501,6 +537,6 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         const detail = errorDetail(error);
         console.error("POST /api/agents/enrichment-results error:", detail);
-        return NextResponse.json({ error: "Failed to process enrichment result", detail }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process enrichment result", detail }, { status: (error as { status?: number }).status || 500 });
     }
 }

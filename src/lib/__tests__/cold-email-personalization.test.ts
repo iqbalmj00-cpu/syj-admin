@@ -5,6 +5,16 @@ import test from "node:test";
 import { COLD_EMAIL_PERSONALIZATION_LEAD_SELECT } from "../cold-email.ts";
 import { ACTIVE_VARIABLE_KEYS, DISABLED_VARIABLE_MAP, VARIABLE_MAP, replaceVariables, validateTemplateVariables } from "../outreach-variables.ts";
 
+test("complaint evidence remains excluded from campaign personalization", () => {
+    const tokens = ["[top_complaint]", "[top_complaints]", "[negative_reviews_pain]", "[complaint_themes_pain]", "[review_pain_points]"];
+    assert.deepEqual([...ACTIVE_VARIABLE_KEYS].sort(), ["[company_name]", "[owner_name]", "[owner_first_name]", "[city]"].sort());
+    for (const token of tokens) {
+        assert.equal(token in VARIABLE_MAP, false);
+        assert.equal(typeof DISABLED_VARIABLE_MAP[token], "function");
+        assert.deepEqual(validateTemplateVariables(`Hello ${token}`).unknownTokens, [token]);
+    }
+});
+
 test("personalization projection covers every lead property read by the variable formatter", () => {
     // The active surface must be exactly the curated allowlist. This catches a DUPLICATE entry
     // in ACTIVE_VARIABLE_KEYS collapsing during Object.fromEntries, or the fromEntries wiring

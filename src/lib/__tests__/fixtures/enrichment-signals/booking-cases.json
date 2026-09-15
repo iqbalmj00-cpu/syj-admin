@@ -1,0 +1,53 @@
+[
+  {
+    "id": "manual_date_approval",
+    "expected": "scheduling_request",
+    "html": "<h1>Junk removal</h1><form>Junk removal scheduling request. Pick your preferred date and time. We will call to confirm your request.<input type=\"date\"><input type=\"time\"><button>Request appointment</button></form>"
+  },
+  {
+    "id": "confirmed_pickup_no_payment",
+    "expected": "self_service",
+    "html": "<h1>Junk removal</h1><form>Junk pickup. Available pickup slots. Your pickup is instantly confirmed without staff approval. No payment is required.<select name=\"available_time\"><option value=\"2026-09-11T10:00\">10am</option></select><button>Confirm your pickup</button></form>"
+  },
+  {
+    "id": "confirmed_estimate",
+    "expected": "self_service",
+    "nextStep": "estimate_appointment",
+    "html": "<h1>Junk removal</h1><form>Junk removal estimate appointment. Available appointment slots. Your appointment is instantly confirmed without staff approval.<select name=\"slot\"><option value=\"10\">10am</option></select><button>Confirm appointment</button></form>"
+  },
+  {
+    "id": "invoice_portal",
+    "expected": "invoice_payment",
+    "html": "<h1>Junk removal</h1><form>Junk removal existing customer portal. Pay your invoice.<input type=\"date\"><input name=\"payment\"><button>Pay invoice</button></form>"
+  },
+  {
+    "id": "platform_marker_only",
+    "expected": "unknown",
+    "html": "<h1>Junk removal</h1><form>Powered by Jobber. Book now.<input name=\"date\" type=\"date\"></form>"
+  },
+  {
+    "id": "acknowledgement_not_confirmation",
+    "expected": "scheduling_request",
+    "html": "<h1>Junk removal</h1><form>Junk pickup. Your request received. We will confirm. Select a preferred date.<input type=\"date\"><button>Request pickup</button></form>"
+  },
+  {
+    "id": "contact_form",
+    "expected": "contact_form",
+    "html": "<h1>Junk removal</h1><form>Contact us about junk removal. Send a message.<input name=\"email\"><textarea name=\"message\"></textarea><button>Send</button></form>"
+  },
+  {
+    "id": "quote_request",
+    "expected": "quote_request",
+    "html": "<h1>Dumpster rental</h1><form>Get a quote for dumpster rental.<input name=\"size\"><button>Request quote</button></form>"
+  },
+  {
+    "id": "cross_form_features",
+    "expected": "unknown",
+    "html": "<h1>Junk removal</h1><form>Junk pickup available dates.<input type=\"date\"></form><form>Instant price quote $200. <input name=\"credit_card\"><button>Pay invoice</button></form>"
+  },
+  {
+    "id": "staff_overrides_marketing",
+    "expected": "scheduling_request",
+    "html": "<h1>Junk removal</h1><form>Junk pickup is instantly confirmed. Available slots.<select name=\"slot\"><option value=\"10\">10am</option></select>We will call to confirm. Request your preferred pickup.</form>"
+  }
+]

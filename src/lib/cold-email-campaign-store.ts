@@ -1,3 +1,7 @@
+import { lockLeadGroup } from "./lead-group-refresh.ts";
+import { isV2LeadGroup, readGroupEnvelope } from "./lead-group-policy.ts";
+import { requireSignalsAvailable } from "./enrichment-signals.ts";
+import { evidenceHash } from "./enrichment-evidence.ts";
 import { isDynamicLeadGroup, leadGroupSnapshotIssue } from "./lead-group-policy.ts";
 import { prisma } from "@/lib/prisma";
 import { COLD_EMAIL_PERSONALIZATION_LEAD_SELECT } from "@/lib/cold-email";
@@ -27,6 +31,7 @@ type Delegate = {
 };
 
 type CampaignClient = {
+    $queryRaw?<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
     coldEmailCampaign?: Delegate;
     coldEmailCampaignVersion?: Delegate;
     coldEmailAudienceSnapshot?: Delegate;
@@ -628,6 +633,8 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
         const errors = validateCampaignWizard(wizard);
         if (errors.length) throw new Error(errors.map((error) => error.message).join("; "));
 
+        if (!tx.$queryRaw) throw new ColdEmailCampaignStoreUnavailableError();
+        await lockLeadGroup(tx as Required<Pick<CampaignClient, "$queryRaw">>, wizard.audience!.leadGroupId!);
         const [sequence, pool, group] = await Promise.all([
             delegateFrom(tx, "coldEmailSequenceVersion", ["findUnique"]).findUnique!({
                 where: { id: wizard.messaging!.sequenceVersionId },
@@ -664,6 +671,7 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
         if (!sequence || sequence.status !== "approved" || sequence.steps.length === 0) throw new Error("The selected sequence is not approved or has no steps");
         if (!pool?.active || pool.memberships.length === 0) throw new Error("The selected sending pool has no ready account");
         if (!group || group.channel !== "email" || group.members.length === 0) throw new Error("The selected email Lead Group has no members");
+        if (isV2LeadGroup(group.filterDefinition)) requireSignalsAvailable();
         const refreshIssue = leadGroupSnapshotIssue({ filterDefinition: group.filterDefinition, refreshRequired: Boolean(wizard.audience?.refreshBeforeSnapshot), versionCreatedAt: version.createdAt, lastRefreshedAt: group.lastRefreshedAt });
         if (refreshIssue) throw new Error(refreshIssue);
 
@@ -672,7 +680,9 @@ export async function approveCanonicalColdEmailCampaignVersion(input: { versionI
             data: {
                 campaignVersionId: version.id,
                 sourceLeadGroupId: group.id,
-                sourceDefinition: { groupName: group.name, refreshBeforeSnapshot: Boolean(wizard.audience?.refreshBeforeSnapshot) },
+                sourceDefinition: { groupName: group.name, refreshBeforeSnapshot: Boolean(wizard.audience?.refreshBeforeSnapshot),
+                    ...(isV2LeadGroup(group.filterDefinition) ? { rules: readGroupEnvelope(group.filterDefinition), definitionHash: evidenceHash({ version: 2, expression: readGroupEnvelope(group.filterDefinition).expression }) } : { rules: group.filterDefinition }),
+                },
                 sourceHash,
                 totalCount: group.members.length,
                 eligibleCount: 0,

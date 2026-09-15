@@ -92,11 +92,11 @@ test("every declared section has at least one filter", () => {
     }
 });
 
-test("catalog holds 31 segment and 18 operational filters", () => {
+test("catalog holds 32 segment and 18 operational filters", () => {
     // 31 = the original 28 plus primaryBottleneck, painTags and praiseTags, which were already
     // implemented in both where-builders and listed in LEAD_FILTER_KEYS but were unreachable
     // from the panel until they were added to the catalog.
-    assert.equal(SEGMENT_FILTERS.length, 31);
+    assert.equal(SEGMENT_FILTERS.length, 32);
     assert.equal(OPERATIONAL_FILTERS.length, 18);
 });
 
@@ -165,8 +165,8 @@ test("the new booleans still accept false at the API level", () => {
     assert.ok(hasClause({ bookingHasPhotoUpload: "false" }, { bookingHasPhotoUpload: false }));
 });
 
-test("an unrecognised boolean value adds no clause", () => {
-    assert.equal(andClauses({ hasQuoteForm: "maybe" }).length, 0);
+test("an unrecognised boolean value fails closed", () => {
+    assert.throws(() => andClauses({ hasQuoteForm: "maybe" }), /Unsupported/);
 });
 
 /* ── ctaPromiseTags: OR, unlike painTags ────────────────────────────────────── */
@@ -240,8 +240,8 @@ test("min and max combine into two bounds on one field", () => {
     assert.ok(clauses.some((c) => JSON.stringify(c) === JSON.stringify({ reviewCount: { lte: 200 } })));
 });
 
-test("a non-numeric range bound adds no clause", () => {
-    assert.equal(andClauses({ reviewCountMin: "abc" }).length, 0);
+test("a non-numeric range bound fails closed; empty UI bounds remain absent", () => {
+    assert.throws(() => andClauses({ reviewCountMin: "abc" }), /Invalid numeric/);
     assert.equal(andClauses({ ratingMin: "" }).length, 0);
 });
 
@@ -307,10 +307,8 @@ test("a stored definition using an older key still resolves", () => {
     assert.equal(parsed.mobileFriendly, "false");
 });
 
-test("parseLeadFilter still drops keys it does not know", () => {
-    const parsed = parseLeadFilter({ notAFilter: "x", grade: "A" });
-    assert.equal("notAFilter" in parsed, false);
-    assert.equal(parsed.grade, "A");
+test("parseLeadFilter rejects unknown saved keys", () => {
+    assert.throws(() => parseLeadFilter({ notAFilter: "x", grade: "A" }), /Unsupported filter/);
 });
 
 test("parseLeadFilterParams reads the new keys off a query string", () => {
@@ -337,7 +335,7 @@ function sampleValue(def: (typeof SEGMENT_FILTERS)[number]): Array<[string, stri
         case "enum": return [[def.key, c.options[0].value]];
         case "multiAny":
         case "multiAll": return [[def.key, c.options[0].value]];
-        case "range": return [[c.minKey, "1"], [c.maxKey, "2"]];
+        case "range": return [[c.minKey, "1"], [c.maxKey, def.field === "ownerResponseRate" ? "1" : "2"]];
         case "days": return [[def.key, "30"]];
         default: return [];
     }
@@ -478,18 +476,9 @@ test("every option of every enum and multi filter builds a clause", () => {
     }
 });
 
-test("the leads endpoint reads every param key the panel can emit", () => {
-    const missing = catalogParamKeys().filter((key) => !routeSource.includes(`searchParams.get("${key}")`));
-    assert.deepEqual(missing, [], `route.ts does not read: ${missing.join(", ")}`);
-});
-
-test("the leads endpoint writes a clause for each newly added field", () => {
-    for (const field of [
-        "googleAdsStatus", "bookingStatus", "primaryCtaType", "hasQuoteForm",
-        "bookingHasPhotoUpload", "bookingHasTimeslotSelection", "bookingHasPriceEstimate",
-        "ctaPromiseTags", "foundedYear", "reviewCount", "rating", "ownerResponseRate",
-        "reviewVelocity90d", "loadTimeSeconds",
-    ]) {
-        assert.ok(routeSource.includes(field), `route.ts never references ${field}`);
-    }
+test("all list modes route through the shared parser and query", () => {
+    assert.ok(routeSource.includes("parseLeadQuery(searchParams)"));
+    assert.ok(routeSource.includes("buildSavedLeadQuery(parsed.definition"));
+    assert.equal(routeSource.includes('const grade = searchParams.get("grade")'), false);
+    for (const key of catalogParamKeys()) assert.ok((LEAD_FILTER_KEYS as readonly string[]).includes(key));
 });

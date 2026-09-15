@@ -91,7 +91,7 @@ async def post_leads(leads: list[dict], dashboard_url: str, secret: str,
                     if (
                         status in ("created", "updated")
                         or str(reason or "").startswith("invalid")
-                        or reason in ("name is required", "market is required")
+                        or reason in ("name is required", "market is required", "archived_identity_preserved", "eligibility:dumpster_only")
                     ):
                         totals["saved_leads"].append(lead)
                     else:

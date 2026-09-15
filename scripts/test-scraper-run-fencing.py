@@ -31,6 +31,7 @@ class FencingTests(unittest.IsolatedAsyncioTestCase):
 
         ns = dict(
             _get_control=get_control, _state={}, asyncio=asyncio,
+            relevance=SimpleNamespace(allowed_discovery_term=lambda term: True),
             logger=SimpleNamespace(info=lambda *a: None, warning=lambda *a: None),
             region=SimpleNamespace(expand=lambda target: [target], discovery_targets_for_state=lambda *a, **k: [{}]),
             cfg=SimpleNamespace(enable_grid_expansion=False, grid_spacing_miles=1, max_grid_points_per_market=1, grid_min_population=1, grid_min_zip_count=1, skip_empty=True),

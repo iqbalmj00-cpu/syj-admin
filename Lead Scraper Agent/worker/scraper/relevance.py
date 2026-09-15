@@ -3,8 +3,8 @@ Lead Scraper industry relevance gate.
 
 The worker must not treat the search term as proof that a Google Maps row is a
 junk-removal or dumpster-rental company. Classification is evidence-ranked:
-strong target evidence can beat conditional off-target terms such as "moving",
-while absolute unrelated businesses are still rejected.
+explicit junk service labels can qualify hybrids. Missing or conflicting service
+evidence stays pending for dashboard review; categories never establish absence.
 """
 
 from __future__ import annotations
@@ -187,65 +187,32 @@ def _category_text(row: dict) -> str:
     return " ".join(extract_categories(row)).lower()
 
 
+JUNK_SERVICE_EVIDENCE = re.compile(r"\b(?:junk\s*(?:removal|hauling|pickup)|hauling\s+junk|rubbish\s+removal|debris\s+removal|furniture\s+removal|appliance\s+removal|house\s+clearance|(?:estate|house|home|garage|property|hoarder)\s*cleanouts?|haul(?:ing)?[ -]*away\s+(?:junk|unwanted\s+items|furniture|appliances))\b", re.I)
+
+
+NON_JUNK_IDENTITY = re.compile(r"\b(?:junk\s*(?:cars?|vehicles?)|cash\s*for\s*(?:junk|cars?|vehicles?)|(?:auto|car|vehicle)\s*(?:salvage|wreck\w*|removal|towing)|freight|aggregate|material\s+delivery|towing|routine\s+trash|municipal\s+(?:waste|trash|garbage))\b", re.I)
+
+def qualifying_label(label):
+    services = re.sub(r"\bjunk\s*(?:removal|hauling)\s+(?:of\s+)?(?:cars?|vehicles?|scrap\s+cars?)\b", "", label, flags=re.I)
+    return bool(JUNK_SERVICE_EVIDENCE.search(services))
+
+
+def allowed_discovery_term(term: str) -> bool:
+    # Explicitly mixed junk/dumpster discovery remains allowed.
+    return bool(str(term).strip()) and (not (DIRECT_DUMPSTER.search(str(term)) or CONTAINER_RENTAL.search(str(term))) or qualifying_label(str(term)))
+
+
 def classify_row(row: dict) -> RelevanceResult:
-    text = searchable_text(row)
-    if not text:
-        return RelevanceResult(False, "no_searchable_evidence")
-    if ALWAYS_EXCLUDE.search(text):
-        return RelevanceResult(False, "hard_exclude")
-    if STORAGE_CONTAINER.search(text) and not WASTE_CONTAINER_CONTEXT.search(text):
-        return RelevanceResult(False, "hard_exclude")
-    if DUMPSTER_CLEANING.search(text) and not DUMPSTER_RENTAL_CONTEXT.search(text):
-        return RelevanceResult(False, "hard_exclude")
-
+    # Match the dashboard's supported-label boundary. A search result/category
+    # cannot establish absence, and other service categories cannot veto junk.
     name = _name_text(row)
-    categories = _category_text(row)
-    direct_category = bool(STRONG_CATEGORY.search(categories))
-    direct_junk = bool(DIRECT_JUNK.search(text) or direct_category)
-    direct_dumpster = bool(DIRECT_DUMPSTER.search(text))
-    contextual_container = bool(CONTAINER_RENTAL.search(text) and CONTAINER_CONTEXT.search(text))
-    contextual_hauling = bool(GENERIC_HAULING.search(text) and WASTE_CONTEXT.search(text))
-    brand_junk_with_waste = bool(BRAND_JUNK_NAME.search(name) and WASTE_CONTEXT.search(categories))
-    generic_waste_company = bool(GENERIC_WASTE_NAME.search(name) and WASTE_CATEGORY.search(categories))
-
-    matched: list[str] = []
-    if direct_category:
-        matched.append("strong_category")
-    if direct_junk:
-        matched.append("direct_junk")
-    if direct_dumpster:
-        matched.append("direct_dumpster")
-    if contextual_container:
-        matched.append("contextual_container")
-    if contextual_hauling:
-        matched.append("contextual_hauling")
-    if brand_junk_with_waste:
-        matched.append("brand_junk_with_waste_category")
-    if generic_waste_company:
-        matched.append("generic_waste_company_with_category")
-
-    if not matched:
-        if ALWAYS_EXCLUDE.search(text) or CONDITIONAL_EXCLUDE.search(text):
-            return RelevanceResult(False, "hard_exclude")
-        return RelevanceResult(False, "no_positive_match")
-
-    strong_positive = bool(
-        direct_category
-        or direct_dumpster
-        or contextual_container
-        or brand_junk_with_waste
-        or STRONG_JUNK_KEYWORDS.search(text)
-    )
-    if CONDITIONAL_EXCLUDE.search(text) and not strong_positive:
-        return RelevanceResult(False, "conditional_exclude_without_strong_positive")
-
-    company_type = None
-    if direct_dumpster or contextual_container:
-        company_type = "dumpster_rental"
-    elif direct_junk or brand_junk_with_waste:
-        company_type = "junk_removal"
-
-    return RelevanceResult(True, "accepted", company_type, tuple(matched))
+    labels = [name, *extract_categories(row)]
+    positive = any(qualifying_label(v) for v in labels)
+    conflict = positive and not qualifying_label(name) and NON_JUNK_IDENTITY.search(name)
+    if positive and not conflict:
+        return RelevanceResult(True, "supported_junk_service", "junk_removal", ("explicit_junk_service_label",))
+    company_type = "dumpster_rental" if DIRECT_DUMPSTER.search(" ".join(labels)) else "other"
+    return RelevanceResult(True, "pending_review", company_type, ("conflicting_business_identity",) if conflict else ())
 
 
 def rejection_sample(row: dict, reason: str) -> dict:

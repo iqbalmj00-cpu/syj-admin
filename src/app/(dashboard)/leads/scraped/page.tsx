@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type CSSProperties } from "react";
+import { LeadSignalFilters } from "@/components/leads/LeadSignalFilters";
+import { LeadSignalEvidence } from "@/components/leads/LeadSignalEvidence";
+import { FILTER_LIMITS, type FilterDefinition } from "@/lib/lead-filter-definition";
 import { refreshEmailSegment } from "@/lib/lead-segment-client";
 import { inspectBusinessWebsite } from "@/lib/lead-website";
 import { emailCleaningScopeText, emailCleaningResultText, type EmailCleaningScope } from "@/lib/email-cleaner-presentation";
@@ -229,7 +232,7 @@ export default function ScrapedLeadsPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [funnel, setFunnel] = useState<FunnelData>({ total: 0, new: 0, emailed: 0, sms_sent: 0, replied: 0, converted: 0, skipped: 0 });
     const [loading, setLoading] = useState(true);
-    const [pendingSegment, setPendingSegment] = useState<{ id: string; name: string } | null>(null);
+    const [pendingSegment, setPendingSegment] = useState<{ id: string; name: string; expectedRevision?: number; evaluationContext?: string } | null>(null);
     const [segmentError, setSegmentError] = useState<string | null>(null);
     const [emailCleaningReport, setEmailCleaningReport] = useState<string | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
@@ -243,6 +246,13 @@ export default function ScrapedLeadsPage() {
     // default result set and let archived leads and existing customers into cold-email
     // segments built from it.
     const [filters, setFilters] = useState<FilterValues>({ ...FILTER_DEFAULTS });
+    const [signalDefinition, setSignalDefinition] = useState<FilterDefinition | null>(null);
+    const [signalsAvailable, setSignalsAvailable] = useState(false);
+    const [evaluationContext, setEvaluationContext] = useState<string | undefined>();
+    const [eligibleCount, setEligibleCount] = useState<number | undefined>();
+    const [previewError, setPreviewError] = useState("");
+    const previewSequence = useRef(0);
+    const previewContext = useRef<{ base: string; token: string; evaluatedAtMs: number } | null>(null);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [sortBy, setSortBy] = useState("createdAt");
@@ -255,6 +265,7 @@ export default function ScrapedLeadsPage() {
     // clear sentinel — `archived: "all"` is a real value meaning "include archived leads",
     // and dropping it would fall back to the endpoint's active-only default.
     const setFilter = useCallback((key: string, value: string) => {
+        setSignalDefinition(null);
         setFilters(prev => {
             const next = { ...prev };
             if (value === "") delete next[key];
@@ -330,35 +341,44 @@ export default function ScrapedLeadsPage() {
     // means active-only, which is how the pre-rebuild page behaved.
     const buildFilterParams = useCallback(() => {
         const params = new URLSearchParams();
+        if (signalDefinition) {
+            params.set("filterDefinition", JSON.stringify(signalDefinition));
+            return params;
+        }
         for (const [key, value] of Object.entries(filters)) {
             if (!value) continue;
             if (key === "archived" && value === "active") continue;
             params.set(key, value);
         }
         return params;
-    }, [filters]);
+    }, [filters, signalDefinition]);
 
     const fetchLeads = useCallback(async () => {
+        const sequence = ++previewSequence.current;
+        setLoading(true); setPreviewError("");
         try {
             const params = buildFilterParams();
-            params.set("page", String(page));
-            params.set("limit", String(LEADS_PER_PAGE));
-            params.set("sortBy", sortBy);
-            params.set("sortOrder", sortOrder);
-            setLastQuery(params.toString());
-
+            const base = params.toString();
+            if (previewContext.current?.base === base && Date.now() - previewContext.current.evaluatedAtMs < 14 * 60_000) params.set("evaluationContext", previewContext.current.token);
+            params.set("page", String(page)); params.set("limit", String(LEADS_PER_PAGE));
+            params.set("sortBy", sortBy); params.set("sortOrder", sortOrder);
+            if (params.toString().length > FILTER_LIMITS.urlBytes - 100) throw new Error("Rules exceed the supported query size");
             const res = await fetch(`/api/agents/leads?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setLeads(data.leads);
-                setTotal(data.total);
-                setFunnel(data.funnel);
-                if (data.markets) setAvailableMarkets(data.markets);
-                if (data.states) setAvailableStates(data.states);
-                setCanPermanentlyDelete(data.permissions?.canPermanentlyDelete === true);
-            }
-        } catch { /* ignore */ }
-        setLoading(false);
+            const data = await res.json();
+            if (sequence !== previewSequence.current) return;
+            if (!res.ok) throw new Error(data.error || "Preview failed");
+            setLeads(data.leads); setTotal(data.total); setFunnel(data.funnel);
+            if (data.markets) setAvailableMarkets(data.markets);
+            if (data.states) setAvailableStates(data.states);
+            setCanPermanentlyDelete(data.permissions?.canPermanentlyDelete === true);
+            setSignalsAvailable(data.evidenceFiltersAvailable === true);
+            setEvaluationContext(data.evaluationContext); setEligibleCount(data.eligibleCount);
+            if (data.evaluationContext) { params.set("evaluationContext", data.evaluationContext); previewContext.current = { base, token: data.evaluationContext, evaluatedAtMs: data.evaluatedAtMs }; }
+            else previewContext.current = null;
+            setLastQuery(params.toString()); // Applied only after this exact response succeeds.
+        } catch (error) {
+            if (sequence === previewSequence.current) { setPreviewError(error instanceof Error ? error.message : "Preview failed"); setLastQuery(""); previewContext.current = null; }
+        } finally { if (sequence === previewSequence.current) setLoading(false); }
     }, [buildFilterParams, page, sortBy, sortOrder]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
@@ -406,25 +426,27 @@ export default function ScrapedLeadsPage() {
     // saves the filter as the group's filterDefinition and auto-includes every matching lead.
     // Membership can be re-evaluated later from the Cold Email console (refresh).
     const createEmailSegment = async () => {
-        if (!newGroupName.trim() || pendingSegment) return;
+        if (!newGroupName.trim() || pendingSegment || loading || !lastQuery || previewError) return;
         setAddingToGroup(true);
         try {
             const qp = new URLSearchParams(lastQuery);
-            ["page", "limit", "sortBy", "sortOrder"].forEach(k => qp.delete(k));
-            const filterDefinition = Object.fromEntries(qp.entries());
+            ["page", "limit", "sortBy", "sortOrder", "evaluationContext"].forEach(k => qp.delete(k));
+            if (qp.toString() !== buildFilterParams().toString()) throw new Error("Wait for the current preview before saving");
+            const filterDefinition = qp.has("filterDefinition") ? JSON.parse(qp.get("filterDefinition")!) : Object.fromEntries(qp.entries());
 
             const createRes = await fetch("/api/agents/lead-groups", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: newGroupName.trim(), channel: "email", filterDefinition }),
+                body: JSON.stringify({ name: newGroupName.trim(), channel: "email", filterDefinition, evaluationContext }),
             });
             if (!createRes.ok) { showToast("Failed to create segment", "error"); setAddingToGroup(false); return; }
             const group = await createRes.json();
 
-            setPendingSegment({ id: group.id, name: group.name });
+            setPendingSegment({ id: group.id, name: group.name, expectedRevision: group.filterDefinition?.definitionRevision, evaluationContext });
             setShowGroupSelect(false);
             setSegmentError(null);
             try {
-                const total = await refreshEmailSegment(group.id);
+                if (group.membershipReady === false) throw new Error(group.membershipError || "Refresh failed; retry this existing group");
+                const total = group.membershipReady === true ? group.membership.total : await refreshEmailSegment(group.id, undefined, { expectedRevision: group.filterDefinition?.definitionRevision, evaluationContext });
                 showToast(`Created email segment "${group.name}" with ${total} persisted lead(s)`);
                 setPendingSegment(null);
             } catch (error) {
@@ -473,16 +495,18 @@ export default function ScrapedLeadsPage() {
     // "Select all matching filters across every page" — explicit second click via the banner.
     // Issues one query with `idsOnly=true` that respects every active filter.
     const selectAllMatchingLeads = async () => {
-        if (loadingSelectAll) return;
+        if (loadingSelectAll || loading || !lastQuery) return;
         setLoadingSelectAll(true);
+        const requestedSequence = previewSequence.current;
         try {
-            const params = buildFilterParams();
+            const params = new URLSearchParams(lastQuery);
             params.set("idsOnly", "true");
             const res = await fetch(`/api/agents/leads?${params}`);
             if (!res.ok) throw new Error("Failed to fetch matching IDs");
             const data = await res.json();
+            if (requestedSequence !== previewSequence.current) { setLoadingSelectAll(false); return; }
             setSelectedIds(new Set(data.ids));
-            setSelectAllMatching(true);
+            setSelectAllMatching(data.truncated !== true);
             // The endpoint caps bulk fetches. Say so rather than claiming "all" when the
             // selection is a capped prefix of the matching set.
             showToast(
@@ -712,6 +736,8 @@ export default function ScrapedLeadsPage() {
         truncated: boolean;
     };
     const fetchSelectedContacts = async (): Promise<SelectedContacts> => {
+        if (loading || !lastQuery || previewError) throw new Error("Wait for a successful current preview");
+        const requestedSequence = previewSequence.current;
         const onPage = leads.filter(l => selectedIds.has(l.id));
         if (onPage.length === selectedIds.size) {
             return { contacts: onPage.map(l => ({ id: l.id, email: l.email ?? null, phone: l.phone ?? null })), truncated: false };
@@ -719,6 +745,7 @@ export default function ScrapedLeadsPage() {
         const res = await fetch(`/api/agents/leads?${lastQuery}&contactsOnly=true`);
         if (!res.ok) throw new Error("Failed to load selected leads");
         const data = await res.json();
+        if (requestedSequence !== previewSequence.current) throw new Error("Filters changed while loading contacts; retry the current selection");
         const all: Array<{ id: string; email: string | null; phone: string | null }> = Array.isArray(data.contacts) ? data.contacts : [];
         return { contacts: all.filter(c => selectedIds.has(c.id)), truncated: data.truncated === true };
     };
@@ -861,6 +888,10 @@ export default function ScrapedLeadsPage() {
                 ))}
             </div>
 
+            <details><summary>Build evidence rules with ALL / ANY</summary><LeadSignalFilters available={signalsAvailable} onApply={definition => { setSignalDefinition(definition); setPage(1); setSelectedIds(new Set()); setSelectAllMatching(false); }} onClear={() => { setSignalDefinition(null); setPage(1); }} /></details>
+            {signalDefinition && <p>Evidence rules are applied. Changing a legacy control returns to the legacy filter view.</p>}
+            {previewError && <p role="alert">{previewError} <button type="button" onClick={() => void fetchLeads()}>Retry preview</button></p>}
+            {eligibleCount !== undefined && <p>{eligibleCount.toLocaleString()} leads eligible for group membership. Saving re-evaluates the data at the same evaluation time; membership can change if source data changes.</p>}
             {/* Operational filters — gate WHO is contactable. Kept separate from the segment
                 signals below, which describe what the business looks like. */}
             <div style={{ background: "var(--surface-raised)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "10px 14px", display: "grid", gap: 8 }}>
@@ -953,7 +984,7 @@ export default function ScrapedLeadsPage() {
                                                 style={{ flex: 1, padding: "4px 8px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, outline: "none" }}
                                                 onKeyDown={e => e.key === "Enter" && createGroupAndAdd()} />
                                             <button className="btn btn-xs btn-primary" onClick={createGroupAndAdd} disabled={!newGroupName.trim()} style={{ fontSize: 10, padding: "3px 8px" }}>Create</button>
-                                            <button className="btn btn-xs" onClick={createEmailSegment} disabled={!newGroupName.trim() || addingToGroup || Boolean(pendingSegment)} title="Create a dynamic EMAIL segment from the current filter — auto-includes all matching leads and is refreshable from the Cold Email console" style={{ fontSize: 10, padding: "3px 8px" }}>+ Email segment</button>
+                                            <button className="btn btn-xs" onClick={createEmailSegment} disabled={!newGroupName.trim() || addingToGroup || Boolean(pendingSegment) || loading || !lastQuery || Boolean(previewError)} title="Create a dynamic EMAIL segment from the current filter — auto-includes all matching leads and is refreshable from the Cold Email console" style={{ fontSize: 10, padding: "3px 8px" }}>+ Email segment</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1024,7 +1055,7 @@ export default function ScrapedLeadsPage() {
                 <button className="btn btn-sm btn-ghost" disabled={addingToGroup} onClick={async () => {
                     setAddingToGroup(true);
                     try {
-                        const total = await refreshEmailSegment(pendingSegment.id);
+                        const total = await refreshEmailSegment(pendingSegment.id, undefined, { expectedRevision: pendingSegment.expectedRevision, evaluationContext: pendingSegment.evaluationContext });
                         showToast(`Segment "${pendingSegment.name}" now has ${total} persisted lead(s)`);
                         setPendingSegment(null); setSegmentError(null);
                     } catch (error) { setSegmentError(error instanceof Error ? error.message : "Membership refresh failed"); }
@@ -1114,6 +1145,7 @@ export default function ScrapedLeadsPage() {
                             {expandedLeadId === l.id && (
                                 <tr><td colSpan={17} style={{ padding: 0, background: "var(--surface)" }}>
                                     <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                                        <div style={{ gridColumn: "span 3" }}><LeadSignalEvidence leadId={l.id} available={signalsAvailable} appliedQuery={lastQuery} /></div>
                                         {/* Pain Points */}
                                         <div style={{ gridColumn: "span 3", background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.1)", borderRadius: 10, padding: "12px 16px" }}>
                                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger)", marginBottom: 8 }}>Pain Points</div>

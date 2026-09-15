@@ -43,6 +43,7 @@ export type FilterDef = {
 // ── Segment filters ────────────────────────────────────────────────────────────
 
 export const SEGMENT_FILTERS: FilterDef[] = [
+    { key:"eligibility", field:"notesFlags", label:"Junk-removal eligibility", section:"Eligibility", control:{kind:"enum",options:[{value:"active",label:"Active (including legacy awaiting review)"},{value:"eligible",label:"Supported junk removal"},{value:"pending_review",label:"Pending service review"},{value:"dumpster_only",label:"Confirmed dumpster only"},{value:"suppressed",label:"Existing suppression"},{value:"legacy_unreviewed",label:"Legacy, not assessed"},{value:"all",label:"All eligibility states"}]} },
     {
         key: "googleAdsStatus",
         field: "googleAdsStatus",
@@ -323,6 +324,7 @@ export const OPERATIONAL_FILTERS: FilterDef[] = [
 
 // Ordered section list for rendering the segment panel.
 export const SEGMENT_SECTIONS = [
+    "Eligibility",
     "Google Ads",
     "Intake & Booking",
     "Business Facts",

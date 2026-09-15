@@ -49,7 +49,7 @@ test("franchise: near-miss with no junk token is ambiguous, not rejected", () =>
     // "Kingdom Services" boundary-matches nothing in the blocklist and has no
     // allow/deny/name-keep evidence -> ambiguous (null), never a false reject.
     const d = getRuleDecision(lead({ name: "Kingdom Services LLC" }), POLICY);
-    assert.equal(d, null);
+    assert.equal(d?.reason, "eligibility:pending_review");
 });
 
 test("franchise: exact multi-word brand name rejects without domain", () => {
@@ -70,47 +70,47 @@ test("franchise: custom single-word brand does not auto-reject without domain", 
     // "Acme Plumbing" boundary-matches single-word "acme" but that term is not
     // distinctive, so it must not reject on name alone.
     const d = getRuleDecision(lead({ name: "Acme Plumbing" }), policy);
-    assert.equal(d, null);
+    assert.equal(d?.reason, "eligibility:pending_review");
 });
 
 /* ── H4: scrap hard vs soft collision handling ─────────────────────── */
 
-test("scrap: hard junkyard category always rejects", () => {
+test("scrap: junkyard category alone remains pending", () => {
     const d = getRuleDecision(lead({ name: "City Auto", categories: ["Junkyard"] }), POLICY);
     assert.ok(d);
-    assert.equal(d!.reason, "category_deny:scrap_yard");
+    assert.equal(d!.reason, "eligibility:pending_review");
 });
 
-test("scrap: soft scrap term + allow evidence defers to LLM (not rule reject)", () => {
+test("scrap: explicit junk service alongside scrap qualifies", () => {
     const d = getRuleDecision(lead({ name: "Green Hauling", categories: ["Junk removal service", "Scrap metal dealer"] }), POLICY);
     // Hybrid: soft "scrap metal" collides with allow "junk removal" -> ambiguous.
-    assert.equal(d, null);
+    assert.equal(d?.reason, "explicit_junk_service_label");
 });
 
-test("scrap: soft scrap term without allow evidence rejects", () => {
+test("scrap: missing junk evidence remains pending", () => {
     const d = getRuleDecision(lead({ name: "Metro Metals", categories: ["Scrap metal dealer"] }), POLICY);
     assert.ok(d);
-    assert.equal(d!.reason, "category_deny:scrap_yard");
+    assert.equal(d!.reason, "eligibility:pending_review");
 });
 
 /* ── #8: junk-car buyers must not slip through name_token_keep ─────── */
 
-test("junk-car buyer with no categories is rejected, not name-token-kept", () => {
+test("junk-car buyer without junk-service evidence remains pending", () => {
     const d = getRuleDecision(lead({ name: "Cash For Junk Cars LLC" }), POLICY);
     assert.ok(d);
-    assert.equal(d!.verdict, "reject");
-    assert.equal(d!.reason, "category_deny:scrap_yard");
+    assert.equal(d!.verdict, "keep");
+    assert.equal(d!.reason, "eligibility:pending_review");
 });
 
-test("junk-car name WITH junk-removal category defers to LLM (hybrid)", () => {
+test("junk-car identity with conflicting provider junk category remains pending", () => {
     const d = getRuleDecision(lead({ name: "ABC Junk Car Removal", categories: ["Junk removal service"] }), POLICY);
-    assert.equal(d, null); // soft scrap collision with allow evidence -> LLM
+    assert.equal(d?.reason, "eligibility:pending_review"); // Conflicting provider category needs current service evidence.
 });
 
-test("plain junk-removal name still name-token-keeps (no junk-car false positive)", () => {
+test("explicit junk-removal name qualifies", () => {
     const d = getRuleDecision(lead({ name: "Rapid Junk Removal" }), POLICY);
     assert.ok(d);
-    assert.equal(d!.reason, "name_token_keep");
+    assert.equal(d!.reason, "explicit_junk_service_label");
 });
 
 test("corroboration: junk-car evidence corroborates an LLM scrap_yard reject", () => {
@@ -123,14 +123,14 @@ test("junk-car terms are boundary-matched: legit haulers named 'Junk Carting'/'J
     // real junk-hauling naming patterns. Boundary matching keeps them.
     const carting = getRuleDecision(lead({ name: "Liberty Junk Carting" }), POLICY);
     assert.ok(carting);
-    assert.equal(carting!.reason, "name_token_keep");
+    assert.equal(carting!.reason, "eligibility:pending_review");
     const cartel = getRuleDecision(lead({ name: "The Junk Cartel" }), POLICY);
     assert.ok(cartel);
-    assert.equal(cartel!.reason, "name_token_keep");
+    assert.equal(cartel!.reason, "eligibility:pending_review");
     // ...while genuine junk-car targets still reject.
     const buyer = getRuleDecision(lead({ name: "We Buy Junk Cars Fast" }), POLICY);
     assert.ok(buyer);
-    assert.equal(buyer!.reason, "category_deny:scrap_yard");
+    assert.equal(buyer!.reason, "eligibility:pending_review");
 });
 
 /* ── deterministic rule order + allow/deny collisions ──────────────── */
@@ -139,7 +139,7 @@ test("allow signal keeps", () => {
     const d = getRuleDecision(lead({ name: "Anytown Junk", categories: ["Junk removal service"] }), POLICY);
     assert.ok(d);
     assert.equal(d!.verdict, "keep");
-    assert.equal(d!.reason, "category_allow");
+    assert.equal(d!.reason, "explicit_junk_service_label");
 });
 
 test("porta potty allowCollision:keep survives with allow evidence", () => {
@@ -148,16 +148,26 @@ test("porta potty allowCollision:keep survives with allow evidence", () => {
     assert.equal(d!.verdict, "keep");
 });
 
-test("moving company without allow rejects", () => {
+test("moving category alone cannot rule out junk removal", () => {
     const d = getRuleDecision(lead({ name: "Smith Movers", categories: ["Moving company"] }), POLICY);
     assert.ok(d);
-    assert.equal(d!.reason, "category_deny:moving_company");
+    assert.equal(d!.reason, "eligibility:pending_review");
 });
 
-test("name token keep when no category evidence", () => {
+test("AI cannot reject a possible moving and junk-removal hybrid from category alone", () => {
+    const candidate = lead({ name: "Small Haul Movers - Colorado", categories: ["Moving company"] });
+    const decision = normalizeLlmDecision(
+        { leadId: candidate.id, verdict: "reject", outCategory: "moving_company", confidence: 0.99, reason: "moving category" },
+        candidate, POLICY,
+    );
+    assert.equal(decision.verdict, "keep");
+    assert.equal(decision.reason, "eligibility:pending_review");
+});
+
+test("dumpster name alone remains pending", () => {
     const d = getRuleDecision(lead({ name: "Rapid Dumpster Rentals" }), POLICY);
     assert.ok(d);
-    assert.equal(d!.reason, "name_token_keep");
+    assert.equal(d!.reason, "eligibility:pending_review");
 });
 
 /* ── M9: client roster matching (name, exact email, business domain) ─ */
@@ -203,14 +213,15 @@ test("corroboration: custom franchise brand honored via policy (name evidence)",
     assert.equal(corroboratesOutCategory(lead({ name: "Some Other Junk Co" }), "franchise", policy), false);
 });
 
-test("normalizeLlmDecision: high-confidence corroborated reject stands", () => {
+test("normalizeLlmDecision: model category reject cannot establish service absence", () => {
     const d = normalizeLlmDecision(
         { leadId: "L1", verdict: "reject", outCategory: "self_storage", confidence: 0.95, reason: "storage" },
         lead({ id: "L1", name: "SecureSpace Storage", categories: ["Self storage facility"] }),
         POLICY,
     );
-    assert.equal(d.verdict, "reject");
-    assert.equal(d.reason, "llm_reject:self_storage");
+    assert.equal(d.verdict, "keep");
+    assert.equal(d.reason, "eligibility:pending_review");
+    assert.equal(d.judged, false);
 });
 
 test("normalizeLlmDecision: uncorroborated reject downgrades to keep", () => {
@@ -284,7 +295,7 @@ test("LLM: row omitted from response -> that row unjudged, not a silent keep (B3
         assert.equal(result.llmTruncated, 1);
         const a = result.decisions.find(d => d.leadId === "A")!;
         const b = result.decisions.find(d => d.leadId === "B")!;
-        assert.equal(a.judged, true);
+        assert.equal(a.judged, false); // A model-only keep cannot establish junk service.
         assert.equal(b.judged, false); // omitted row is unjudged
         assert.equal(result.failed, 1);
     } finally { restoreFetch(); }
@@ -352,4 +363,61 @@ test("mergeLeadCleanPolicy: valid string numbers still parse", () => {
     const merged = mergeLeadCleanPolicy({ policy: { maxCandidatesPerRun: "250", llmBatchSize: "40" } });
     assert.equal(merged.maxCandidatesPerRun, 250);
     assert.equal(merged.llmBatchSize, 40);
+});
+
+
+test("scraped category conflicts preserve plausible rental and hauling businesses for review", () => {
+    for (const row of [
+        {name:"Grand Sanitation",categories:["Garbage collection service","Recycling center","Waste management service"]},
+        {name:"Tumbleweed Dumpster Co.",categories:["Waste management service","Portable toilet supplier"]},
+        {name:"Bruin Waste Management | Dumpster & Toilet Rental",categories:["Portable toilet supplier","Waste management service"]},
+        {name:"Local Commercial Junk Removal",categories:["Junkyard"]},
+    ]) {
+        const candidate=lead(row);
+        const decision=getRuleDecision(candidate,POLICY);
+        assert.equal(decision?.verdict,"keep");
+        assert.equal(decision?.reason,row.name.includes("Junk Removal")?"explicit_junk_service_label":"eligibility:pending_review");
+        const ai=normalizeLlmDecision({verdict:"reject",outCategory:"unrelated_business",confidence:1},candidate,POLICY);
+        assert.equal(ai.verdict,"keep");
+        assert.equal(ai.reason,decision?.reason);
+    }
+});
+test("facility absence remains pending while franchise suppression is preserved", () => {
+    assert.equal(getRuleDecision(lead({name:"County Landfill",categories:["Garbage dump","Waste management service"]}),POLICY)?.verdict,"keep");
+    assert.match(getRuleDecision(lead({name:"Junk King",categories:["Waste management service"]}),POLICY)?.reason||"",/^franchise:/);
+});
+
+test("mixed business categories and missing target labels do not establish irrelevance", () => {
+    const mixed=lead({name:"Pioneer Moving & Home Services",categories:["Mover","Junkyard","Storage facility"]});
+    assert.equal(getRuleDecision(mixed,POLICY)?.reason,"eligibility:pending_review");
+    const unknown=lead({name:"Halftime Help",categories:["Property maintenance"]});
+    assert.equal(normalizeLlmDecision({verdict:"reject",outCategory:"unrelated_business",confidence:1},unknown,POLICY).verdict,"keep");
+});
+
+test("appliance and furniture removal identities survive recycling categories", () => {
+    for(const name of ["Fast free appliance removal","Local furniture removal"]){
+        assert.equal(getRuleDecision(lead({name,categories:["Recycling center"]}),POLICY)?.reason,"explicit_junk_service_label");
+    }
+});
+
+test("joined hauling names and non-car junk identities remain for review", () => {
+    for(const name of ["ABLEJUNKHAULAWAYS","Pam Pam's Junk","Dale's Junking"]){
+        assert.equal(getRuleDecision(lead({name,categories:["Junkyard"]}),POLICY)?.reason,"eligibility:pending_review");
+    }
+    assert.equal(getRuleDecision(lead({name:"WeBuyJunkCars",categories:["Junkyard"]}),POLICY)?.verdict,"keep");
+});
+
+test("non-adjacent junk-car and scrap-car identities stay pending", () => {
+    for(const name of ["Junk My Car - Villa Rica","Cash For Junk Wrecked Cars","Cash For Junk Scrap Cars","PJ Sell Your Junk Carr"]){
+        assert.equal(getRuleDecision(lead({name,categories:["Junkyard"]}),POLICY)?.verdict,"keep");
+    }
+    assert.equal(getRuleDecision(lead({name:"Liberty Junk Carting",categories:["Recycling center"]}),POLICY)?.verdict,"keep");
+});
+
+test("removal-service and facility names without junk evidence remain pending", () => {
+    for(const name of ["M & R Removal","Tired of Trash"]){
+        assert.equal(getRuleDecision(lead({name,categories:["Garbage dump"]}),POLICY)?.reason,"eligibility:pending_review");
+    }
+    assert.equal(getRuleDecision(lead({name:"Tony's Auto Removal",categories:["Junkyard"]}),POLICY)?.verdict,"keep");
+    assert.equal(getRuleDecision(lead({name:"North Fork Trash Transfer Station",categories:["Garbage dump"]}),POLICY)?.verdict,"keep");
 });

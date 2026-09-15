@@ -1,3 +1,4 @@
+import { junkEligibilityWhere, JUNK_ELIGIBILITY_VERSION } from "./junk-eligibility.ts";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -165,11 +166,11 @@ export function resetLeadCleanerCapabilityCache() {
 }
 
 export function getEnrichmentEligibleWhere() {
-    return { enrichedAt: null, isExistingClient: false, archivedAt: null };
+    return { enrichedAt: null, isExistingClient: false, archivedAt: null, ...junkEligibilityWhere() };
 }
 
 function getCleanerCandidateWhere(schemaCapable: boolean) {
-    const base = getEnrichmentEligibleWhere();
+    const base = { enrichedAt: null, isExistingClient: false, archivedAt: null };
     // Pool parity (M1): once the cleaner columns exist, BOTH preview and
     // enforce look only at not-yet-cleaned leads, so a preview describes
     // exactly the set an enforce run would touch and never re-spends LLM
@@ -179,6 +180,7 @@ function getCleanerCandidateWhere(schemaCapable: boolean) {
 
 function normalizeLead(row: Record<string, unknown>): LeadForCleaning {
     return {
+        ...row,
         id: String(row.id),
         name: String(row.name || ""),
         categories: Array.isArray(row.categories) ? row.categories.map(String) : [],
@@ -346,6 +348,8 @@ function decisionGroupKey(decision: LeadCleanDecision) {
         decision.reason,
         decision.decidedBy,
         decision.confidence == null ? "null" : decision.confidence.toFixed(3),
+        JSON.stringify(decision.eligibilityNotes || []),
+        decision.expectedUpdatedAt || "",
     ].join("|");
 }
 
@@ -384,6 +388,7 @@ async function applyDecisions(decisions: LeadCleanDecision[], runId: string): Pr
             cleanerRunId: runId,
             cleanedAt: now,
         };
+        if (decision.eligibilityNotes) data.notesFlags = decision.eligibilityNotes;
         if (decision.verdict === "reject") {
             data.archivedAt = now;
             data.archiveReason = decision.reason;
@@ -399,6 +404,7 @@ async function applyDecisions(decisions: LeadCleanDecision[], runId: string): Pr
                 archivedAt: null,
                 isExistingClient: false,
                 cleanedAt: null,
+                ...(decision.expectedUpdatedAt ? {updatedAt: new Date(decision.expectedUpdatedAt)} : {}),
             },
             data,
         });
@@ -430,14 +436,12 @@ type ReviewedPreviewLoad =
  * dashboard review panel (which is advisory only). Enforce is allowed ONLY
  * when the agent config's policy.lastReviewedRunId points at a run that:
  *   - exists, belongs to this agent, and completed;
- *   - was a PREVIEW run with the LLM enabled (a rules-only preview contains
- *     no llm_reject decisions, so reviewing one must not unlock enforcement
- *     of LLM rejects);
+ *   - was a PREVIEW run using the current junk eligibility policy;
  *   - is still the agent's most recent completed run (any newer completed run
  *     makes the review stale — the pool or decisions may have changed);
  *   - carries a stored judged-decision snapshot to apply.
  * Direct API calls and auto-triggered chained runs therefore cannot enforce
- * without a reviewed, current, full preview.
+ * without a reviewed, current eligibility preview.
  */
 async function loadReviewedPreview(agentId: string, rawConfig: unknown): Promise<ReviewedPreviewLoad> {
     const config = rawConfig && typeof rawConfig === "object" ? rawConfig as Record<string, unknown> : null;
@@ -448,7 +452,7 @@ async function loadReviewedPreview(agentId: string, rawConfig: unknown): Promise
         ? policyRaw.lastReviewedRunId
         : null;
     if (!reviewedRunId) {
-        return { ok: false, message: "Enforce requires a reviewed preview: run a FULL preview (LLM enabled), review it in the dashboard, then enforce." };
+        return { ok: false, message: "Enforce requires a reviewed preview: run a fresh eligibility preview, review it in the dashboard, then enforce." };
     }
 
     const [reviewedRun, latestCompleted] = await Promise.all([
@@ -468,8 +472,8 @@ async function loadReviewedPreview(agentId: string, rawConfig: unknown): Promise
     if (!results || results.mode !== "preview") {
         return { ok: false, message: "The reviewed run was not a preview run. Run and review a fresh preview." };
     }
-    if (results.skipLlm === true) {
-        return { ok: false, message: "The reviewed run was a rules-only preview. Enforce requires a FULL preview (LLM enabled) to be reviewed, so LLM rejects are part of what was approved." };
+    if (results.eligibilityVersion !== JUNK_ELIGIBILITY_VERSION) {
+        return {ok:false,message:"The reviewed preview uses an older eligibility policy. Run and review a fresh junk-removal eligibility preview."};
     }
     if (!latestCompleted || latestCompleted.id !== reviewedRunId) {
         return { ok: false, message: "A newer run completed after the reviewed preview, so the review is stale. Run and review a fresh preview." };
@@ -485,7 +489,7 @@ async function loadReviewedPreview(agentId: string, rawConfig: unknown): Promise
         const record = row as Record<string, unknown>;
         const leadId = typeof record.leadId === "string" ? record.leadId : "";
         const verdict = record.verdict === "reject" ? "reject" as const : record.verdict === "keep" ? "keep" as const : null;
-        if (!leadId || !verdict) continue;
+        if (!leadId || !verdict || typeof record.expectedUpdatedAt !== "string" || !Number.isFinite(Date.parse(record.expectedUpdatedAt))) continue;
         decisions.push({
             leadId,
             name: typeof record.name === "string" ? record.name : "",
@@ -496,6 +500,8 @@ async function loadReviewedPreview(agentId: string, rawConfig: unknown): Promise
             decidedBy: record.decidedBy === "llm" ? "llm" : "rule",
             confidence: typeof record.confidence === "number" ? record.confidence : null,
             judged: true,
+            expectedUpdatedAt: record.expectedUpdatedAt as string,
+            ...(Array.isArray(record.eligibilityNotes) ? {eligibilityNotes: record.eligibilityNotes.filter((v):v is string=>typeof v==="string")} : {}),
         });
     }
     if (!decisions.length) {
@@ -633,6 +639,9 @@ export async function runLeadCleaner(options: RunLeadCleanerOptions): Promise<Le
                     city: true,
                     state: true,
                     email: true,
+                    notesFlags: true,
+                    updatedAt: true,
+                    enrichmentRecords: { where: { kind: "service" } },
                 },
             });
             const candidates = rawCandidates.map(normalizeLead);
@@ -644,11 +653,11 @@ export async function runLeadCleaner(options: RunLeadCleanerOptions): Promise<Le
 
             for (const lead of candidates) {
                 const ruleDecision = getRuleDecision(lead, policy, roster);
-                if (ruleDecision) pipelineDecisions.push(ruleDecision);
+                if (ruleDecision) pipelineDecisions.push({...ruleDecision, expectedUpdatedAt: new Date(lead.updatedAt as string).toISOString()});
                 else ambiguous.push(lead);
             }
 
-            summary.ambiguous = ambiguous.length;
+            summary.ambiguous = ambiguous.length + pipelineDecisions.filter(d=>!d.judged).length;
             const llmCandidates = options.skipLlm ? [] : ambiguous.slice(0, policy.maxAmbiguousPerRun);
             summary.skippedOverCap = Math.max(0, ambiguous.length - llmCandidates.length);
             const llmResult = await judgeAmbiguousLeadsWithClaude(llmCandidates, policy, {
@@ -700,6 +709,8 @@ export async function runLeadCleaner(options: RunLeadCleanerOptions): Promise<Le
                     reason: decision.reason,
                     decidedBy: decision.decidedBy,
                     confidence: decision.confidence,
+                    expectedUpdatedAt: decision.expectedUpdatedAt,
+                    ...(decision.eligibilityNotes ? {eligibilityNotes:decision.eligibilityNotes} : {}),
                 }))
             : undefined;
 
@@ -711,6 +722,7 @@ export async function runLeadCleaner(options: RunLeadCleanerOptions): Promise<Le
                 durationMs: Date.now() - startedAtMs,
                 results: {
                     summary,
+                    eligibilityVersion: JUNK_ELIGIBILITY_VERSION,
                     mode,
                     schemaReady,
                     dryRun: mode === "preview",

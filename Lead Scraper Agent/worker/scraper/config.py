@@ -56,8 +56,8 @@ DISCOVERY_MODE = os.getenv("DISCOVERY_MODE", "city").strip().lower()
 # Every city/town starts with the primary high-intent term. The secondary term
 # is scheduled adaptively; broader terms are expansion-only so the long tail
 # stays covered without reintroducing ZIP-level overlap spend.
-SEARCH_TERMS = _csv(os.getenv("SEARCH_TERMS"), ["junk removal", "dumpster rental"])
-EXPANSION_SEARCH_TERMS = _csv(os.getenv("EXPANSION_SEARCH_TERMS"), ["roll off dumpster"])
+SEARCH_TERMS = _csv(os.getenv("SEARCH_TERMS"), ["junk removal"])
+EXPANSION_SEARCH_TERMS = _csv(os.getenv("EXPANSION_SEARCH_TERMS"), [])
 
 # Legacy ZIP setting remains for compatibility, but city mode uses target batches.
 BATCH_ZIP_COUNT = _int_env("BATCH_ZIP_COUNT", 4)

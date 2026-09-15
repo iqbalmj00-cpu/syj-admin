@@ -84,8 +84,7 @@ def to_lead(row: dict, ziprow: dict):
 def to_lead_with_reason(row: dict, ziprow: dict):
     """Outscraper dict -> ScrapedLead ingest dict, or None to drop the row.
 
-    Drops rows that are name-less, permanently closed, or not clearly in the
-    target industry. Prefers the row's own city/state, falling back to the
+    Drops rows that are name-less, permanently closed, or permanently ineligible by row status. Unknown service scope stays reviewable. Prefers the row's own city/state, falling back to the
     queried ZIP's dataset values (plan §4B).
     """
     name = (row.get("name") or "").strip()
@@ -99,7 +98,7 @@ def to_lead_with_reason(row: dict, ziprow: dict):
         return None, classification.reason
 
     term = row.get("_term") or _TERM_PREFERENCE[0]
-    company_type = classification.company_type or _TERM_TO_COMPANY_TYPE.get(term, "junk_removal")
+    company_type = classification.company_type or "other"
 
     city = (row.get("city") or "").strip() or ziprow.get("city") or None
     state = normalize_state(row.get("state"), fallback=ziprow.get("state"))
@@ -230,5 +229,15 @@ def dedup_by_place_id(rows: list[dict]) -> list[dict]:
         winning = next((t for t in _TERM_PREFERENCE if t in terms), members[0].get("_term"))
         survivor = dict(max(members, key=_richness_score))
         survivor["_term"] = winning
+        # A richer duplicate must not discard a real junk category carried by
+        # another result for this identity. Search terms are never categories.
+        categories = []
+        seen_categories = set()
+        for member in members:
+            for category in _as_categories(member):
+                if category.lower() not in seen_categories:
+                    seen_categories.add(category.lower())
+                    categories.append(category)
+        survivor["categories"] = categories
         survivors.append(survivor)
     return survivors

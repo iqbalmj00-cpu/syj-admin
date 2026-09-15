@@ -1,3 +1,4 @@
+import { isPendingEligibility } from "@/lib/junk-eligibility";
 import { NextRequest, NextResponse } from "next/server";
 import { inspectBusinessWebsite } from "@/lib/lead-website";
 import { prisma } from "@/lib/prisma";
@@ -122,10 +123,10 @@ async function getEnrichmentPayload(limit: number, specificLeadIds?: string[], c
             select,
         });
         const isBlocked = (lead: Record<string, unknown>) =>
-            lead.archivedAt !== null || (schemaCapable && lead.cleanedAt == null);
+            lead.archivedAt !== null || isPendingEligibility(lead.notesFlags) || (schemaCapable && lead.cleanedAt == null);
         const blockedIds = requested.filter(isBlocked).map(lead => String(lead.id));
         const forced = await forceApprovedLeadIds(blockedIds, claimedRunId);
-        leads = requested.filter(lead => !isBlocked(lead) || forced.has(String(lead.id)));
+        leads = requested.filter(lead => lead.archivedAt == null && (!isBlocked(lead) || forced.has(String(lead.id))));
         const served = new Set(leads.map(lead => String(lead.id)));
         excludedLeadIds = leadIds.filter(id => !served.has(id));
     } else {

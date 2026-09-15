@@ -1,7 +1,7 @@
 """
 Lead Scraper Agent — FastAPI server + self-driving control loop.
 
-Discovers junk-removal & dumpster-rental businesses on Google Maps (Outscraper)
+Discovers junk-removal businesses, including hybrids with dumpster rental on Google Maps (Outscraper)
 by city/market targets, and ingests thin leads into the SYJ admin dashboard for
 enrichment.
 
@@ -25,6 +25,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+# Configuration captures environment values at import time.
+load_dotenv()
+
 from scraper.config import cfg, load_env
 from scraper import control, ingest as ingest_mod, mapper, region, relevance
 from scraper.ledger import Ledger
@@ -36,7 +39,6 @@ from scraper.outscraper_client import (
     submit_outscraper_search,
 )
 
-load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("lead_scraper")
 
@@ -72,8 +74,14 @@ async def _ingest_leads(leads: list[dict]) -> dict:
         logger.info("[DRY_RUN] would ingest %d leads (e.g. %s)", len(leads),
                     leads[0]["name"] if leads else "—")
         return {"created": len(leads), "updated": 0, "skipped": 0, "total": len(leads)}
-    return await ingest_mod.post_leads(leads, ENV.dashboard_url, ENV.callback_secret,
-                                       chunk_size=cfg.ingest_chunk_size)
+    result = await ingest_mod.post_leads(leads, ENV.dashboard_url, ENV.callback_secret, chunk_size=cfg.ingest_chunk_size)
+    for item in result.get("results", []):
+        index = _result_index(item, len(leads))
+        if index is None: continue
+        reason = str(item.get("reason") or "")
+        status = "terminal" if reason in ("archived_identity_preserved", "eligibility:dumpster_only") else reason.split(":",1)[1] if reason.startswith("eligibility:") else None
+        if status: LEDGER.record_lead_eligibility(mapper.lead_dedup_key(leads[index]), status)
+    return result
 
 
 async def _report_progress(state: str, start_nonce) -> None:
@@ -109,7 +117,7 @@ def _target_terms(target: dict) -> list[str]:
         for term in cfg.expansion_search_terms:
             if term not in terms:
                 terms.append(term)
-    return terms
+    return [term for term in terms if relevance.allowed_discovery_term(term)]
 
 
 def _target_query(term: str, target: dict) -> str:
@@ -141,7 +149,7 @@ def _saved_result(result: dict) -> bool:
     reason = str(result.get("reason") or "")
     return result.get("status") == "skipped" and (
         reason.startswith("invalid")
-        or reason in {"name is required", "market is required"}
+        or reason in {"name is required", "market is required", "archived_identity_preserved", "eligibility:dumpster_only"}
     )
 
 
@@ -339,9 +347,13 @@ async def _process_ready_target(state: str, target_key: str, start_nonce,
         _finalize_target_if_ready(target_key)
         return False
 
-    for prior_job in LEDGER.provider_jobs_for_target(target_key, ("processed",)):
-        for prior_row in prior_job.get("rows", []):
-            accepted_keys.add(mapper.dedup_key(prior_row))
+    # Resume dedup only after a dashboard eligibility acknowledgment. Unknown
+    # legacy receipts and pending cases must be allowed to gain new evidence.
+    for processed in LEDGER.provider_jobs_for_target(target_key, ("processed",)):
+        for prior in processed.get("rows", []):
+            mapped = mapper.to_lead(prior, {"city": target["city"], "state": target["state"]})
+            if mapped and LEDGER.lead_eligibility(mapper.lead_dedup_key(mapped)) in ("eligible", "suppressed", "terminal"):
+                accepted_keys.add(mapper.dedup_key(prior))
 
     rows: list[dict] = []
     for job in jobs:
@@ -361,10 +373,11 @@ async def _process_ready_target(state: str, target_key: str, start_nonce,
 
     for row in deduped_rows:
         key = mapper.dedup_key(row)
-        if key in accepted_keys:
+        lead, reason = mapper.to_lead_with_reason(row, location)
+        eligibility = LEDGER.lead_eligibility(mapper.lead_dedup_key(lead)) if lead else None
+        if eligibility == "terminal" or key in accepted_keys and eligibility != "pending_review":
             duplicate_rows += 1
             continue
-        lead, reason = mapper.to_lead_with_reason(row, location)
         if lead:
             lead_items.append((key, lead))
         else:
@@ -480,6 +493,10 @@ async def _submit_provider_jobs(state: str, start_nonce, run_counters: dict, con
     for job in pending:
         if control_target is not None:
             await _assert_run_current(control_target, start_nonce)
+        if not relevance.allowed_discovery_term(job["term"]):
+            LEDGER.skip_disallowed_provider_job(job["id"])
+            _finalize_target_if_ready(job["target_key"])
+            continue
         if cfg.max_queries_per_run and run_counters["queries"] + 1 > cfg.max_queries_per_run:
             _state["budget_stop_reason"] = f"query cap reached ({cfg.max_queries_per_run})"
             await _report_progress(state, start_nonce)
@@ -616,10 +633,11 @@ async def _process_target(state: str, target: dict, start_nonce, accepted_keys: 
 
     for row in deduped_rows:
         key = mapper.dedup_key(row)
-        if key in accepted_keys:
+        lead, reason = mapper.to_lead_with_reason(row, location)
+        eligibility = LEDGER.lead_eligibility(mapper.lead_dedup_key(lead)) if lead else None
+        if eligibility == "terminal" or key in accepted_keys and eligibility != "pending_review":
             duplicate_rows += 1
             continue
-        lead, reason = mapper.to_lead_with_reason(row, location)
         if lead:
             lead_items.append((key, lead))
         else:

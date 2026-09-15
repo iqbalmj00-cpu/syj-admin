@@ -1,13 +1,8 @@
-// Shared ScrapedLead filter builder (V3 spec §5). The where-construction below was
-// extracted VERBATIM from src/app/api/agents/leads/route.ts (the inline builder) so the
-// leads list endpoint AND the dynamic-segment refresh share ONE source of truth. The only
-// change vs. the original is reading values from a params object via g() instead of
-// searchParams.get() — the clause logic is identical, so behavior is preserved.
-
-// Every searchParam key the builder reads. parseLeadFilter keeps only these (the stored
-// filterDefinition format), so a saved segment re-evaluates exactly like the live filter.
+import { junkEligibilityWhere } from "./junk-eligibility.ts";
+import { PAIN_TAG_IDS, PRAISE_TAG_IDS } from "./pain-taxonomy.ts";
+// Shared legacy interpretation used by every list/selection/group query.
 export const LEAD_FILTER_KEYS = [
-    "grade", "market", "state", "companyType", "outreachStatus", "search", "archived",
+    "eligibility", "grade", "market", "state", "companyType", "outreachStatus", "search", "archived",
     "hasActiveWebsite", "usingCompetitor", "competitorPlatform", "phoneType", "serviceAreaSize",
     "enriched", "isExistingClient", "serviceType", "hasOwnerName", "hasPhone", "hasEmail",
     "hasWebsite", "discoveredVia", "isDiyBuilder", "reviewPain", "reviewCountRange",
@@ -28,7 +23,7 @@ export const LEAD_FILTER_KEYS = [
     "totalPageCountBucket", "primaryBottleneck", "websiteAgeYearsMin", "recentReviewTrend", "painSeverityMin",
     // Reliable-signal filter set for the scraped-leads panel. Every key above is kept so
     // that an already-saved LeadGroup.filterDefinition still resolves to the same leads —
-    // parseLeadFilter drops any key absent from this list, which would silently widen a
+    // parseLeadFilter rejects any key absent from this list, which would silently widen a
     // stored segment's membership.
     "googleAdsStatus", "bookingStatus", "primaryCtaType", "hasQuoteForm",
     "bookingHasPhotoUpload", "bookingHasTimeslotSelection", "bookingHasPriceEstimate",
@@ -40,10 +35,466 @@ export const LEAD_FILTER_KEYS = [
 
 export type LeadFilterParams = Record<string, string | null>;
 
-export function parseLeadFilterParams(searchParams: URLSearchParams): LeadFilterParams {
+// Strict legacy adapter. Invalid saved rules must be repaired, never widened.
+export const LEAD_TRANSPORT_KEYS = ["secret", "idsOnly", "contactsOnly", "page", "limit", "sortBy", "sortOrder", "filterDefinition", "evaluationContext", "preview"];
+export class LeadFilterValidationError extends Error { readonly status = 400; }
+const LEGACY_ENUMS: Record<string, readonly string[]> = {
+    eligibility: ["active", "eligible", "pending_review", "dumpster_only", "suppressed", "legacy_unreviewed", "all"],
+    painTags: PAIN_TAG_IDS,
+    praiseTags: PRAISE_TAG_IDS,
+    ctaPromiseTags: ["same_day", "24_7", "within_x_hours", "upfront_pricing", "free_estimate", "licensed_insured", "eco_friendly"],
+    "archived": [
+        "active",
+        "true",
+        "all"
+    ],
+    "hasActiveWebsite": [
+        "true",
+        "false"
+    ],
+    "usingCompetitor": [
+        "true",
+        "false"
+    ],
+    "enriched": [
+        "true",
+        "false"
+    ],
+    "isExistingClient": [
+        "true",
+        "false"
+    ],
+    "hasOwnerName": [
+        "true",
+        "false"
+    ],
+    "hasPhone": [
+        "true",
+        "false"
+    ],
+    "hasEmail": [
+        "true",
+        "false"
+    ],
+    "hasWebsite": [
+        "true",
+        "false"
+    ],
+    "isDiyBuilder": [
+        "true",
+        "false"
+    ],
+    "reviewPain": [
+        "dormant_reviews",
+        "low_response_rate",
+        "negative_reviews",
+        "stale_owner_response",
+        "has_complaints",
+        "stale_last_review"
+    ],
+    "reviewCountRange": [
+        "0-10",
+        "11-50",
+        "51-200",
+        "201-500",
+        "500+",
+        "200+"
+    ],
+    "ownerResponseRateBucket": [
+        "low",
+        "medium",
+        "high"
+    ],
+    "yearsInBusinessRange": [
+        "<1",
+        "1-5",
+        "5-10",
+        "10+",
+        "unknown"
+    ],
+    "hasTrueOnlineBooking": [
+        "true",
+        "false"
+    ],
+    "starRatingBucket": [
+        "<3",
+        "3-3.9",
+        "4-4.4",
+        "4.5-4.7",
+        "4.8+"
+    ],
+    "profileCompletenessBucket": [
+        "low",
+        "medium",
+        "high"
+    ],
+    "respondsToNegatives": [
+        "true",
+        "false"
+    ],
+    "hasRecentGbpPosts": [
+        "true",
+        "false"
+    ],
+    "hasBusinessDescription": [
+        "true",
+        "false"
+    ],
+    "bookingHasInstantQuote": [
+        "true",
+        "false"
+    ],
+    "bookingHasJobSizeInput": [
+        "true",
+        "false"
+    ],
+    "bookingHasItemSelector": [
+        "true",
+        "false"
+    ],
+    "bookingCollectsPayment": [
+        "true",
+        "false"
+    ],
+    "bookingIsQuoteRequestOnly": [
+        "true",
+        "false"
+    ],
+    "mentionsCashOnly": [
+        "true",
+        "false"
+    ],
+    "hasOnlinePayment": [
+        "true",
+        "false"
+    ],
+    "bookingCtaTargetsPhone": [
+        "true",
+        "false"
+    ],
+    "marketingMaturityBucket": [
+        "low",
+        "medium",
+        "high"
+    ],
+    "loadTimeBucket": [
+        "fast",
+        "medium",
+        "slow"
+    ],
+    "mobileFriendly": [
+        "true",
+        "false"
+    ],
+    "sslValid": [
+        "true",
+        "false"
+    ],
+    "hasGoogleAds": [
+        "true",
+        "false"
+    ],
+    "hasCallTracking": [
+        "true",
+        "false"
+    ],
+    "hasChatWidget": [
+        "true",
+        "false"
+    ],
+    "hasGTM": [
+        "true",
+        "false"
+    ],
+    "hasFacebookPixel": [
+        "true",
+        "false"
+    ],
+    "hasGoogleAnalytics": [
+        "true",
+        "false"
+    ],
+    "employeeBucket": [
+        "1",
+        "2-3",
+        "4-10",
+        "11+",
+        "unknown"
+    ],
+    "fleetBucket": [
+        "1",
+        "2-5",
+        "6+",
+        "unknown"
+    ],
+    "hasFacebook": [
+        "true",
+        "false"
+    ],
+    "hasYouTube": [
+        "true",
+        "false"
+    ],
+    "isVeteranOwned": [
+        "true",
+        "false"
+    ],
+    "isFamilyBusiness": [
+        "true",
+        "false"
+    ],
+    "reviewVelocityBucket": [
+        "dormant",
+        "low",
+        "moderate",
+        "high"
+    ],
+    "emailDomainMatchesWebsite": [
+        "true",
+        "false"
+    ],
+    "emailDeliverable": [
+        "true",
+        "false"
+    ],
+    "phoneDeliverable": [
+        "true",
+        "false"
+    ],
+    "hasOwnerFullName": [
+        "true",
+        "false"
+    ],
+    "hasOwnerLinkedIn": [
+        "true",
+        "false"
+    ],
+    "isDirectContact": [
+        "true",
+        "false"
+    ],
+    "lastUpdatedYearBucket": [
+        "stale",
+        "aging",
+        "fresh",
+        "unknown"
+    ],
+    "hasPricingPage": [
+        "true",
+        "false"
+    ],
+    "hasBlog": [
+        "true",
+        "false"
+    ],
+    "hasServiceAreaPublishedOnSite": [
+        "true",
+        "false"
+    ],
+    "totalPageCountBucket": [
+        "tiny",
+        "small",
+        "medium",
+        "large"
+    ],
+    "hasQuoteForm": [
+        "true",
+        "false"
+    ],
+    "bookingHasPhotoUpload": [
+        "true",
+        "false"
+    ],
+    "bookingHasTimeslotSelection": [
+        "true",
+        "false"
+    ],
+    "bookingHasPriceEstimate": [
+        "true",
+        "false"
+    ],
+    "grade": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "F"
+    ],
+    "companyType": [
+        "junk_removal",
+        "dumpster_rental",
+        "demolition",
+        "other"
+    ],
+    "outreachStatus": [
+        "new",
+        "emailed",
+        "sms_sent",
+        "replied",
+        "converted",
+        "skipped",
+        "opted_out"
+    ],
+    "serviceType": [
+        "junk_removal",
+        "dumpster_rental",
+        "demolition",
+        "cleanout",
+        "hauling",
+        "moving",
+        "other"
+    ],
+    "serviceAreaSize": [
+        "small",
+        "medium",
+        "large"
+    ],
+    "phoneType": [
+        "toll_free",
+        "local",
+        "none"
+    ],
+    "googleAdsStatus": [
+        "confirmed_current",
+        "confirmed_recent",
+        "tag_detected_only",
+        "not_found",
+        "unknown"
+    ],
+    "bookingStatus": [
+        "confirmed",
+        "cta_only",
+        "not_found",
+        "unknown"
+    ],
+    "primaryCtaType": [
+        "phone",
+        "quote",
+        "booking",
+        "contact",
+        "other"
+    ],
+    "marketCompetitionLevel": [
+        "low",
+        "medium",
+        "high"
+    ],
+    "emailDomainType": [
+        "personal",
+        "business_custom",
+        "unknown"
+    ],
+    "phoneLineType": [
+        "mobile",
+        "landline",
+        "voip",
+        "unknown"
+    ],
+    "emailVerificationState": [
+        "valid",
+        "invalid",
+        "risky",
+        "unknown",
+        "unverified",
+        "deliverable",
+        "undeliverable",
+        "catch_all",
+        "missing",
+        "duplicate"
+    ],
+    "websiteBuiltBy": [
+        "diy",
+        "likely_diy",
+        "likely_agency",
+        "unknown"
+    ],
+    "recentReviewTrend": [
+        "improving",
+        "stable",
+        "declining",
+        "dormant",
+        "insufficient_data"
+    ],
+    "bookingSophistication": [
+        "none",
+        "cta_only",
+        "basic_scheduler",
+        "photo_collector",
+        "quote_form",
+        "instant_quote",
+        "full_booking",
+        "other"
+    ],
+    "competitorStack": [
+        "Jobber",
+        "Workiz",
+        "HousecallPro",
+        "ServiceTitan",
+        "Thryv",
+        "GorillaDesk",
+        "FieldPulse",
+        "QuoteIQ",
+        "Docket",
+        "DumpstersCom"
+    ],
+    "paymentStack": [
+        "Stripe",
+        "Square"
+    ],
+    "bookingFlowType": [
+        "photo_upload",
+        "timeslot_selection",
+        "photo_and_timeslot",
+        "other",
+        "none"
+    ],
+    "primaryBottleneck": [
+        "missed_calls",
+        "no_online_booking",
+        "poor_response_rate",
+        "outdated_website",
+        "no_reviews",
+        "stale_reviews",
+        "negative_review_trend",
+        "none"
+    ]
+};
+export function validateLegacyFilter(json: unknown): LeadFilterParams {
+    if (!json || typeof json !== "object" || Array.isArray(json)) throw new LeadFilterValidationError("Legacy filter must be an object");
     const params: LeadFilterParams = {};
-    for (const key of LEAD_FILTER_KEYS) params[key] = searchParams.get(key);
+    for (const [key, raw] of Object.entries(json)) {
+        if (!(LEAD_FILTER_KEYS as readonly string[]).includes(key)) throw new LeadFilterValidationError(`Unsupported filter: ${key}`);
+        if (raw === null || raw === "") { params[key] = null; continue; }
+        if (typeof raw !== "string" || raw.length > 1000 || raw.trim() !== raw) throw new LeadFilterValidationError(`Invalid filter value: ${key}`);
+        const values = raw.split(",");
+        if (values.some(value => !value || value.trim() !== value)) throw new LeadFilterValidationError(`Invalid list: ${key}`);
+        if (LEGACY_ENUMS[key] && values.some(value => !LEGACY_ENUMS[key].includes(value))) throw new LeadFilterValidationError(`Unsupported ${key} value`);
+        if (LEGACY_ENUMS[key] && values.length > 1 && !["grade", "companyType", "outreachStatus", "serviceType", "painTags", "praiseTags", "bookingSophistication", "competitorStack", "paymentStack", "cmsDetected", "bookingPlatform", "websiteBuiltBy", "marketCompetitionLevel", "emailDomainType", "emailVerificationState", "phoneLineType", "primaryBottleneck", "recentReviewTrend", "googleAdsStatus", "bookingStatus", "primaryCtaType", "ctaPromiseTags"].includes(key)) throw new LeadFilterValidationError(`Filter ${key} accepts one value`);
+        if (/Min$|Max$|WithinDays$|OlderThanDays$/.test(key)) {
+            const n = Number(raw);
+            if (!Number.isFinite(n) || n < 0 || n > 1e9 || !/^\d+(?:\.\d+)?$/.test(raw)) throw new LeadFilterValidationError(`Invalid numeric bound: ${key}`);
+            if (!/^(?:rating|ownerResponseRate|negativeReviewPercent|marketRankPercentile|loadTimeSeconds)/.test(key) && !Number.isInteger(n)) throw new LeadFilterValidationError(`Integer bound required: ${key}`);
+            if (/WithinDays$|OlderThanDays$/.test(key) && (!Number.isInteger(n) || n === 0)) throw new LeadFilterValidationError(`Invalid day window: ${key}`);
+            if (/rating/.test(key) && n > 5 || /ownerResponseRate|negativeReviewPercent|marketRankPercentile/.test(key) && n > 1) throw new LeadFilterValidationError(`Out-of-range bound: ${key}`);
+        }
+        params[key] = raw;
+    }
+    for (const [key, value] of Object.entries(params)) if (key.endsWith("Min") && value !== null) {
+        const max = params[key.slice(0,-3) + "Max"];
+        if (max != null && Number(value) > Number(max)) throw new LeadFilterValidationError(`Reversed range: ${key}`);
+    }
     return params;
+}
+
+export function parseLeadFilterParams(searchParams: URLSearchParams): LeadFilterParams {
+    const business: Record<string, string> = {};
+    for (const [key, value] of searchParams) {
+        if (LEAD_TRANSPORT_KEYS.includes(key)) continue;
+        if (key in business) throw new LeadFilterValidationError(`Duplicate filter: ${key}`);
+        business[key] = value;
+    }
+    const validated = validateLegacyFilter(business);
+    return Object.fromEntries(LEAD_FILTER_KEYS.map(key => [key, validated[key] ?? null]));
 }
 
 // Compact form for storing in LeadGroup.filterDefinition (drop null/empty).
@@ -55,25 +506,18 @@ export function serializeLeadFilter(params: LeadFilterParams): Record<string, st
     return out;
 }
 
-// Rehydrate a stored filterDefinition back into a full params object (unknown keys ignored).
+// Rehydrate a stored filterDefinition back into a full params object (unknown keys rejected).
 export function parseLeadFilter(json: unknown): LeadFilterParams {
-    const params: LeadFilterParams = {};
-    for (const key of LEAD_FILTER_KEYS) params[key] = null;
-    if (json && typeof json === "object" && !Array.isArray(json)) {
-        for (const [key, value] of Object.entries(json as Record<string, unknown>)) {
-            if ((LEAD_FILTER_KEYS as readonly string[]).includes(key) && typeof value === "string") {
-                params[key] = value;
-            }
-        }
-    }
-    return params;
+    const validated = validateLegacyFilter(json);
+    return Object.fromEntries(LEAD_FILTER_KEYS.map(key => [key, validated[key] ?? null]));
 }
 
 // Build the Prisma ScrapedLead `where` from a params object. Extracted from the inline
 // where builder in the agents/leads/route.ts GET handler — clause logic unchanged
 // (inline section comments and arrow-callback paren style were normalized during
 // extraction; parity re-verified against the inline builder on 2026-07-10).
-export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown> {
+export function buildLeadWhere(params: LeadFilterParams, evaluatedAtMs = Date.now()): Record<string, unknown> {
+    validateLegacyFilter(params);
     const g = (key: string) => params[key] ?? null;
 
     const grade = g("grade");
@@ -187,7 +631,7 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     const loadTimeSecondsMin = g("loadTimeSecondsMin");
     const loadTimeSecondsMax = g("loadTimeSecondsMax");
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = (archived === "true" || archived === "all") && !g("eligibility") ? {} : junkEligibilityWhere(g("eligibility") || "active");
     if (archived === "true") where.archivedAt = { not: null };
     else if (archived !== "all") where.archivedAt = null;
     if (grade) where.grade = { in: grade.split(",") };
@@ -243,12 +687,12 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     } else if (reviewPain === "negative_reviews") {
         andClauses.push({ negativeReviewCount: { gt: 0 } });
     } else if (reviewPain === "stale_owner_response") {
-        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+        const sixtyDaysAgo = new Date(evaluatedAtMs - 60 * 24 * 60 * 60 * 1000);
         andClauses.push({ lastOwnerResponseDate: { lt: sixtyDaysAgo } });
     } else if (reviewPain === "has_complaints") {
         andClauses.push({ reviewComplaints: { isEmpty: false } });
     } else if (reviewPain === "stale_last_review") {
-        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+        const sixtyDaysAgo = new Date(evaluatedAtMs - 60 * 24 * 60 * 60 * 1000);
         andClauses.push({ lastReviewDate: { lt: sixtyDaysAgo } });
     }
 
@@ -277,14 +721,14 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     if (lastReviewWithinDays) {
         const days = parseInt(lastReviewWithinDays);
         if (!isNaN(days) && days > 0) {
-            const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            const cutoff = new Date(evaluatedAtMs - days * 24 * 60 * 60 * 1000);
             andClauses.push({ lastReviewDate: { gte: cutoff } });
         }
     }
     if (lastReviewOlderThanDays) {
         const days = parseInt(lastReviewOlderThanDays);
         if (!isNaN(days) && days > 0) {
-            const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            const cutoff = new Date(evaluatedAtMs - days * 24 * 60 * 60 * 1000);
             andClauses.push({ lastReviewDate: { lt: cutoff } });
         }
     }
@@ -333,7 +777,7 @@ export function buildLeadWhere(params: LeadFilterParams): Record<string, unknown
     if (mostRecentNegativeWithinDays) {
         const days = parseInt(mostRecentNegativeWithinDays);
         if (!isNaN(days) && days > 0) {
-            const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            const cutoff = new Date(evaluatedAtMs - days * 24 * 60 * 60 * 1000);
             andClauses.push({ mostRecentNegativeReviewDate: { gte: cutoff } });
         }
     }

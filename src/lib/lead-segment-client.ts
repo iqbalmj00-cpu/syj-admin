@@ -1,8 +1,8 @@
 // Shared by initial population and retry: refresh the existing group, never recreate it.
-export async function refreshEmailSegment(groupId: string, request: typeof fetch = fetch): Promise<number> {
+export async function refreshEmailSegment(groupId: string, request: typeof fetch = fetch, context?: { expectedRevision?: number; evaluationContext?: string }): Promise<number> {
     const response = await request("/api/agents/lead-groups/refresh", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId }),
+        body: JSON.stringify({ groupId, ...context }),
     });
     const data = await response.json();
     if (!response.ok || data.ok !== true || !Number.isInteger(data.total) || data.total < 0) {

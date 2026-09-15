@@ -1,0 +1,1005 @@
+{
+  "contractVersion": 1,
+  "runId": "fixture-run",
+  "attemptId": "fixture-attempt",
+  "attemptStartedAtMs": 1788998399000,
+  "checkedAtMs": 1788998400000,
+  "sources": {
+    "website": "https://example.com/",
+    "place": "place"
+  },
+  "records": [
+    {
+      "kind": "signal",
+      "key": "website.active",
+      "serviceScope": "business",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "website.active": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Junk removal Example. We offer junk removal. Our fleet of 2 trucks. Call us to book junk removal. Same-day junk removal. Call Contact us about junk removal. Send message. Send",
+        "url": "https://example.com/"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "signal",
+      "key": "website.fetchSeconds",
+      "serviceScope": "business",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "website.fetchSeconds": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 0.25
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "",
+        "url": "https://example.com/"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "route",
+      "key": "05e7cf7787a3ff8d7ede544831ae0fa2",
+      "serviceScope": "junk_removal",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "route.method": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "contact_form"
+        },
+        "route.nextStep": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "junk_pickup"
+        },
+        "route.staffApproval": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.confirmation": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.stage": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "contact"
+        },
+        "route.identityVerified": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "route.dateRequested": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.quoteRequested": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.slotSelection": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.addressInput": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.jobSizeInput": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.itemSelector": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.fileUpload": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.photoUpload": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.instantQuote": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.priceEstimate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.payment": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.description": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "A separate form is available to send a contact inquiry. Staff follow-up and final confirmation are unverified. No inquiry was submitted; later booking steps remain unverified."
+        },
+        "route.uploadRequired": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.upfrontContact": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "route.bookingLinked": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Junk removal Contact us about junk removal. Send message. Send",
+        "method": "static_form_workflow"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "route",
+      "key": "745f25d63726bcca18c8518503fe4de9",
+      "serviceScope": "junk_removal",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "route.method": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "phone"
+        },
+        "route.identityVerified": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "route.upfrontContact": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "not_applicable"
+        }
+      },
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Published phone contact route",
+        "method": "static_published_contact"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "service",
+      "key": "junk_removal",
+      "serviceScope": "junk_removal",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "service.offered": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "service.selfService": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.coverageComplete": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "service.contactForm": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "service.quoteRequest": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.schedulingRequest": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.serviceRequest": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.orderingFlow": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.phone": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "service.sms": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.email": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.chat": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.phoneFirst": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.onlyContactForm": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "service.onlyQuoteRequest": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.phoneOnly": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.noIntake": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        }
+      },
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Junk removal",
+        "method": "static_service_route_coverage"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "coverage",
+      "key": "route",
+      "serviceScope": "junk_removal",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {},
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Junk removal",
+        "method": "static_service_route_coverage"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "service",
+      "key": "dumpster_rental",
+      "serviceScope": "dumpster_rental",
+      "dependency": "website",
+      "state": "unknown",
+      "outcome": "partial",
+      "facts": {
+        "service.offered": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.selfService": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.coverageComplete": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "service.contactForm": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.quoteRequest": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.schedulingRequest": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.serviceRequest": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.orderingFlow": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.phone": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.sms": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.email": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.chat": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.phoneFirst": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.onlyContactForm": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.onlyQuoteRequest": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.phoneOnly": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        },
+        "service.noIntake": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Service offering not established",
+        "method": "static_service_route_coverage"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "entry_or_service_unverified"
+        ]
+      }
+    },
+    {
+      "kind": "coverage",
+      "key": "route",
+      "serviceScope": "dumpster_rental",
+      "dependency": "website",
+      "state": "unknown",
+      "outcome": "partial",
+      "facts": {},
+      "proof": {
+        "url": "https://example.com/",
+        "excerpt": "Service offering not established",
+        "method": "static_service_route_coverage"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "entry_or_service_unverified"
+        ]
+      }
+    },
+    {
+      "kind": "signal",
+      "key": "fleet.trucks",
+      "serviceScope": "business",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "fleet.trucks": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 2
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "fleet of 2 trucks",
+        "url": "https://example.com/"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "promise",
+      "key": "90fc64b93c5dc590fe7c441d2c6754f3",
+      "serviceScope": "junk_removal",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "promise.speed": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": true
+        },
+        "promise.freeEstimate": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "promise.wording": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "Same-day junk removal"
+        },
+        "promise.date": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Same-day junk removal",
+        "url": "https://example.com/"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "signal",
+      "key": "website.pricing",
+      "serviceScope": "business",
+      "dependency": "website",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "website.pricing": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "No published pricing found in completed service/intake coverage",
+        "url": "https://example.com/"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "5feceb66ffc86f38d952786c6d696c79",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "missed_calls"
+          ]
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "They never called back.",
+        "sourceId": "0"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "6b86b273ff34fce19d6b804eff5a3f57",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 5
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "easy_to_book",
+            "friendly_crew"
+          ]
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Friendly crew, easy to book.",
+        "sourceId": "1"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "d4735e3a265e16eee03f59718b9b5d03",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 5
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "easy_to_book",
+            "friendly_crew"
+          ]
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Friendly crew, easy to book.",
+        "sourceId": "2"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "4e07408562bedb8b60ce05c1decfe3ad",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 5
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "easy_to_book",
+            "friendly_crew"
+          ]
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Friendly crew, easy to book.",
+        "sourceId": "3"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "4b227777d4dd1fc61c6f884f48641d02",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 5
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "easy_to_book",
+            "friendly_crew"
+          ]
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Friendly crew, easy to book.",
+        "sourceId": "4"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review",
+      "key": "ef2d127de37b942baad06145e54b0c61",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "review.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 5
+        },
+        "review.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "review.ownerResponse": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": false
+        },
+        "review.complaints": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": []
+        },
+        "review.praise": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": [
+            "easy_to_book",
+            "friendly_crew"
+          ]
+        },
+        "review.ownerResponseDate": {
+          "state": "unknown",
+          "observedAtMs": 1788998400000
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Friendly crew, easy to book.",
+        "sourceId": "5"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "review_sample",
+      "key": "sample",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "partial",
+      "facts": {},
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": ""
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "bounded_sample_coverage"
+        ]
+      },
+      "sample": {
+        "datesDescMs": [
+          1788955200000,
+          1788955200000,
+          1788955200000,
+          1788955200000,
+          1788955200000,
+          1788955200000
+        ],
+        "datedCount": 6,
+        "complete": false,
+        "limit": 50,
+        "order": "newest",
+        "invalidDateCount": 0
+      }
+    },
+    {
+      "kind": "coverage",
+      "key": "review",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "unknown",
+      "outcome": "partial",
+      "facts": {},
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": ""
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "bounded_sample_coverage"
+        ]
+      }
+    },
+    {
+      "kind": "signal",
+      "key": "reviews.rating",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "reviews.rating": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 4.5
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "",
+        "sourceId": "place"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "signal",
+      "key": "reviews.total",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "reviews.total": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 60
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "",
+        "sourceId": "place"
+      },
+      "coverage": {
+        "complete": true,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "activity",
+      "key": "72231043bc1807e6f740b235eb7511ec",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "success",
+      "facts": {
+        "activity.date": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": 1788955200000,
+          "eventMinMs": 1788955200000,
+          "eventMaxMs": 1788955200000
+        },
+        "activity.type": {
+          "state": "confirmed",
+          "observedAtMs": 1788998400000,
+          "value": "gbp_post"
+        }
+      },
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": "Now accepting junk removal requests",
+        "sourceId": "post"
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": []
+      }
+    },
+    {
+      "kind": "activity_sample",
+      "key": "sample",
+      "serviceScope": "business",
+      "dependency": "place",
+      "state": "confirmed",
+      "outcome": "partial",
+      "facts": {},
+      "proof": {
+        "method": "deterministic_existing_collection",
+        "excerpt": ""
+      },
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "provider_activity_coverage_not_exhaustive"
+        ]
+      },
+      "sample": {
+        "datesDescMs": [
+          1788955200000
+        ],
+        "datedCount": 1,
+        "complete": false,
+        "limit": 50,
+        "order": "unknown",
+        "invalidDateCount": 0
+      }
+    }
+  ],
+  "replacements": [
+    {
+      "kind": "route",
+      "serviceScope": "junk_removal",
+      "dependency": "website"
+    }
+  ]
+}

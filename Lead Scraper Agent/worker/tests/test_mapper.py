@@ -37,7 +37,7 @@ class TestMapper(unittest.TestCase):
         self.assertEqual(lead["discoveredVia"], "google_maps")
         self.assertEqual(lead["source"], "google")
         self.assertEqual(lead["googlePlaceId"], "ChIJabc123")
-        self.assertEqual(lead["companyType"], "dumpster_rental")
+        self.assertEqual(lead["companyType"], "junk_removal")
         self.assertEqual(lead["website"], "https://joesjunk.com")
         self.assertEqual(lead["address"], "1 Main St, Boston, MA 02108")
         self.assertEqual(lead["rating"], 4.8)
@@ -62,16 +62,14 @@ class TestMapper(unittest.TestCase):
                                    subtypes="", _term="junk removal"), ZIPROW)
         self.assertEqual(lead["companyType"], "dumpster_rental")
 
-    def test_search_term_only_breaks_ambiguous_company_type_tie(self):
-        lead = mapper.to_lead(_row(name="Acme Hauling", type="Garbage collection service",
-                                   subtypes="", _term="dumpster rental"), ZIPROW)
-        self.assertEqual(lead["companyType"], "dumpster_rental")
+    def test_search_term_cannot_resolve_unknown_service_scope(self):
+        lead = mapper.to_lead(_row(name="Acme Hauling", type="Garbage collection service", subtypes="", _term="dumpster rental"), ZIPROW)
+        self.assertEqual(lead["companyType"], "other")
 
-    def test_search_term_does_not_make_irrelevant_row_valid(self):
-        self.assertIsNone(mapper.to_lead(_row(name="AutoZone Auto Parts",
-                                              type="Auto parts store",
-                                              subtypes="",
-                                              _term="junk removal"), ZIPROW))
+    def test_search_term_only_retains_unknown_for_dashboard_review(self):
+        lead = mapper.to_lead(_row(name="AutoZone Auto Parts",type="Auto parts store",subtypes="",_term="junk removal"),ZIPROW)
+        self.assertIsNotNone(lead)
+        self.assertEqual(lead["companyType"], "other")
 
     def test_drop_nameless(self):
         self.assertIsNone(mapper.to_lead(_row(name=""), ZIPROW))

@@ -1,5 +1,8 @@
 "use client";
 
+import { LeadSignalFilters } from "@/components/leads/LeadSignalFilters";
+import { signalsAvailable } from "@/lib/enrichment-signals";
+import type { FilterDefinition } from "@/lib/lead-filter-definition";
 import { useState } from "react";
 import {
     ApiState,
@@ -22,11 +25,23 @@ function memberCount(group: Value) { return Number((group._count as Value | unde
 export function ColdEmailLeadGroupsPage() {
     const api = useColdEmailApi<Catalog>("/api/cold-email/platform/catalog");
     const [busy, setBusy] = useState<string | null>(null);
+    const [editing, setEditing] = useState<Value | null>(null);
+    async function saveRules(definition: FilterDefinition) {
+        if (!editing) return;
+        setBusy(value(editing.id));
+        try {
+            const response = await fetch("/api/agents/lead-groups", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing.id, filterDefinition: definition, expectedRevision: (editing.filterDefinition as Value)?.definitionRevision ?? 0 }) });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "Rule edit failed");
+            setNotice({ tone: "success", text: "Rules saved. Refresh this revision before future campaign approvals. Frozen audiences remain unchanged." }); setEditing(null); await api.reload();
+        } catch (error) { setNotice({ tone: "danger", text: error instanceof Error ? error.message : "Edit failed" }); }
+        finally { setBusy(null); }
+    }
     const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
     async function refresh(id: string) {
         setBusy(id); setNotice(null);
         try {
-            const result = await coldEmailMutation<{ added: number; removed: number; total: number }>("/api/agents/lead-groups/refresh", { groupId: id });
+            const result = await coldEmailMutation<{ added: number; removed: number; total: number }>("/api/agents/lead-groups/refresh", { groupId: id, expectedRevision: ((api.data?.leadGroups.find(g => g.id === id)?.filterDefinition) as Value)?.definitionRevision });
             setNotice({ tone: "success", text: `Refresh complete: ${result.total} members, ${result.added} added, ${result.removed} removed.` });
             await api.reload();
         } catch (error) { setNotice({ tone: "danger", text: error instanceof Error ? error.message : "Lead Group refresh failed" }); }
@@ -35,9 +50,10 @@ export function ColdEmailLeadGroupsPage() {
     return <ColdEmailWorkspace title="Lead Groups" description="Saved email-channel segments that can be refreshed and frozen into campaign-specific audience snapshots.">
         {notice && <Notice title={notice.tone === "success" ? "Lead Group refreshed" : "Refresh blocked"} tone={notice.tone}>{notice.text}</Notice>}
         <Notice title="Refresh and snapshot are separate">Refresh reconciles a dynamic Lead Group. Campaign preparation later applies identity eligibility, manual Do Not Contact, cooldown, company caps, and global assignment rules before freezing its audience.</Notice>
+        {editing && <><button type="button" onClick={() => setEditing(null)}>Close rules</button><pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(editing.filterDefinition, null, 2)}</pre><LeadSignalFilters key={value(editing.id)} available={signalsAvailable()} initial={(editing.filterDefinition as Value)?.version === 2 ? { version: 2, expression: (editing.filterDefinition as unknown as FilterDefinition).expression } : undefined} onApply={definition => void saveRules(definition)} applyLabel="Save rule edit" /></>}
         <Panel flush>
             <ApiState loading={api.loading} error={api.error} empty={api.data?.leadGroups.length === 0} emptyTitle="No email Lead Groups" emptyCopy="Create an email-channel Lead Group from the Leads workspace before building a campaign." onRetry={api.reload}>
-                <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Lead Group</th><th>Members</th><th>Type</th><th>Last refreshed</th><th>Filter definition</th><th></th></tr></thead><tbody>{(api.data?.leadGroups || []).map((group) => <tr key={value(group.id)}><td><span className={styles.primaryCell}>{value(group.name)}</span><span className={styles.secondary}>{value(group.description, "No description")}</span></td><td>{memberCount(group)}</td><td><StatusBadge value={group.filterDefinition ? "dynamic" : "static"} /></td><td>{formatDate(group.lastRefreshedAt, true)}</td><td className={styles.mono}>{group.filterDefinition ? JSON.stringify(group.filterDefinition).slice(0, 120) : "Manual membership"}</td><td className={styles.right}><button className="btn btn-xs btn-ghost" type="button" disabled={busy !== null || !group.filterDefinition} onClick={() => void refresh(value(group.id))}>{busy === group.id ? "Refreshing…" : "Refresh"}</button></td></tr>)}</tbody></table></div>
+                <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Lead Group</th><th>Members</th><th>Type</th><th>Last refreshed</th><th>Filter definition</th><th></th></tr></thead><tbody>{(api.data?.leadGroups || []).map((group) => <tr key={value(group.id)}><td><span className={styles.primaryCell}>{value(group.name)}</span><span className={styles.secondary}>{value(group.description, "No description")}</span></td><td>{memberCount(group)}</td><td><StatusBadge value={group.filterDefinition ? "dynamic" : "static"} /></td><td>{formatDate(group.lastRefreshedAt, true)}</td><td className={styles.mono}>{group.filterDefinition ? JSON.stringify(group.filterDefinition).slice(0, 120) : "Manual membership"}</td><td className={styles.right}><button className="btn btn-xs btn-ghost" type="button" disabled={busy !== null || !group.filterDefinition} onClick={() => void refresh(value(group.id))}>{busy === group.id ? "Refreshing…" : "Refresh"}</button> <button type="button" disabled={busy !== null} onClick={() => setEditing(group)}>View / edit rules</button></td></tr>)}</tbody></table></div>
             </ApiState>
         </Panel>
     </ColdEmailWorkspace>;

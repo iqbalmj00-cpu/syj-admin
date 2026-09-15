@@ -1,3 +1,5 @@
+import * as junkEligibility from "../junk-eligibility.ts";
+import * as leadClassify from "../lead-classify.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isolatedModule, nextResponseMock } from "./helpers/isolated-module.ts";
@@ -12,13 +14,36 @@ import * as blackout from "../cold-email-blackout.ts";
 import * as timezone from "../cold-email-timezone.ts";
 import * as leadFilter from "../lead-filter.ts";
 
+import * as leadQuery from "../lead-filter-query.ts";
+import * as filterDefinition from "../lead-filter-definition.ts";
+import * as groupRefresh from "../lead-group-refresh.ts";
+import * as signals from "../enrichment-signals.ts";
+import * as signalsSchema from "../enrichment-signals-schema.ts";
+import * as evidence from "../enrichment-evidence.ts";
+
+// These are pure source modules. Database delegates stay explicit per fixture;
+// the generated application client is never imported.
+const signalImports = {
+    "@/lib/lead-filter": leadFilter,
+    "@/lib/lead-filter-query": leadQuery,
+    "@/lib/lead-filter-definition": filterDefinition,
+    "@/lib/lead-group-refresh": groupRefresh,
+    "@/lib/enrichment-signals": signals,
+    "@/lib/enrichment-signals-schema": signalsSchema,
+    "@/lib/enrichment-evidence": evidence,
+    "@prisma/client": { Prisma: { DbNull: Symbol("DbNull"), JsonNull: Symbol("JsonNull") } },
+};
+
 const session = { getSession: async () => ({ user: { email: "test@example.com" } }) };
 const request = (body: unknown) => ({ json: async () => body, url: "https://isolated.invalid/api" });
 
 test("ingestion rejects consumer websites before any database read or write and preserves valid businesses", async () => {
     let writes = 0;
     const prisma = { scrapedLead: { create: async ({ data }: any) => { writes++; assert.equal(data.email, "owner@gmail.com"); assert.equal(data.state, "TX"); return { id: "lead-1" }; } } };
+    Object.assign(prisma, { $transaction: async (callback: any, options: any) => { assert.equal(options.isolationLevel, "Serializable"); return callback(prisma); } });
     const route = isolatedModule("src/app/api/agents/leads/route.ts", {
+        ...signalImports,
+        "@/lib/junk-eligibility": junkEligibility, "@/lib/lead-classify": leadClassify,
         "next/server": nextResponseMock, "@/lib/prisma": { prisma }, "@/lib/auth": session,
         "@/lib/lead-website": website, "@/lib/lead-geography": geography,
         "@/lib/lead-cleaner-db": {}, "@/lib/lead-deletion": deletion,
@@ -37,6 +62,8 @@ test("ingestion rejects consumer websites before any database read or write and 
 test("new dynamic groups persist their filter in the same create operation, including an empty filter", async () => {
     let calls = 0;
     const route = isolatedModule("src/app/api/agents/lead-groups/route.ts", {
+        ...signalImports,
+        "@/lib/junk-eligibility": junkEligibility, "@/lib/lead-classify": leadClassify,
         "next/server": nextResponseMock, "@/lib/auth": session, "@/lib/lead-group-policy": groupPolicy,
         "@/lib/prisma": { prisma: { leadGroup: { create: async ({ data }: any) => { calls++; assert.deepEqual(JSON.parse(JSON.stringify(data.filterDefinition)), {}); return { id: "group-1", ...data }; } } } },
     });
@@ -50,6 +77,7 @@ function cleanerFixture(leads: unknown[]) {
     const prisma = { scrapedLead: { findMany: async () => leads, update: async () => { writes++; } } };
     const db = isolatedModule("src/lib/email-cleaner-db.ts", { "@/lib/prisma": { prisma }, "@/lib/emailable": emailable });
     const route = isolatedModule("src/app/api/agents/email-cleaner/route.ts", {
+        "@/lib/junk-eligibility": junkEligibility, "@/lib/lead-classify": leadClassify,
         "next/server": nextResponseMock, "@/lib/prisma": { prisma }, "@/lib/auth": session,
         "@/lib/email-cleaner-db": db,
         "@/lib/emailable": { ...emailable, getEmailableApiKey: () => { throw new Error("Dry run accessed provider credentials"); } },
@@ -139,18 +167,26 @@ function campaignFixture(filterDefinition: unknown, refreshRequired: boolean, la
         policies: { stopOnReply: true, bounceProtectionEnabled: true }, review: { confirmed: true },
     };
     const version = { id: "version-1", campaignId: "campaign-1", status: "draft", createdAt: new Date("2026-09-08T12:00:00Z"), operationalRules: { wizard } };
+    let locked = false;
     const client: any = {
+        $queryRaw: async (strings: TemplateStringsArray, id: string) => {
+            assert.match(strings.join("?"), /FOR UPDATE/);
+            assert.equal(id, "group-1");
+            locked = true;
+        },
         coldEmailCampaignVersion: { findUnique: async () => version, updateMany: async () => { writes.push("version"); return { count: 1 }; } },
         coldEmailSequenceVersion: { findUnique: async () => ({ status: "approved", steps: [{ id: "step" }] }) },
         coldEmailSendingPool: { findUnique: async () => ({ active: true, memberships: [{ id: "mailbox" }] }) },
-        leadGroup: { findUnique: async () => ({ id: "group-1", name: "Group", channel: "email", updatedAt: new Date(), lastRefreshedAt, filterDefinition, members: [{ leadId: "lead-1", lead: { name: "Business", email: "owner@example.com" } }] }) },
+        leadGroup: { findUnique: async () => { assert.ok(locked, "approval locks before reading the group"); return ({ id: "group-1", name: "Group", channel: "email", updatedAt: new Date(), lastRefreshedAt, filterDefinition, members: [{ leadId: "lead-1", lead: { name: "Business", email: "owner@example.com" } }] }); } },
         coldEmailAudienceSnapshot: { create: async () => { writes.push("snapshot"); return { id: "snapshot-1" }; } },
         coldEmailAudienceMember: { createMany: async () => { writes.push("members"); return { count: 1 }; } },
         coldEmailCampaign: { updateMany: async () => ({ count: 1 }) },
         coldEmailAuditEvent: { create: async () => ({}) },
     };
-    client.$transaction = async (fn: (tx: any) => unknown, options?: any) => { if (options) assert.equal(options.isolationLevel, "Serializable"); return fn(client); };
+    client.$transaction = async (fn: (tx: any) => unknown, options?: any) => { if (options) assert.equal(options.isolationLevel, "Serializable"); locked = false; return fn(client); };
     const store = isolatedModule("src/lib/cold-email-campaign-store.ts", {
+        "./lead-group-refresh.ts": groupRefresh, "./enrichment-signals.ts": signals,
+        "./enrichment-evidence.ts": evidence,
         "./lead-group-policy.ts": groupPolicy, "@/lib/prisma": { prisma: client },
         "@/lib/cold-email": { COLD_EMAIL_PERSONALIZATION_LEAD_SELECT: {} },
         "@/lib/cold-email-campaign": campaignRules, "@/lib/cold-email-platform": platform,
@@ -181,6 +217,8 @@ test("preparation rejects a draft before any provider operation", async () => {
 
 test("invalid business websites reject enrichment callbacks before progress or lead writes", async () => {
     const route = isolatedModule("src/app/api/agents/enrichment-results/route.ts", {
+        ...signalImports,
+        "@/lib/junk-eligibility": junkEligibility, "@/lib/lead-classify": leadClassify,
         "next/server": nextResponseMock, "@/lib/lead-website": website,
         "@/lib/lead-cleaner-db": { isLeadCleanerSchemaReady: async () => false },
         "@/lib/prisma": { prisma: { scrapedLead: { findUnique: async () => ({ id: "lead", website: "gmail.com", archivedAt: null }) } } },
@@ -194,23 +232,83 @@ test("invalid business websites reject enrichment callbacks before progress or l
 
 test("refresh reports persisted membership and a failed transaction cannot announce success", async () => {
     let fail = false;
-    let released = 0;
+    let members = new Set(["obsolete"]);
+    let group = { id: "group", filterDefinition: {}, lastRefreshedAt: null as Date | null };
+    let desired = ["lead"];
+    const events: string[] = [];
     const prisma = {
-        leadGroup: { findUnique: async () => ({ id: "group", filterDefinition: {} }), update: async () => ({}) },
-        adminSetting: { upsert: async () => ({}), updateMany: async () => ({ count: 1 }), update: async () => { released++; } },
-        scrapedLead: { findMany: async () => [{ id: "lead" }] },
-        leadGroupMember: { findMany: async () => [], createMany: async () => ({ count: 1 }), deleteMany: async () => ({ count: 0 }), count: async () => 2 },
-        $transaction: async (fn: (tx: any) => unknown, options: any) => { assert.equal(options.isolationLevel, "Serializable"); if (fail) throw new Error("Simulated transaction failure"); return fn(prisma); },
+        // This route read authenticates preview context. The transaction must
+        // independently lock before reading rules or persisted membership.
+        leadGroup: { findUnique: async () => { events.push("preview-read"); return group; } },
+        scrapedLead: { fields: { website: Symbol("website"), googlePlaceId: Symbol("googlePlaceId") } },
+        $transaction: async (fn: (tx: any) => unknown, options: any) => {
+            assert.equal(options.isolationLevel, "Serializable");
+            assert.equal(options.timeout, 60_000);
+            const draftMembers = new Set(members);
+            const draftGroup = { ...group };
+            let locked = false;
+            const tx = {
+                $queryRaw: async (strings: TemplateStringsArray, id: string) => {
+                    assert.match(strings.join("?"), /FOR UPDATE/);
+                    assert.equal(id, "group"); events.push("lock"); locked = true;
+                },
+                leadGroup: {
+                    findUnique: async () => { assert.ok(locked); events.push("read-rules"); return draftGroup; },
+                    update: async ({ data }: any) => {
+                        assert.ok(locked); events.push("update-group"); Object.assign(draftGroup, data);
+                        // Fail after both membership and timestamp writes. Nothing
+                        // is committed until the entire callback succeeds.
+                        if (fail) throw new Error("Simulated transaction failure");
+                        return draftGroup;
+                    },
+                },
+                scrapedLead: { findMany: async () => { assert.ok(locked); return desired.map(id => ({ id })); } },
+                leadGroupMember: {
+                    findMany: async () => { assert.ok(locked); return [...draftMembers].map(leadId => ({ leadId })); },
+                    createMany: async ({ data }: any) => {
+                        assert.ok(locked); events.push("add-members"); let count = 0;
+                        for (const row of data) { assert.equal(row.groupId, "group"); if (!draftMembers.has(row.leadId)) { draftMembers.add(row.leadId); count++; } }
+                        return { count };
+                    },
+                    deleteMany: async ({ where }: any) => {
+                        assert.ok(locked); assert.equal(where.groupId, "group"); events.push("remove-members"); let count = 0;
+                        for (const id of where.leadId.in) if (draftMembers.delete(id)) count++;
+                        return { count };
+                    },
+                },
+            };
+            try {
+                const result = await fn(tx);
+                members = draftMembers; group = draftGroup; events.push("commit"); return result;
+            } catch (error) { events.push("rollback"); throw error; }
+        },
     };
     const route = isolatedModule("src/app/api/agents/lead-groups/refresh/route.ts", {
+        ...signalImports,
+        "@/lib/junk-eligibility": junkEligibility, "@/lib/lead-classify": leadClassify,
         "next/server": nextResponseMock, "@/lib/prisma": { prisma }, "@/lib/auth": session,
-        "@/lib/cold-email-db": { getLeadGroupFilter: async () => ({}) },
-        "@/lib/lead-group-policy": groupPolicy, "@/lib/lead-filter": leadFilter,
+        "@/lib/lead-group-policy": groupPolicy,
     });
-    assert.equal((await (await route.POST(request({ groupId: "group" }))).json()).total, 2);
-    fail = true;
+    const success = await route.POST(request({ groupId: "group" }));
+    assert.equal(success.status, 200);
+    const result = await success.json();
+    assert.equal(result.ok, true);
+    assert.equal(result.total, members.size);
+    assert.equal(result.total, 1);
+    assert.equal(result.added, 1); assert.equal(result.removed, 1);
+    assert.deepEqual([...members], ["lead"]);
+    assert.ok(group.lastRefreshedAt instanceof Date);
+    assert.deepEqual(events, ["preview-read", "lock", "read-rules", "add-members", "remove-members", "update-group", "commit"]);
+    const repeated = await (await route.POST(request({ groupId: "group" }))).json();
+    assert.equal(repeated.added, 0); assert.equal(repeated.removed, 0); assert.equal(repeated.total, 1);
+    const committedGroup = { ...group };
+    events.length = 0; desired = ["replacement"]; fail = true;
     const res = await route.POST(request({ groupId: "group" }));
     assert.equal(res.status, 500);
-    assert.equal((await res.json()).ok, undefined);
-    assert.equal(released, 2);
+    const failed = await res.json();
+    assert.equal(failed.ok, undefined); assert.equal(failed.total, undefined);
+    assert.equal(failed.retryExistingGroup, true); assert.match(failed.error, /Simulated transaction failure/);
+    assert.deepEqual([...members], ["lead"]);
+    assert.deepEqual(group, committedGroup);
+    assert.deepEqual(events, ["preview-read", "lock", "read-rules", "add-members", "remove-members", "update-group", "rollback"]);
 });

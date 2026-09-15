@@ -1,9 +1,10 @@
+import { classifyJunkEligibility, eligibilityNotes, type JunkEligibilityInput } from "./junk-eligibility.ts";
 export type LeadCleanVerdict = "keep" | "reject";
 export type LeadCleanDecidedBy = "rule" | "llm";
 export type LeadCleanerMode = "preview" | "enforce";
 export type LeadCleanerGateMode = "off" | "warn" | "block";
 
-export interface LeadForCleaning {
+export interface LeadForCleaning extends JunkEligibilityInput {
     id: string;
     name: string;
     categories?: string[] | null;
@@ -58,6 +59,8 @@ export interface LeadCleanDecision {
     confidence: number | null;
     judged: boolean;
     outCategory?: string | null;
+    eligibilityNotes?: string[];
+    expectedUpdatedAt?: string;
 }
 
 export interface LlmJudgeSummary {
@@ -466,6 +469,33 @@ function getFranchiseDecision(lead: LeadForCleaning, policy: LeadCleanPolicy): L
     return null;
 }
 
+// Scraped categories do not prove that a business lacks our target services.
+// Preserve plausible hybrids for review instead of archiving them from category labels.
+function categoryNeedsReview(lead: LeadForCleaning): boolean {
+    const categories = categoryText(lead);
+    const identity = `${normalizeText(lead.name)} ${normalizeText(getDomain(lead))}`;
+    const compactIdentity = identity.replace(/\s+/g, "");
+    const explicitCarOrYard = /junk\s*yards?\b/.test(identity)
+        || (/junk/.test(identity) && /\b(carr?s?|autos?|vehicles?|wrecked|scrap|salvage)\b/.test(identity))
+        || /junkcars|junkautos|junkvehicles/.test(compactIdentity);
+    const targetIdentity = /junk removal|dumpster|roll off|rolloff|hauling|haul away|cleanout|debris removal|rubbish removal|appliance removal|furniture removal/.test(identity)
+        || /junkremoval|haulaway|applianceremoval|furnitureremoval/.test(compactIdentity)
+        || (/junk/.test(identity) && !explicitCarOrYard);
+    const supplierIdentity = /supplier|manufacturer|manufacturing/.test(identity);
+    if (targetIdentity && !supplierIdentity) return true;
+    const serviceCategory = /waste management service|garbage collection service|sanitation service|moving company|moving service|mover/.test(categories);
+    const facilityIdentity = /landfill|transfer station|recycling cent(er|re)|recycling facility|scrap yard|junkyard|salvage yard/.test(identity);
+    const mixedJunkyardCategory = !explicitCarOrYard && (lead.categories?.length || 0) > 1 && /junkyard|junk yard/.test(categories);
+    const removalServiceIdentity = /removal|trash|debris|rubbish/.test(identity)
+        && !/\b(auto|cars?|vehicles?|scrap|salvage|towing|wrecker)\b/.test(identity);
+    const movingIdentity = /\bmovers?\b|moving/.test(identity);
+    return (serviceCategory || mixedJunkyardCategory || removalServiceIdentity || movingIdentity) && !facilityIdentity;
+}
+
+function categoryReviewKeep(lead: LeadForCleaning): LeadCleanDecision {
+    return { leadId: lead.id, verdict: "keep", reason: "category_conflict_review_keep", decidedBy: "rule", confidence: null, judged: true };
+}
+
 export function getRuleDecision(
     lead: LeadForCleaning,
     policy: LeadCleanPolicy = DEFAULT_LEAD_CLEAN_POLICY,
@@ -476,6 +506,7 @@ export function getRuleDecision(
             leadId: lead.id,
             verdict: "keep",
             reason: "client_roster_keep",
+            eligibilityNotes: eligibilityNotes(lead.notesFlags,getIntakeEligibility(lead,policy,clientRoster)),
             decidedBy: "rule",
             confidence: null,
             judged: true,
@@ -483,69 +514,21 @@ export function getRuleDecision(
     }
 
     const franchise = getFranchiseDecision(lead, policy);
-    if (franchise) return franchise;
+    if (franchise) return {...franchise,eligibilityNotes:eligibilityNotes(lead.notesFlags,getIntakeEligibility(lead,policy,clientRoster))};
 
-    const categories = categoryText(lead);
-    const allowPresent = hasAllowSignal(lead, policy);
+    const eligibility = getIntakeEligibility(lead,policy,clientRoster);
+    const notes = eligibilityNotes(lead.notesFlags,eligibility);
+    if (eligibility.status === "eligible") return {leadId:lead.id,verdict:"keep",reason:eligibility.reason,decidedBy:"rule",confidence:null,judged:true,eligibilityNotes:notes};
+    if (eligibility.status === "dumpster_only") return {leadId:lead.id,verdict:"reject",reason:"eligibility:confirmed_dumpster_only",decidedBy:"rule",confidence:null,judged:true,eligibilityNotes:notes};
+    return {leadId:lead.id,verdict:"keep",reason:"eligibility:pending_review",decidedBy:"rule",confidence:null,judged:false};
+}
 
-    const scrap = getScrapSignal(lead, policy);
-    if (scrap.matched) {
-        // Hard salvage/junkyard categories always reject; softer scrap signals
-        // (or name-only matches) reject only without allow evidence — genuine
-        // hybrids go to the LLM instead of being silently archived.
-        if (scrap.hardCategoryMatch || !allowPresent) {
-            return {
-                leadId: lead.id,
-                verdict: "reject",
-                reason: "category_deny:scrap_yard",
-                decidedBy: "rule",
-                confidence: null,
-                judged: true,
-            };
-        }
-        return null;
-    }
-
-    for (const deny of policy.denyTerms) {
-        if (hasAnyTerm(categories, deny.terms, deny.boundary)) {
-            if (!allowPresent) {
-                return {
-                    leadId: lead.id,
-                    verdict: "reject",
-                    reason: deny.reason,
-                    decidedBy: "rule",
-                    confidence: null,
-                    judged: true,
-                };
-            }
-            if (deny.allowCollision !== "keep") return null;
-        }
-    }
-
-    if (allowPresent) {
-        return {
-            leadId: lead.id,
-            verdict: "keep",
-            reason: "category_allow",
-            decidedBy: "rule",
-            confidence: null,
-            judged: true,
-        };
-    }
-
-    const nameAndDomain = `${normalizeText(lead.name)} ${normalizeText(getDomain(lead))}`;
-    if (hasAnyTerm(nameAndDomain, policy.nameKeepTerms)) {
-        return {
-            leadId: lead.id,
-            verdict: "keep",
-            reason: "name_token_keep",
-            decidedBy: "rule",
-            confidence: null,
-            judged: true,
-        };
-    }
-
-    return null;
+export function getIntakeEligibility(lead:LeadForCleaning, policy=DEFAULT_LEAD_CLEAN_POLICY, roster:ClientRoster={names:[],emails:[]}) {
+    const decision=classifyJunkEligibility(lead);
+    const franchise=getFranchiseDecision(lead,policy);
+    if (Array.isArray(lead.notesFlags) && lead.notesFlags.includes("junk_eligibility:suppressed")) return {...decision,status:"suppressed" as const,reason:"existing_suppression_preserved"};
+    if (franchise || matchesClientRoster(lead,roster)) return {...decision,status:"suppressed" as const,reason:franchise?.reason || "client_roster_keep"};
+    return decision;
 }
 
 function buildClassifierPrompt(leads: LeadForCleaning[]) {
@@ -559,27 +542,14 @@ function buildClassifierPrompt(leads: LeadForCleaning[]) {
         state: lead.state || null,
     }));
 
-    return `Classify scraped business leads for a junk-removal/dumpster-rental sales pipeline.
+    return `Classify scraped business leads for a junk-removal sales pipeline. Dumpster-only companies are outside scope; uncertain absence requires review.
 
-Target businesses to KEEP: independent junk removal, dumpster rental, roll-off rental, hauling, debris/rubbish removal, cleanout, appliance/furniture removal, and genuine hybrids that offer those services.
+Target businesses to KEEP: businesses with supported junk removal, including hybrids with dumpster rental or any other services. Missing junk evidence is pending review, never verified dumpster-only.
 
-Reject only when the lead is clearly outside the target market. Bias toward KEEP when uncertain.
+Only sourced, current, complete service evidence confirming dumpster rental and no junk removal supports dumpster-only rejection. Category labels, default false values and model guesses cannot establish absence. Any explicit junk removal service qualifies even alongside unrelated services. Unknown cases remain pending review. Franchise and client rules are handled separately by deterministic policy.
 
-Special rules:
-- Demolition: keep only if the company also offers junk removal, hauling, debris removal, roll-off, or dumpster rental. Otherwise reject as unrelated_business.
-- Waste collection service: keep only if it also offers junk removal. Facilities/landfills/transfer stations are reject categories.
-- Movers: keep only when they genuinely offer junk removal/hauling; otherwise reject as moving_company.
-- Dumpster rental is keep. Dumpster suppliers/manufacturers are reject as building_materials_supplier.
-- Scrap/salvage/junkyard/auto-wrecking businesses are reject as scrap_yard, unless the lead genuinely offers junk removal or hauling services too.
-
-Allowed reject outCategory values:
-franchise, recycling_facility, landfill_transfer, self_storage, moving_company, building_materials_supplier, scrap_yard, unrelated_business.
-
-Return only a JSON array. One object per input row:
-[{ "leadId": "...", "verdict": "keep|reject", "outCategory": "unrelated_business|null", "confidence": 0.0, "reason": "short reason" }]
-
-Leads:
-${JSON.stringify(rows, null, 2)}`;
+Return JSON with decisions for these rows:
+${JSON.stringify(rows)}`;
 }
 
 export function stripJsonFences(text: string) {
@@ -633,7 +603,8 @@ export function corroboratesOutCategory(lead: LeadForCleaning, outCategory: stri
         case "scrap_yard":
             return ["scrap", "salvage", "junkyard", "junk yard", "auto wrecker", "wrecking yard", "junk car", "junk cars", "cash for cars"].some(term => boundaryMatches(evidence, term));
         case "unrelated_business":
-            return !!categories && !policy.allowTerms.some(term => includesNormalized(categories, term));
+            // Missing target categories are not positive evidence of irrelevance.
+            return false;
         default:
             return false;
     }
@@ -641,30 +612,8 @@ export function corroboratesOutCategory(lead: LeadForCleaning, outCategory: stri
 
 /** Exported for tests. */
 export function normalizeLlmDecision(raw: unknown, lead: LeadForCleaning, policy: LeadCleanPolicy): LeadCleanDecision {
-    if (!isObject(raw)) return llmKeep(lead.id, true);
-    const rawVerdict = raw.verdict === "reject" ? "reject" : "keep";
-    const outCategory = typeof raw.outCategory === "string" ? raw.outCategory : null;
-    const confidence = typeof raw.confidence === "number" ? Math.max(0, Math.min(1, raw.confidence)) : null;
-
-    if (
-        rawVerdict === "reject"
-        && outCategory
-        && LLM_REJECT_OUT_CATEGORIES.has(outCategory)
-        && (confidence ?? 0) >= policy.llmRejectConfidenceThreshold
-        && corroboratesOutCategory(lead, outCategory, policy)
-    ) {
-        return {
-            leadId: lead.id,
-            verdict: "reject",
-            reason: `llm_reject:${outCategory}`,
-            decidedBy: "llm",
-            confidence,
-            judged: true,
-            outCategory,
-        };
-    }
-
-    return llmKeep(lead.id, true, confidence);
+    // Model output cannot manufacture service absence or override supported junk.
+    return getRuleDecision(lead,policy)!;
 }
 
 function llmKeep(leadId: string, judged: boolean, confidence: number | null = null): LeadCleanDecision {

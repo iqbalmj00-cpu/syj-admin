@@ -112,11 +112,15 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
         ]}
         server.LEDGER = self.ledger
         server._get_control = _async({"active": True, "target": "MA", "startNonce": "N1"})
-        server._ingest_leads = _async({"created": 1, "updated": 0, "skipped": 0, "total": 1})
+        async def acknowledged_ingest(leads):
+            for lead in leads:
+                self.ledger.record_lead_eligibility(server.mapper.lead_dedup_key(lead), "eligible")
+            return {"created": len(leads), "updated": 0, "skipped": 0, "total": len(leads)}
+        server._ingest_leads = acknowledged_ingest
         server._report_progress = _async(None)
         server.cfg = types.SimpleNamespace(
-            search_terms=["junk removal", "dumpster rental"],
-            expansion_search_terms=["roll off dumpster"],
+            search_terms=["junk removal", "junk removal and dumpster rental"],
+            expansion_search_terms=["junk removal and roll off dumpster"],
             discovery_mode="city",
             batch_target_count=10,
             skip_empty=True,
@@ -205,7 +209,7 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
         server._get_control = _async({"active": False, "target": "MA", "startNonce": "N1"})
         await server.run_sweep({"target": "MA", "startNonce": "N1"})
         # Stop seen at the first batch-top -> no target processed, no done posted
-        self.assertEqual(self._status("MA:city:boston")["status"], "pending")
+        self.assertIsNone(self._status("MA:city:boston"))  # Fence runs before even seeding the ledger.
         self.assertEqual(self.done_calls, [])
 
     async def test_failed_task_never_marked_empty(self):
@@ -327,7 +331,7 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
 
         async def poll_one_term_fails(results_location, api_key, timeout=60.0):
             request_id = str(results_location)
-            if request_id == "Boston|dumpster rental":
+            if request_id == "Boston|junk removal and dumpster rental":
                 raise RuntimeError("task failed")
             return {"status": "finished", "data": [[dict(ROW)]]}
 
@@ -344,7 +348,7 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
         await server.run_sweep({"target": "MA", "startNonce": "N2"})
 
         self.assertTrue(any(q.startswith("junk removal, Boston") for q in first_submits))
-        self.assertEqual(retry_provider.submitted_queries, ["dumpster rental, Boston, MA"])
+        self.assertEqual(retry_provider.submitted_queries, ["junk removal and dumpster rental, Boston, MA"])
         self.assertEqual(self._status("MA:city:boston")["accepted_leads"], 1)
         self.assertEqual(self._status("MA:city:boston")["created_leads"], 1)
 
@@ -363,7 +367,7 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
         await server.run_sweep({"target": "MA", "startNonce": "N1"})
 
         self.assertIn("junk removal, Cambridge, MA", provider.submitted_queries)
-        self.assertNotIn("dumpster rental, Cambridge, MA", provider.submitted_queries)
+        self.assertNotIn("junk removal and dumpster rental, Cambridge, MA", provider.submitted_queries)
         self.assertEqual(self._status("MA:city:cambridge")["status"], "done")
         self.assertEqual(self._status("MA:city:cambridge")["accepted_leads"], 0)
 
@@ -380,7 +384,7 @@ class TestRunSweep(unittest.IsolatedAsyncioTestCase):
         await server.run_sweep({"target": "MA", "startNonce": "N1"})
 
         self.assertIn("junk removal, Boston, MA", provider.submitted_queries)
-        self.assertIn("dumpster rental, Boston, MA", provider.submitted_queries)
+        self.assertIn("junk removal and dumpster rental, Boston, MA", provider.submitted_queries)
         self.assertEqual(self._status("MA:city:boston")["status"], "done")
 
 

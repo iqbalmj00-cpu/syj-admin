@@ -109,10 +109,10 @@ export async function POST() {
             {
                 slug: "lead_scraper",
                 name: "Lead Scraper",
-                description: "Discovers junk removal and dumpster rental businesses on Google Maps via Outscraper, by city/market targets with selective grid expansion. Manual start only through the Lead Scraper card; an external worker ingests thin leads for enrichment.",
+                description: "Discovers businesses offering junk removal (including hybrids) on Google Maps via Outscraper, by city/market targets with selective grid expansion. Manual start only through the Lead Scraper card; an external worker ingests thin leads for enrichment.",
                 schedule: null,
                 config: {
-                    search_terms: ["junk removal", "dumpster rental"],
+                    search_terms: ["junk removal"],
                     results_per_query_limit: null,
                     fetch_reviews: false,
                     batch_zip_count: 12,

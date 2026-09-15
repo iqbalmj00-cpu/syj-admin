@@ -31,8 +31,8 @@ class TestRelevance(unittest.TestCase):
         result = relevance.classify_row(_row(name="Acme Hauling",
                                              type="Garbage collection service"))
         self.assertTrue(result.relevant)
-        self.assertIsNone(result.company_type)  # mapper may use the query term as tie-breaker
-        self.assertIn("contextual_hauling", result.matched)
+        self.assertEqual(result.company_type, "other")  # query cannot establish service scope
+        self.assertEqual(result.reason, "pending_review")
 
     def test_accepts_college_hunks_junk_despite_moving_category(self):
         result = relevance.classify_row(_row(
@@ -58,7 +58,7 @@ class TestRelevance(unittest.TestCase):
             subtypes="",
         ))
         self.assertTrue(result.relevant)
-        self.assertEqual(result.company_type, "junk_removal")
+        self.assertEqual(result.company_type, "other")
 
     def test_accepts_1_800_got_junk_as_relevant_junk_company(self):
         result = relevance.classify_row(_row(
@@ -79,7 +79,7 @@ class TestRelevance(unittest.TestCase):
                                              type="Waste management service",
                                              subtypes="Garbage collection service"))
         self.assertTrue(result.relevant)
-        self.assertIn("generic_waste_company_with_category", result.matched)
+        self.assertEqual(result.reason, "pending_review")
 
     def test_accepts_tree_company_when_debris_removal_is_real_evidence(self):
         result = relevance.classify_row(_row(name="Northside Tree and Debris Removal",
@@ -118,43 +118,43 @@ class TestRelevance(unittest.TestCase):
         self.assertTrue(result.relevant)
         self.assertEqual(result.company_type, "junk_removal")
 
-    def test_rejects_junk_car_business_even_with_loose_junk_category(self):
+    def test_conflicting_junk_car_identity_needs_review(self):
         result = relevance.classify_row(_row(
             name="Bouk Cash for Junk Cars, RI (Rhode Island)",
             type="Junk dealer",
             subtypes="Auto tune up service, Auto wrecker, Car dealer, Junk removal service",
         ))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "hard_exclude")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_storage_container_rental_without_waste_context(self):
+    def test_retains_pending_storage_container_rental_without_waste_context(self):
         result = relevance.classify_row(_row(name="Portable Storage Containers",
                                              type="Container rental service",
                                              subtypes="Storage facility"))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "hard_exclude")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_dumpster_cleaning_without_rental_context(self):
+    def test_retains_pending_dumpster_cleaning_without_rental_context(self):
         result = relevance.classify_row(_row(name="Dumpster Cleaning Pros",
                                              type="Cleaning service",
                                              subtypes="Pressure washing service"))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "hard_exclude")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_construction_container_rental_without_waste_context(self):
+    def test_retains_pending_construction_container_rental_without_waste_context(self):
         result = relevance.classify_row(_row(name="Construction Container Rentals",
                                              type="Container rental service",
                                              subtypes="Construction equipment supplier"))
-        self.assertFalse(result.relevant)
+        self.assertTrue(result.relevant)
 
     def test_search_term_is_not_relevance_evidence(self):
         result = relevance.classify_row(_row(name="Bob's Hardware",
                                              type="Hardware store",
                                              _term="dumpster rental"))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "no_positive_match")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_alabama_false_positive_examples(self):
+    def test_retains_pending_alabama_false_positive_examples(self):
         examples = [
             ("AutoZone Auto Parts", "Auto parts store"),
             ("U-Haul Neighborhood Dealer", "Truck rental agency"),
@@ -171,29 +171,29 @@ class TestRelevance(unittest.TestCase):
             with self.subTest(name=name):
                 result = relevance.classify_row(_row(name=name, type=business_type,
                                                      subtypes="", _term="junk removal"))
-                self.assertFalse(result.relevant)
-                self.assertEqual(result.reason, "hard_exclude")
+                self.assertTrue(result.relevant)
+                self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_standalone_demolition(self):
+    def test_retains_pending_standalone_demolition(self):
         result = relevance.classify_row(_row(name="ABC Demolition",
                                              type="Demolition contractor",
                                              subtypes=""))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "hard_exclude")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_standalone_excavation(self):
+    def test_retains_pending_standalone_excavation(self):
         result = relevance.classify_row(_row(name="ABC Excavating",
                                              type="Excavating contractor",
                                              subtypes=""))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "hard_exclude")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
-    def test_rejects_restoration_without_strong_junk_signal(self):
+    def test_retains_pending_restoration_without_strong_junk_signal(self):
         result = relevance.classify_row(_row(name="Flood Restoration Debris Cleanup",
                                              type="Water damage restoration service",
                                              subtypes=""))
-        self.assertFalse(result.relevant)
-        self.assertEqual(result.reason, "conditional_exclude_without_strong_positive")
+        self.assertTrue(result.relevant)
+        self.assertEqual(result.reason, "pending_review")
 
 
 if __name__ == "__main__":
