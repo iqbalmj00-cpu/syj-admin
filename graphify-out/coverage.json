@@ -1,0 +1,2961 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-25T07:15:38.113587+00:00",
+  "root": "/Volumes/CODE/JAMALS ADMIN DASH",
+  "scope": "Current working tree, including uncommitted source and the ignored first-party gateway.py; no sibling repository traversal.",
+  "category_counts": {
+    "asset-or-other": 1,
+    "ast-source": 411,
+    "document": 40,
+    "generated-contract": 2,
+    "historical-document": 6,
+    "historical-output": 19,
+    "runtime-generated-not-read": 9,
+    "sensitive-not-read": 4,
+    "source-without-ast": 7,
+    "test-fixture-data": 3
+  },
+  "inventory": {
+    "files": {
+      ".DS_Store": {
+        "category": "runtime-generated-not-read"
+      },
+      ".agents/PROJECT_KNOWLEDGE.md": {
+        "category": "document",
+        "bytes": 64633,
+        "sha256": "825348b8c0969327c8b226b31e593aaa504563121043f9b28268820bb71f3fac"
+      },
+      ".agents/README.md": {
+        "category": "document",
+        "bytes": 1918,
+        "sha256": "be673cffa065bc9b7cb67995a8eedec874f3b183157fd3ac47460a70c7ab08b8"
+      },
+      ".agents/workflows/database-safety.md": {
+        "category": "document",
+        "bytes": 2087,
+        "sha256": "b3a27e8b2fad069679799e768b089c727b8b221f4e4ffdd41132a7f8ddce7d7b"
+      },
+      ".env": {
+        "category": "sensitive-not-read"
+      },
+      ".env.example": {
+        "category": "sensitive-not-read"
+      },
+      ".gitignore": {
+        "category": "source-without-ast",
+        "bytes": 614,
+        "sha256": "8a4513bee52a9ee97b2465498175cb852038d28787a9c86de839a4a3678ce56b"
+      },
+      "AGENTSSTALEmd.md": {
+        "category": "document",
+        "bytes": 10370,
+        "sha256": "65e6b223f6a924daf6e227bf2fd304e42b1856a0119884a2f8cc38376ef37bed"
+      },
+      "Ads Template - Content/BeforeAfterSplitTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 14212,
+        "sha256": "ec31cf8c65ffa2cd2d94104e0eb945ca4d69319ee58cda024260ee2661bb1457"
+      },
+      "Ads Template - Content/FeatureCalloutTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 12436,
+        "sha256": "b8a589ac780136d306b7b3803e016e2a77cad27b5eb393096beee8ef8803fe00"
+      },
+      "Ads Template - Content/PhoneMockupTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 5355,
+        "sha256": "309f01f47698366989db99ebe49cac1d230276d730d11c58a2d0167eda0d6c2a"
+      },
+      "Ads Template - Content/ProductHighlightTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 8562,
+        "sha256": "f24b661f96f64ff489b2576b6a4ff1497b3a1a3d303f6c50c012453681dff68b"
+      },
+      "Ads Template - Content/QuoteCardTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 4780,
+        "sha256": "d9bf92e17735255aaf8ab1c120822483aa926386199deacef353a928a4fb3e51"
+      },
+      "Ads Template - Content/StatSplitTemplate.jsx": {
+        "category": "ast-source",
+        "bytes": 8097,
+        "sha256": "310f3d09cba2b1aec4a7f227fc19fc25c304f108be50bcbb6aa9043247fe46ef"
+      },
+      "Ads Template - Content/files.zip": {
+        "category": "asset-or-other",
+        "bytes": 9686,
+        "sha256": "96d1faa9b687729c1bd3e678c3dc3f18bbee53f7f4103a68a919be4f82837dbd"
+      },
+      "BOOKING_DETECTION_BRIEF.md": {
+        "category": "document",
+        "bytes": 8904,
+        "sha256": "02b58edbc2a61fbfc6bf5a1cd4761ef5af15103b5b1c1ba940d4b59dee8d0427"
+      },
+      "BOOKING_FLOW_BRIEF.md": {
+        "category": "document",
+        "bytes": 7696,
+        "sha256": "2d55942e60d75a28fd794114968328af284502fde0e412f8d00947692e8b2d7c"
+      },
+      "CLAUDESTALEmd.md": {
+        "category": "document",
+        "bytes": 11622,
+        "sha256": "3eee5f95c2bf24f120352dc2b07a103ca3f287d662ee102456c2c28c866f86f0"
+      },
+      "COLD_EMAIL_CONSOLE_V3_SPEC.md": {
+        "category": "document",
+        "bytes": 30877,
+        "sha256": "8924376b716db723cd5902a3ba61dad54d6daf2132e1315ae06b3ebc00184c80"
+      },
+      "COLD_EMAIL_V3_SCHEMA_PUSH_BRIEF.md": {
+        "category": "document",
+        "bytes": 13030,
+        "sha256": "18bbe1453bc204906373d2ffffd4675c4d2972a25fa1b53bed097ae04d8f66e7"
+      },
+      "CONTENT_ASSET_BRIEF.md": {
+        "category": "document",
+        "bytes": 4955,
+        "sha256": "1322f072ca4532906c743837cd791d2cc606afa7691b67139d88978938b58014"
+      },
+      "DEV_BRIEF_ROUND_8.md": {
+        "category": "document",
+        "bytes": 4907,
+        "sha256": "d23f7efc5aa12771f8641c29a9a9f374d04f37a4f7de706f3c68c645ea7ca142"
+      },
+      "DOCUMENTATION_INDEX.md": {
+        "category": "document",
+        "bytes": 25751,
+        "sha256": "003c1e1af51c7f77840b1bf9bab0518f85c6ddc9c4349380c74c5c7daf915efc"
+      },
+      "EMAIL_EXTRACTION_BRIEF.md": {
+        "category": "document",
+        "bytes": 7561,
+        "sha256": "9df3fa600b77b04fa1d16c3931e2d1a3e42601a7dc56f0b804f51530aaf28e9b"
+      },
+      "ENRICHMENT_TASK_UPDATE_2026-09-12.md": {
+        "category": "document",
+        "bytes": 10755,
+        "sha256": "f720d1b3c66a7523967d82e73994789d1568a91e8dfa884e0033fb6b9858b4f9"
+      },
+      "FINAL_SCHEMA_BRIEF.md": {
+        "category": "document",
+        "bytes": 30429,
+        "sha256": "7683eda201552ec10428a7982bd6fb3a452f2084870a641468ceaa908df67574"
+      },
+      "HIGH_IMPACT_BRIEF.md": {
+        "category": "document",
+        "bytes": 9432,
+        "sha256": "f2bea60afeb1f7454cf42917e7bf0b3970814e7b26d40ce580cfe66478a1be14"
+      },
+      "LEAD_CLEANER_AGENT_DETAILS.md": {
+        "category": "document",
+        "bytes": 23723,
+        "sha256": "965c4b9f44387636b106290ff6ca39bb69faed3646b2db7388efad6aab723529"
+      },
+      "LEAD_CLEANER_CODE_MAP.md": {
+        "category": "document",
+        "bytes": 16636,
+        "sha256": "f65bb50ca41d66a9c901b89e74727066c1c7e79c456c43ada042cc37f62a8b28"
+      },
+      "LEAD_CLEANER_DB_HANDOFF.md": {
+        "category": "document",
+        "bytes": 6036,
+        "sha256": "8b595e6012fa037993887ea3e813b41cd241710c4b213b14ac38c821e034b9d0"
+      },
+      "LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md": {
+        "category": "document",
+        "bytes": 9009,
+        "sha256": "da06f862db7cdb2bdb60e9598ea9ba84d5eecb706e2792a432ecf39522f367fe"
+      },
+      "Lead Scraper Agent/.DS_Store": {
+        "category": "runtime-generated-not-read"
+      },
+      "Lead Scraper Agent/IMPLEMENTATION_PLAN.md": {
+        "category": "document",
+        "bytes": 9989,
+        "sha256": "8b0dbbcd2c54bb407814e58618708cd28f09466d20098582207da7e16005f701"
+      },
+      "Lead Scraper Agent/README.md": {
+        "category": "document",
+        "bytes": 11701,
+        "sha256": "fa8e61945ce72732165499cac46f92b237c9e51bbe6ba8dd34d6c24bd3e86283"
+      },
+      "Lead Scraper Agent/admin/ADMIN_CHANGES.md": {
+        "category": "document",
+        "bytes": 3919,
+        "sha256": "b1e3d7f13ee877400c8f72683ce061dc5d4d161f37ab1b8cb3e41e57851f2682"
+      },
+      "Lead Scraper Agent/admin/NEW_FILE__api_agents_lead-scraper__route.ts": {
+        "category": "ast-source",
+        "bytes": 370,
+        "sha256": "42ebd41bf6231aedc4b7d7fb7279520810836749c6b346e7edbd200ac521cb25"
+      },
+      "Lead Scraper Agent/docs/DB_BRIEF_FOR_SYJ_DEVELOPER.md": {
+        "category": "document",
+        "bytes": 6777,
+        "sha256": "21ee134e353504bcd65a7a7aa24f29ceed50259c78d7724ac6b00e55d5a120df"
+      },
+      "Lead Scraper Agent/docs/LEAD_SCRAPER_BRIEF.md": {
+        "category": "document",
+        "bytes": 6505,
+        "sha256": "9a22555b4c15aefbde32e12994f720908d48bf4eb89eb3759a29ec19595240ac"
+      },
+      "Lead Scraper Agent/docs/LEAD_SCRAPER_BUILD_STATUS.md": {
+        "category": "document",
+        "bytes": 11885,
+        "sha256": "e9e2e95ed98d22babcc3071fb4395ad312f0f71794852955e2bd155b94c18f7e"
+      },
+      "Lead Scraper Agent/docs/LEAD_SCRAPER_TECHNICAL_PLAN.md": {
+        "category": "document",
+        "bytes": 20148,
+        "sha256": "d3f275752d83f96f7e4f9e11a374f9822cd574b6ae1c577d40492df5ea46a203"
+      },
+      "Lead Scraper Agent/worker/.env": {
+        "category": "sensitive-not-read"
+      },
+      "Lead Scraper Agent/worker/.env.example": {
+        "category": "sensitive-not-read"
+      },
+      "Lead Scraper Agent/worker/.gitignore": {
+        "category": "source-without-ast",
+        "bytes": 207,
+        "sha256": "e8db20bfea932aa855f729f7b4530967bfc76c3b1fbaf8025ed2fba66d984d33"
+      },
+      "Lead Scraper Agent/worker/README.md": {
+        "category": "document",
+        "bytes": 17486,
+        "sha256": "c6df921f278e6742728156093a9ac74a39c8f0cb8f19ccfca30c108f1f3bf6fd"
+      },
+      "Lead Scraper Agent/worker/requirements.txt": {
+        "category": "source-without-ast",
+        "bytes": 45,
+        "sha256": "93a240c587ce4b130f88068917447b47e8048013697e00ae3ed886ff2fd3a7ac"
+      },
+      "Lead Scraper Agent/worker/scraper/__init__.py": {
+        "category": "ast-source",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "Lead Scraper Agent/worker/scraper/config.py": {
+        "category": "ast-source",
+        "bytes": 6055,
+        "sha256": "73c52839076bb3262468b97600893a108f6458d1b4e07272ed73ca8057660209"
+      },
+      "Lead Scraper Agent/worker/scraper/control.py": {
+        "category": "ast-source",
+        "bytes": 2780,
+        "sha256": "c41e648798a979f4d2dfdb606e04f10844115bbd1489b59a03bdeb266a7f9504"
+      },
+      "Lead Scraper Agent/worker/scraper/ingest.py": {
+        "category": "ast-source",
+        "bytes": 4973,
+        "sha256": "10f3e99361821fd9ae462f71f1e944c58057c4ac6f843cd32d6f84418fb0636d"
+      },
+      "Lead Scraper Agent/worker/scraper/ledger.py": {
+        "category": "ast-source",
+        "bytes": 39260,
+        "sha256": "481ee8377855ac2304fd4dc025fe4168cc2adbb86bbe5b2d2c223126a651d8fd"
+      },
+      "Lead Scraper Agent/worker/scraper/mapper.py": {
+        "category": "ast-source",
+        "bytes": 8736,
+        "sha256": "3c5a7e87c9fdc1d8094cdd75072be77e6e70af8bb837503798357c2545961ca2"
+      },
+      "Lead Scraper Agent/worker/scraper/outscraper_client.py": {
+        "category": "ast-source",
+        "bytes": 10861,
+        "sha256": "fc8105577ebe950731a054999ab56b64fd38607416715f3e65e717ae47415757"
+      },
+      "Lead Scraper Agent/worker/scraper/region.py": {
+        "category": "ast-source",
+        "bytes": 10193,
+        "sha256": "249298e1033cf70d79e037fb7f6f343a24e30ce0bd9d07c23a2386b0c1387636"
+      },
+      "Lead Scraper Agent/worker/scraper/relevance.py": {
+        "category": "ast-source",
+        "bytes": 9092,
+        "sha256": "d0dc9d29ce896ea03845fc7b8ea4fe4ef945f9fe00e568bf989d4d8639f7f3f8"
+      },
+      "Lead Scraper Agent/worker/scraper_ledger.db": {
+        "category": "runtime-generated-not-read"
+      },
+      "Lead Scraper Agent/worker/server.py": {
+        "category": "ast-source",
+        "bytes": 39085,
+        "sha256": "0a4f7759a1e4f9e30f72bcd14efa3a3e06265b44a81e2ddc31450be6719ea14a"
+      },
+      "Lead Scraper Agent/worker/tests/__init__.py": {
+        "category": "ast-source",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "Lead Scraper Agent/worker/tests/fixtures/us_zips_sample.csv": {
+        "category": "test-fixture-data",
+        "bytes": 331,
+        "sha256": "3605d38e1fb8027f1b82e41f705a1bc234a3aadfb64023d0fb6bb7d93400d77a"
+      },
+      "Lead Scraper Agent/worker/tests/test_junk_eligibility.py": {
+        "category": "ast-source",
+        "bytes": 5263,
+        "sha256": "d41fc6dce7aefdb832bc75f8ae86ccbe9f805f58af4ad5db45cfc1b2fb9eba0e"
+      },
+      "Lead Scraper Agent/worker/tests/test_ledger.py": {
+        "category": "ast-source",
+        "bytes": 11324,
+        "sha256": "e07ede90b8a6dbbe8cf681625dcc20a38dd24f230cf88b8fd717c0f4f0fd3cfd"
+      },
+      "Lead Scraper Agent/worker/tests/test_mapper.py": {
+        "category": "ast-source",
+        "bytes": 6861,
+        "sha256": "ee5f84f57e0efae7b0afa72675e7ca186a9709e8f64f40954aaed16650e0661e"
+      },
+      "Lead Scraper Agent/worker/tests/test_outscraper_client.py": {
+        "category": "ast-source",
+        "bytes": 1305,
+        "sha256": "6d9d7b71b0d8120e745ad90c9f86f230b3ddefa91f3786808ad29d879abe4865"
+      },
+      "Lead Scraper Agent/worker/tests/test_region.py": {
+        "category": "ast-source",
+        "bytes": 2942,
+        "sha256": "89c4d90ad6c6ca6dc1447829e1dcdf96f98b0cec18aaa83d58ebca4493eb3e7c"
+      },
+      "Lead Scraper Agent/worker/tests/test_relevance.py": {
+        "category": "ast-source",
+        "bytes": 9435,
+        "sha256": "e0b1a2ef67f9a6e321f85d0f097efc0bb4fef3edec0a6cbe31224685796062f2"
+      },
+      "Lead Scraper Agent/worker/tests/test_server.py": {
+        "category": "ast-source",
+        "bytes": 17822,
+        "sha256": "2ce8631bf3556f921936db2614071fb5c6c1cf4f7d460bbe290b2676e3052b80"
+      },
+      "OWNER_ENRICHMENT_BRIEF.md": {
+        "category": "document",
+        "bytes": 10384,
+        "sha256": "03f8e03d12d7e6621499d14d7c5411d8467b7a99b0f97574f995388ff41f6117"
+      },
+      "PAIN_TAXONOMY_BRIEF.md": {
+        "category": "document",
+        "bytes": 16792,
+        "sha256": "5c50e742ac919b981e52332199b1aff9a60fd14dfe40aacff0d3cf74be8a1d17"
+      },
+      "PROJECT_KNOWLEDGE.md": {
+        "category": "document",
+        "bytes": 95239,
+        "sha256": "5fac11cd26c2ce845d5efdce073d2f0a570c3d3eee0bb71d97438db759b889b3"
+      },
+      "REPO_MAP.md": {
+        "category": "document",
+        "bytes": 13676,
+        "sha256": "10cfe4e5e6e15c60e6c734ea57ce52221b6d5bf47b4017215844b686dfffe63c"
+      },
+      "RESEARCH_REPORT_BRIEF.md": {
+        "category": "document",
+        "bytes": 15117,
+        "sha256": "12b9445d79af1dff575521bc59e4e18daddb7801f257242a31d64310246d45d3"
+      },
+      "REVIEW_EXPANSION_BRIEF.md": {
+        "category": "document",
+        "bytes": 8462,
+        "sha256": "c2bb76baca0c67e288fea76fd6962b6f0e285aab534e2fc767b1858df4b04b88"
+      },
+      "ROUND_8_BRIEF.md": {
+        "category": "document",
+        "bytes": 9319,
+        "sha256": "5debb63f7c7057c44a340722c8f58e6a051046396fd8ec30fdc6c4e257ac69a9"
+      },
+      "SCALEYOURJUNK_LEAD_CLEANER_DB_BRIEF.md": {
+        "category": "document",
+        "bytes": 5921,
+        "sha256": "7508e751299d976ec0dc3bbbcbd037eeaa7b41a97977461455b35c74ef267399"
+      },
+      "STATE_FIELD_BRIEF.md": {
+        "category": "document",
+        "bytes": 5286,
+        "sha256": "9aac0a65d5383db6d8c6e48cd41bbe90fbec31e83a27466a0edf23642f66cadc"
+      },
+      "TASK_REPO_COMPARISON.md": {
+        "category": "document",
+        "bytes": 12812,
+        "sha256": "342b1993ed506017bf8d7c7bd1c573f9f0b6baddf012adb0adba6f069ad5c31d"
+      },
+      "WEBSITE_SCHEMA_SYNC_BRIEF.md": {
+        "category": "document",
+        "bytes": 12442,
+        "sha256": "2f91c392933566294c3c0f8f8daa7807233dce4e8735f6759c9829d11c5781fe"
+      },
+      "WORKING_KNOWLEDGE.md": {
+        "category": "document",
+        "bytes": 13843,
+        "sha256": "f2003d80ceb1f27f68e18777325b05fa28fd7a689bed0be826a73544d0a77638"
+      },
+      "eslint.config.mjs": {
+        "category": "ast-source",
+        "bytes": 184,
+        "sha256": "885fbd9780ea80f778f1e104835e0d44cdf62150258574c8bad101e4b16ac368"
+      },
+      "gateway.py": {
+        "category": "ast-source",
+        "bytes": 2009,
+        "sha256": "e3af48454ff60fe233e417ca78a6ec3d000f3c62166a4d3f715b6e674cb902ef"
+      },
+      "next-env.d.ts": {
+        "category": "generated-contract",
+        "bytes": 247,
+        "sha256": "7b550dda9686c16f36a17bf9051d5dbf31e98555b30d114ac49fc49a1e712651"
+      },
+      "next.config.ts": {
+        "category": "ast-source",
+        "bytes": 326,
+        "sha256": "f4e00143f86e35732fcdc891b902cf5663476f156b805640a521ff6bca9e416f"
+      },
+      "output/pdf/jamals-admin-dashboard-operating-guide.pdf": {
+        "category": "historical-output",
+        "bytes": 107784,
+        "sha256": "ad19914f2084a8d67dba599b41998ead6eb05dce427eb5d41a7e032cb9e25768"
+      },
+      "package-lock.json": {
+        "category": "generated-contract",
+        "bytes": 297825,
+        "sha256": "903fe3fad5c6567b415938fce92d831349c31d2fb05e073734ccb1729d017dc7"
+      },
+      "package.json": {
+        "category": "ast-source",
+        "bytes": 1104,
+        "sha256": "b380b807288c58ee8670a5f523cef6e0b20d1ef0663a542c550855ab1a5360a8"
+      },
+      "prisma.config.ts": {
+        "category": "ast-source",
+        "bytes": 205,
+        "sha256": "8de798279ac1ecec98b9405279eea4da0b9df9cca875a478b47a6b4c03dae775"
+      },
+      "prisma/schema.prisma": {
+        "category": "source-without-ast",
+        "bytes": 183015,
+        "sha256": "08475024d1c0740c121f4d8986dcc438c230d58ddfc3c69871187048435e6216"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/implementation-results.md": {
+        "category": "historical-document",
+        "bytes": 16841,
+        "sha256": "f012b01225a5abe729a5f77b876165b58c594c38bd78f76e4967563ccd12d269"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/issues-log.md": {
+        "category": "historical-document",
+        "bytes": 45868,
+        "sha256": "f6cfe9d067ac257a54182d5d00e0a4d9d33ea86f251f1f9d92c435b833e3540c"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/operating-guide.md": {
+        "category": "historical-document",
+        "bytes": 65341,
+        "sha256": "3a1be2718ef5d592b5383bca7b964a7dd61d03e11c92d4083f329f82211238b2"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/remediation-plan.md": {
+        "category": "historical-document",
+        "bytes": 62502,
+        "sha256": "5ef791042cd455a3567a5bd9d13d3224671bcb90d80b383897dca3dffa012602"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/root-cause-analysis.md": {
+        "category": "historical-document",
+        "bytes": 38236,
+        "sha256": "bce4186cc7e5150125b9a32b99cedb1ed9a906199ab8382cd0536838e1c157ec"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/agent-observations.png": {
+        "category": "historical-output",
+        "bytes": 188336,
+        "sha256": "b7be2f5612f251eaee910c4c27c8c5f3c5b254d36f1aab221720c6cfc7aff8bf"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/checks.json": {
+        "category": "historical-output",
+        "bytes": 3274,
+        "sha256": "3cd4b4bce6d1d3dfabaa9f3094aace2deae524e257b7f0efc6db31271a9ed0e9"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-agent-observations-1440.png": {
+        "category": "historical-output",
+        "bytes": 186008,
+        "sha256": "64e8ab6ec1d44cc1cb86e4c7d76d17a56602870d156d5b7f3b80256914dddce7"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-agent-observations-375.png": {
+        "category": "historical-output",
+        "bytes": 135675,
+        "sha256": "622104c67e0a474fb52ebe3de2e50440eae2c5ec3db4b2bee27113283cde20a3"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-checks.json": {
+        "category": "historical-output",
+        "bytes": 5909,
+        "sha256": "ce83b75c13477b5099c868e1ef3d81091c1897464637db40647e40dfc59b55bf"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-cron-evidence-1440.png": {
+        "category": "historical-output",
+        "bytes": 322172,
+        "sha256": "ec5c2eae23552230e06c43022c9ccbb029f4c64270ff2d93ba9b2365b5a429b1"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-cron-evidence-375.png": {
+        "category": "historical-output",
+        "bytes": 185173,
+        "sha256": "979906e2b790f20a2e439652d845af52413ba4eaef8c84700e00503342fa6146"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/confirmed-fixes-node.tap": {
+        "category": "historical-output",
+        "bytes": 93018,
+        "sha256": "2bb1ea7ce88c59aaec044123fa4f19576fd6ccb4a8b34e2fbdc4a1170050fca0"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/cron-evidence.png": {
+        "category": "historical-output",
+        "bytes": 158708,
+        "sha256": "178d507326cdbbd308615705c2b6eaa05b89612f4314c723d4f9b47203f14ed4"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/node-tests.tap": {
+        "category": "historical-output",
+        "bytes": 84106,
+        "sha256": "7aa35e7773ddea1d9ac9103b309db30ea3554b9358dac5633cc1dc7b1de12f1c"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/phone-1440.png": {
+        "category": "historical-output",
+        "bytes": 20791,
+        "sha256": "b4f99b7b6a94e10bd0a91608730513ad41cb910f9fa196bd734c728b5e331315"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/phone-375.png": {
+        "category": "historical-output",
+        "bytes": 6603,
+        "sha256": "550e4e5bc2a9447d3c4e803437b7918bc7dc226bb34ec93e78c46e98655e1d34"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/production-build.log": {
+        "category": "runtime-generated-not-read"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/production-smoke.json": {
+        "category": "historical-output",
+        "bytes": 303,
+        "sha256": "b2d9269618ef0cdabd218bcd486e2206e1dfbe5e7f7efea8cb1065f2ec158f9b"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/release-build.log": {
+        "category": "runtime-generated-not-read"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/root-cause-reproductions.json": {
+        "category": "historical-output",
+        "bytes": 2946,
+        "sha256": "0f0d0e42558bbc864c7eb6669767e2b4b4edd7cf455014ad0c4784ffb69ed1c2"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/root-cause-reproductions.mjs": {
+        "category": "historical-output",
+        "bytes": 7626,
+        "sha256": "406b05a3541251823541121bf8af4ac47ef6c845b10f74a0285951f99c5af8aa"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/scraper-run-identity-reproduction.json": {
+        "category": "historical-output",
+        "bytes": 530,
+        "sha256": "7bf335b0559f066854abbbb5b5e5304f41a44d6255484c9f7ab7e71cd19150f8"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/scraper-run-identity-reproduction.py": {
+        "category": "historical-output",
+        "bytes": 2238,
+        "sha256": "ff2c52e7a7b9831e0f6c29f045d07a68e650ba3572a62a05776cab6cdb076aed"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/static-audience.png": {
+        "category": "historical-output",
+        "bytes": 151402,
+        "sha256": "6943c5d3a782eb4fcdbe47c36ad9496a0a9925798d639ab8736a54627241a694"
+      },
+      "reports/admin-dashboard-assessment-2026-09-08/verification/test-types.txt": {
+        "category": "historical-document",
+        "bytes": 209,
+        "sha256": "3da86686ba0f1bf17c3898251ea6d81dce4af0dcaf34e2f56634bfd965678d2f"
+      },
+      "scripts/analyze-pain-complaints.mjs": {
+        "category": "ast-source",
+        "bytes": 2720,
+        "sha256": "80de86fde063338d781caa681aedb9ef6432dfc4ec37dc756c2da6530bfcafd8"
+      },
+      "scripts/audit-enrichment-fields.mjs": {
+        "category": "ast-source",
+        "bytes": 12090,
+        "sha256": "929815a51b7624a0dced2330d93021f7e33453ce5a929691948f90aaa817bb68"
+      },
+      "scripts/backfill-failed-review-fetches.mjs": {
+        "category": "ast-source",
+        "bytes": 17185,
+        "sha256": "ffabac17ebbe3cc96706d37401cb6042d34f8c2ae72622f41c98b47b34b93b9c"
+      },
+      "scripts/backfill-review-dates.mjs": {
+        "category": "ast-source",
+        "bytes": 8548,
+        "sha256": "a52565f4cf41a89063e881fe36d174388e43371f559607b9dd344116e7ad27b0"
+      },
+      "scripts/backfill-website-emails.mjs": {
+        "category": "ast-source",
+        "bytes": 11002,
+        "sha256": "7aec0334fcb7f2613ae11ef9d7abb7cc657edaa97f0fb249263537f56a6726ae"
+      },
+      "scripts/diag-google-placeid.mjs": {
+        "category": "ast-source",
+        "bytes": 3552,
+        "sha256": "fc230cbeec9744d7273f7e3df9c47597090f4db9f43c20d016f2b369b2a6c630"
+      },
+      "scripts/diag-outscraper-gbp-multi.mjs": {
+        "category": "ast-source",
+        "bytes": 3169,
+        "sha256": "94ddddde0794168568299888b8d4e29b634459fc7847bc0786ecc7ec141a6237"
+      },
+      "scripts/diag-outscraper-gbp.mjs": {
+        "category": "ast-source",
+        "bytes": 4554,
+        "sha256": "aee74dc536a118fd060d3617be5414d21fe64de6c48e707fe07e36c577c3d8b9"
+      },
+      "scripts/diag-review-fetch-gap.mjs": {
+        "category": "ast-source",
+        "bytes": 2559,
+        "sha256": "d557dce6d7b24d728431d746fc282e7d8ab0973b537ef8f95779bc352def4e8d"
+      },
+      "scripts/inspect-review-dates.mjs": {
+        "category": "ast-source",
+        "bytes": 4695,
+        "sha256": "3028d6f5851b2b4099652439787a520fb139183af1e2183e3a6796e4dd891732"
+      },
+      "scripts/test-admin-dashboard-browser.mjs": {
+        "category": "ast-source",
+        "bytes": 24654,
+        "sha256": "d5a8581f39ecff2db657acefa6007c44d0bc225a4babfecb24b0dc3445b45c90"
+      },
+      "scripts/test-no-network.mjs": {
+        "category": "ast-source",
+        "bytes": 449,
+        "sha256": "7e802dc1d5964b484035bdd762d62b3e0f1621bb7b340bb783b1bdece048d1d0"
+      },
+      "scripts/test-scraper-run-fencing.py": {
+        "category": "ast-source",
+        "bytes": 6673,
+        "sha256": "1dd79bd36a0a69bc3d23c75d1706a1807af973d69256161ce662d887979c225b"
+      },
+      "scripts/verify-review-bug-scope.mjs": {
+        "category": "ast-source",
+        "bytes": 5575,
+        "sha256": "4ae08a7059b1a3aac9cf18850f5148f1accb5932c6adb09615b9877ed3ff7d8c"
+      },
+      "scripts/verify-round-8.mjs": {
+        "category": "ast-source",
+        "bytes": 3163,
+        "sha256": "75cc2b75260154ae2135c1e1f0da5c21aaff31450e4f024936f94a4be02c4d32"
+      },
+      "scripts/verify-schema.mjs": {
+        "category": "ast-source",
+        "bytes": 5148,
+        "sha256": "20524ee234dcae501028def63c461d33acee907083b73e7c83e68ca1c5f1cd95"
+      },
+      "src/.DS_Store": {
+        "category": "runtime-generated-not-read"
+      },
+      "src/app/(dashboard)/agents/page.tsx": {
+        "category": "ast-source",
+        "bytes": 169271,
+        "sha256": "afac6c17614eea7bdb068e155335dc2ed5cd1fa76b1f40251128ec94d5cbc6ca"
+      },
+      "src/app/(dashboard)/alerts/page.tsx": {
+        "category": "ast-source",
+        "bytes": 6727,
+        "sha256": "a0ce614d5f4deb19a178b195f0a8fbc6d6bedd54a30c4d2807c266311282b8e4"
+      },
+      "src/app/(dashboard)/billing/page.tsx": {
+        "category": "ast-source",
+        "bytes": 4380,
+        "sha256": "b1f39a2379d48349a9c8c81b8a8f502f8dc65943ca89eb8fb541966761dba3fb"
+      },
+      "src/app/(dashboard)/churn/page.tsx": {
+        "category": "ast-source",
+        "bytes": 4248,
+        "sha256": "a34d16e9d6a7cce348f00a754f1d7791c4fbdd8ae97eee1ca61e296249a8d8f6"
+      },
+      "src/app/(dashboard)/clients/[id]/page.tsx": {
+        "category": "ast-source",
+        "bytes": 72521,
+        "sha256": "c68bf091a3b3061ef7461fb6ad3dc9a3d210491ee263b56463c19078fc5cbaef"
+      },
+      "src/app/(dashboard)/clients/page.tsx": {
+        "category": "ast-source",
+        "bytes": 21973,
+        "sha256": "bf19f6db34883bec46d6489f07965ddbcfa7320f2a7597d04534caf3863a6678"
+      },
+      "src/app/(dashboard)/cold-email/accounts/page.tsx": {
+        "category": "ast-source",
+        "bytes": 157,
+        "sha256": "bc764e5e33bf0cc583d915ce7814172e882084aa0719af41a73588b76fe720c4"
+      },
+      "src/app/(dashboard)/cold-email/campaigns/[id]/page.tsx": {
+        "category": "ast-source",
+        "bytes": 170,
+        "sha256": "44145157d9a3ac482c845d7816edee6d9fe66ab8097dafee76677f958ee3e398"
+      },
+      "src/app/(dashboard)/cold-email/campaigns/new/page.tsx": {
+        "category": "ast-source",
+        "bytes": 170,
+        "sha256": "a1b97d3e7e9ea5bc0ac074a6607f02780d127c8a2ee0142d14f7a14779cecae6"
+      },
+      "src/app/(dashboard)/cold-email/campaigns/page.tsx": {
+        "category": "ast-source",
+        "bytes": 166,
+        "sha256": "6234bdaba6d54ef78228a6e998fb13dd445067d24ec38be5f63ea0b27e10c28d"
+      },
+      "src/app/(dashboard)/cold-email/deliverability/page.tsx": {
+        "category": "ast-source",
+        "bytes": 175,
+        "sha256": "45a82d4143542ae07ca2c21d8371ad1ec794dae5ff20af2c1509ab28e36a8c2e"
+      },
+      "src/app/(dashboard)/cold-email/do-not-contact/page.tsx": {
+        "category": "ast-source",
+        "bytes": 12341,
+        "sha256": "8f6ccbbc7eb482a9c85c0e77028167092c793e884b68dfa0f53336eb2220eb57"
+      },
+      "src/app/(dashboard)/cold-email/domains/page.tsx": {
+        "category": "ast-source",
+        "bytes": 154,
+        "sha256": "d7119ffb2a27dda3871ce96d6bf2510ba07e9724bbda13cf2d5c2c8314b1b56a"
+      },
+      "src/app/(dashboard)/cold-email/inbox/page.tsx": {
+        "category": "ast-source",
+        "bytes": 253,
+        "sha256": "db5e8e2ef10628174eadb5179ba17cfb394438dbe6729d5e5b0fb1e6f60173e6"
+      },
+      "src/app/(dashboard)/cold-email/lead-groups/page.tsx": {
+        "category": "ast-source",
+        "bytes": 161,
+        "sha256": "de73d9e0fa1f44104558ee07bbcd451ac16f23a1f5617de65d7c2877a98f8eb1"
+      },
+      "src/app/(dashboard)/cold-email/opportunities/page.tsx": {
+        "category": "ast-source",
+        "bytes": 285,
+        "sha256": "e89c04b645a0f48609db7e894b619b6d1e69adf975e0bb01823f4c0f363a1391"
+      },
+      "src/app/(dashboard)/cold-email/page.module.css": {
+        "category": "source-without-ast",
+        "bytes": 7270,
+        "sha256": "3c63b75ed3d4ddd3f2661b2878fcbf27d2f5f9735fff431c6a17ccb4dabd6db6"
+      },
+      "src/app/(dashboard)/cold-email/page.tsx": {
+        "category": "ast-source",
+        "bytes": 185,
+        "sha256": "e5d705550fea281fc02f3819fb0889fe18b59c032761a602af43dd357548bedb"
+      },
+      "src/app/(dashboard)/cold-email/reports/page.tsx": {
+        "category": "ast-source",
+        "bytes": 154,
+        "sha256": "4c72e3e01a2d958deabd32e030f8b3c29aa7abba5e4a5f5fba9df93fe7e3df96"
+      },
+      "src/app/(dashboard)/cold-email/settings/page.tsx": {
+        "category": "ast-source",
+        "bytes": 157,
+        "sha256": "4d60848c0d153fe74f6de9b7e79dc951790841c43fbf58dd35a5d2457a9859de"
+      },
+      "src/app/(dashboard)/cold-email/templates/page.tsx": {
+        "category": "ast-source",
+        "bytes": 159,
+        "sha256": "f4ea90785f548a6c36c3278ed9516f73ed476e18dc525c95434c6a7b01645b88"
+      },
+      "src/app/(dashboard)/demo-scheduler/page.tsx": {
+        "category": "ast-source",
+        "bytes": 30657,
+        "sha256": "7b2181298999104f629f4af32456a613f72ceed87fca5d2aa57421b36d2c6d6f"
+      },
+      "src/app/(dashboard)/growth/page.tsx": {
+        "category": "ast-source",
+        "bytes": 7150,
+        "sha256": "6ab06106277fc19f56be1bc42a4357d90d2294ab94adade231f0992910d46864"
+      },
+      "src/app/(dashboard)/layout.tsx": {
+        "category": "ast-source",
+        "bytes": 18874,
+        "sha256": "0042955508dfabcaf9921fdb391667e142f326340ca5c3138e847983a14a533b"
+      },
+      "src/app/(dashboard)/leads/demo/page.tsx": {
+        "category": "ast-source",
+        "bytes": 14790,
+        "sha256": "5b3f78083d609cc6ed609e95658c85d44a8fbdf3cc64ad8f7a727f2c4935b034"
+      },
+      "src/app/(dashboard)/leads/scraped/page.tsx": {
+        "category": "ast-source",
+        "bytes": 108564,
+        "sha256": "d5b111f4f479f64402a9107116835a37ffb01ec62609a0c9f21670fd35a22aa6"
+      },
+      "src/app/(dashboard)/monitoring/page.tsx": {
+        "category": "ast-source",
+        "bytes": 20217,
+        "sha256": "662c3e1dd4cad1d1d27dc25595b4abb69d9c56e571f7f8b36f4d6353ee1d4e45"
+      },
+      "src/app/(dashboard)/onboarding/page.tsx": {
+        "category": "ast-source",
+        "bytes": 5712,
+        "sha256": "5486e09330a220a9474a55695d2d55ea7c4b25a803e26e1ba5d7589e670316be"
+      },
+      "src/app/(dashboard)/page.tsx": {
+        "category": "ast-source",
+        "bytes": 6346,
+        "sha256": "59264df4eebd893513553cfcdef92aad05caab3debc809cc5039de612af6f362"
+      },
+      "src/app/(dashboard)/phones/page.tsx": {
+        "category": "ast-source",
+        "bytes": 4082,
+        "sha256": "e532b324b452789564c143a0a250847036094c60669ad0ed8a9c87c125c73359"
+      },
+      "src/app/(dashboard)/platform-promos/page.tsx": {
+        "category": "ast-source",
+        "bytes": 18491,
+        "sha256": "f8226603fb5af852b3483490acaf62c2a37de9225461c67a39483f7cf7fee491"
+      },
+      "src/app/(dashboard)/revenue/page.tsx": {
+        "category": "ast-source",
+        "bytes": 6622,
+        "sha256": "6977653051d322c9ddc95085ae194bdde07aa2f7f47270c893635af028cad353"
+      },
+      "src/app/(dashboard)/settings/page.tsx": {
+        "category": "ast-source",
+        "bytes": 14197,
+        "sha256": "5c63b15617a29acfb327099feb1ee2eed9bd917483484774b0d5aadfe7ff2914"
+      },
+      "src/app/(dashboard)/support/page.tsx": {
+        "category": "ast-source",
+        "bytes": 33119,
+        "sha256": "1ec109896581fee447cca8678237f3d175868fab0b3353e9ee17963755188518"
+      },
+      "src/app/(dashboard)/websites/page.tsx": {
+        "category": "ast-source",
+        "bytes": 8257,
+        "sha256": "d95901f421f027219ce103dffa718b05fcee45d55496f7b4dd782f85c8ff9efd"
+      },
+      "src/app/.DS_Store": {
+        "category": "runtime-generated-not-read"
+      },
+      "src/app/api/agents/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 8412,
+        "sha256": "f9b28fc55d74c6e0cc99392752ac183d5b2f66041b9c9255d96284dba5e3dd92"
+      },
+      "src/app/api/agents/[id]/runs/route.ts": {
+        "category": "ast-source",
+        "bytes": 1092,
+        "sha256": "1eff1515af64d6d8df4ff8b885c82300e0f456e036777efebfe6c50911bf10db"
+      },
+      "src/app/api/agents/blog-config-generate/route.ts": {
+        "category": "ast-source",
+        "bytes": 3785,
+        "sha256": "ad6085977d16d53e2daafa257acedd0277f712daa43ae998c3293ef295a1aeba"
+      },
+      "src/app/api/agents/blogs/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 684,
+        "sha256": "5bafbd045e19de26ad472279c9d6d76b59c1170be5328f3f8f8dec7149b06d86"
+      },
+      "src/app/api/agents/blogs/public/route.ts": {
+        "category": "ast-source",
+        "bytes": 5309,
+        "sha256": "e1017b5e620842e59867bc04f83513773965a2512369f0be9962d5369962e45a"
+      },
+      "src/app/api/agents/blogs/route.ts": {
+        "category": "ast-source",
+        "bytes": 9819,
+        "sha256": "5ae2072975257ec189e26b6aabb6718152bcea6d0655573a305e170acbb7543f"
+      },
+      "src/app/api/agents/callback/route.ts": {
+        "category": "ast-source",
+        "bytes": 1649,
+        "sha256": "c9a7a80d1d598f84d5afd9e22877d2bcbb9f1454c2d6ff670c717edf9d65336a"
+      },
+      "src/app/api/agents/claim-run/route.ts": {
+        "category": "ast-source",
+        "bytes": 2598,
+        "sha256": "76f1e3e8f719fce4d09fead4d5d7a04d62fdd8ca8015a97cbb1325f611268d7d"
+      },
+      "src/app/api/agents/content/route.ts": {
+        "category": "ast-source",
+        "bytes": 4633,
+        "sha256": "9707e48d3d9e95300a8939d983e50ea189d1de054bed6ab78bc4908bfbf05cac"
+      },
+      "src/app/api/agents/content/upload/route.ts": {
+        "category": "ast-source",
+        "bytes": 5671,
+        "sha256": "6bb0b1e3d172b04cad247af31395d268b37910b05a0a94f1ee474fa60d5c8a46"
+      },
+      "src/app/api/agents/email-cleaner/callback/route.ts": {
+        "category": "ast-source",
+        "bytes": 4560,
+        "sha256": "ab613ee42ebae92a41e59e0a6ebb1ddaaf66f07f2a1ae0a68ee1298974c99c52"
+      },
+      "src/app/api/agents/email-cleaner/route.ts": {
+        "category": "ast-source",
+        "bytes": 12452,
+        "sha256": "4784deb35ead6e38579bb034bfb8dd8bd11644286ea8a3bb7edea9a6e1f78022"
+      },
+      "src/app/api/agents/email-cleaner/status/route.ts": {
+        "category": "ast-source",
+        "bytes": 6940,
+        "sha256": "adcf5f7ddb0d00b46da6d83c725c2c169db00442794613a1f58c2a90a5425d53"
+      },
+      "src/app/api/agents/enrichment-cancel/route.ts": {
+        "category": "ast-source",
+        "bytes": 956,
+        "sha256": "a2d4a3b2043bc307b3a0c63c2a69fcaf753d3c9df570d13524e408312ad3c191"
+      },
+      "src/app/api/agents/enrichment-data/route.ts": {
+        "category": "ast-source",
+        "bytes": 11578,
+        "sha256": "a837e89524159fc9dafa34379c5e0f353f03abb05bb665300443ca736bc1a920"
+      },
+      "src/app/api/agents/enrichment-results/route.ts": {
+        "category": "ast-source",
+        "bytes": 29173,
+        "sha256": "077a38e8497bb1f9343a88026cca0f622809e84469fda21f19ad3b17bb772f10"
+      },
+      "src/app/api/agents/enrichment/route.ts": {
+        "category": "ast-source",
+        "bytes": 4807,
+        "sha256": "7c1a2dba37255eadb6f7468a424d49940883b19ab6732b238065be9af6ce8814"
+      },
+      "src/app/api/agents/error-log/route.ts": {
+        "category": "ast-source",
+        "bytes": 2572,
+        "sha256": "68479a446ff2486f903e7d7fe5c0689a572656f97eb4ce4cf1ef07fedbc71006"
+      },
+      "src/app/api/agents/incoming-message/route.ts": {
+        "category": "ast-source",
+        "bytes": 5802,
+        "sha256": "27fcf6fd89f4b613b699a01c33b56b6964e4038e5185fad9c6e02e9dcc8d1ba4"
+      },
+      "src/app/api/agents/lead-cleaner/route.ts": {
+        "category": "ast-source",
+        "bytes": 2917,
+        "sha256": "b3b6abbaa7e2a24558c2e128abd532bde83f918265a44274bdd7c7ebaad322f7"
+      },
+      "src/app/api/agents/lead-groups/members/route.ts": {
+        "category": "ast-source",
+        "bytes": 4666,
+        "sha256": "5e3959ec29790ba5aef415ab5304bb0953a952e8175ca745dce5dfe2c188ec06"
+      },
+      "src/app/api/agents/lead-groups/refresh/route.ts": {
+        "category": "ast-source",
+        "bytes": 2626,
+        "sha256": "1bb11b8f8d2608e1e39cd0e329678bcffdb927fc2ba0703b7a840c483cf0ce7f"
+      },
+      "src/app/api/agents/lead-groups/route.ts": {
+        "category": "ast-source",
+        "bytes": 8013,
+        "sha256": "d8429d891e768514c041f24951203dd080bf249bb414f9d6a88afb6adcd8e839"
+      },
+      "src/app/api/agents/lead-groups/send/route.ts": {
+        "category": "ast-source",
+        "bytes": 2293,
+        "sha256": "c8c2443a1b8c4592bb33a4889901b596b92e0f3fdf126601704fae40b3d38b9a"
+      },
+      "src/app/api/agents/lead-scraper/route.ts": {
+        "category": "ast-source",
+        "bytes": 9830,
+        "sha256": "e3f0e6a4ebe3628f988f71f6123d41b51ade495b7884dac93ffa11c37b28218f"
+      },
+      "src/app/api/agents/leads/[leadId]/enrichment-evidence/route.ts": {
+        "category": "ast-source",
+        "bytes": 3287,
+        "sha256": "f3b43198cb80565d25e57c3808d86253d3443f477d71b19757f1241cf251579c"
+      },
+      "src/app/api/agents/leads/route.ts": {
+        "category": "ast-source",
+        "bytes": 27566,
+        "sha256": "dad63acb81a2179ee4289fe442819670f9553940fce103c529258e8f4376b4bc"
+      },
+      "src/app/api/agents/outreach-log/route.ts": {
+        "category": "ast-source",
+        "bytes": 5363,
+        "sha256": "d924de5f50535d21f4f10a7c567ed0a1217eccc10ce813a0c6dba81baac6aa31"
+      },
+      "src/app/api/agents/outreach-queue/route.ts": {
+        "category": "ast-source",
+        "bytes": 6505,
+        "sha256": "687cba1bdf163c53273b2d13a5b24bb3ad3dc5c0af5b44061e2d87453b4c369c"
+      },
+      "src/app/api/agents/pending-runs/route.ts": {
+        "category": "ast-source",
+        "bytes": 4241,
+        "sha256": "e9f97369dcea1bd151d6e7a00e07de4027db40c52c552eb061a28e7a259c5f07"
+      },
+      "src/app/api/agents/research-reports/[id]/pdf/route.ts": {
+        "category": "ast-source",
+        "bytes": 980,
+        "sha256": "dd5aad1f9b6e08b980d856e31874fac9172c1f0ff5065f3b3af644435170fbe1"
+      },
+      "src/app/api/agents/research-reports/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 13302,
+        "sha256": "5c6fc2591cc47f9b25ff1959ea1e92470e9352bb0a32e5846ba6b7226ad2c6cc"
+      },
+      "src/app/api/agents/research-reports/route.ts": {
+        "category": "ast-source",
+        "bytes": 7837,
+        "sha256": "a1231fcc0da5b1e6cb2d39c4d79687a02d1abe91b1187cc2f7553ad58bc0e91e"
+      },
+      "src/app/api/agents/route.ts": {
+        "category": "ast-source",
+        "bytes": 1072,
+        "sha256": "659b0901e9bfe360c91b38e4325e0b96afba411b76b5b26addab8bbb34d0524f"
+      },
+      "src/app/api/agents/seed/route.ts": {
+        "category": "ast-source",
+        "bytes": 7611,
+        "sha256": "43eac311a538da030c68b89cc7628c9190f626c6413c6842a796a6816b5ca7c7"
+      },
+      "src/app/api/agents/send-message/route.ts": {
+        "category": "ast-source",
+        "bytes": 3420,
+        "sha256": "270391a6377e4b754a405b6d2c4f142a56433cfbbc65c454772d3e0b4cb1437b"
+      },
+      "src/app/api/alerts/route.ts": {
+        "category": "ast-source",
+        "bytes": 4860,
+        "sha256": "a5faaf1bc24f4679ddb984b73a099b83c7a1ee48182b4854e2b3475a5682b734"
+      },
+      "src/app/api/announcements/route.ts": {
+        "category": "ast-source",
+        "bytes": 2414,
+        "sha256": "6c05c11c5570d14c50ebce8f3ca6fae4d774c78e619a73c4d628567ea8fb647b"
+      },
+      "src/app/api/auth/[...nextauth]/route.ts": {
+        "category": "ast-source",
+        "bytes": 78,
+        "sha256": "9c29da987ebf4fe2ea2cc237eb213fccf02bf7f5c3607746fed8401b19564dee"
+      },
+      "src/app/api/billing/[clientId]/route.ts": {
+        "category": "ast-source",
+        "bytes": 2230,
+        "sha256": "1a5eb4c0ec5963d82af09a0520d4e21c0d63587f8ef64fff9b87115c002b1d5b"
+      },
+      "src/app/api/billing/route.ts": {
+        "category": "ast-source",
+        "bytes": 3742,
+        "sha256": "1ec6e8ca8051b85f1522ddf2d3ab523b8f028dfdfaaa2a86ddf0f51c3b2531cb"
+      },
+      "src/app/api/churn/route.ts": {
+        "category": "ast-source",
+        "bytes": 1609,
+        "sha256": "33c37f6dffb0033968cd8a21ca655197f8e2b92a85bc8b7e789dee6c26f5beb6"
+      },
+      "src/app/api/clients/[id]/calls/route.ts": {
+        "category": "ast-source",
+        "bytes": 1121,
+        "sha256": "f2d1a7145eb5b9c339876611f80cd5e671a0e662c110b04f255acae927a3070c"
+      },
+      "src/app/api/clients/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 15190,
+        "sha256": "f00c5d36d26569c877da8765c55c025f048993980e56a792cf6172b33fa881ef"
+      },
+      "src/app/api/clients/[id]/sms/route.ts": {
+        "category": "ast-source",
+        "bytes": 1178,
+        "sha256": "3374b4d78fcb5738bb7f254930880b7f56d9b52d102f0835a3f2fc6632a560ef"
+      },
+      "src/app/api/clients/route.ts": {
+        "category": "ast-source",
+        "bytes": 3847,
+        "sha256": "fe177ddb3e96c4bafe17f2700d3bbb4e58a476e817b2c06c4a3257b86e344b82"
+      },
+      "src/app/api/cold-email/platform/alerts/route.ts": {
+        "category": "ast-source",
+        "bytes": 1606,
+        "sha256": "d40d09a9a836111b7df04c9306647f089f522c07f89133d839016c93ad3f1bd5"
+      },
+      "src/app/api/cold-email/platform/campaigns/[id]/actions/route.ts": {
+        "category": "ast-source",
+        "bytes": 4911,
+        "sha256": "eb031025b1538005f53f43dc67cd9396a2fa17833f2c911a74559568d2c6a0d5"
+      },
+      "src/app/api/cold-email/platform/campaigns/[id]/audience/route.ts": {
+        "category": "ast-source",
+        "bytes": 2195,
+        "sha256": "97c764fedfc2d74bd0a356958fec3ad86bf944454d96158376d242c90c1e9b9e"
+      },
+      "src/app/api/cold-email/platform/campaigns/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 3343,
+        "sha256": "17bcbc8321f6fcf2d80ea8199424b22b9bd08aeab751c3c7388509e1fd24fef8"
+      },
+      "src/app/api/cold-email/platform/campaigns/route.ts": {
+        "category": "ast-source",
+        "bytes": 3299,
+        "sha256": "3d2d2ecb7440a28b4ea3c526eeb7c8e6dcb4f7102e70bae0b407bc75c6aded36"
+      },
+      "src/app/api/cold-email/platform/catalog/route.ts": {
+        "category": "ast-source",
+        "bytes": 2702,
+        "sha256": "f34563b315d481589b74c25ddee7db8646ba7721be7b20bc6f5241871f36fd4f"
+      },
+      "src/app/api/cold-email/platform/deliverability/route.ts": {
+        "category": "ast-source",
+        "bytes": 1442,
+        "sha256": "7c40bad006c4d3bde26bb9edfc7c733cb031254b8060b9aef37e460da4c70f54"
+      },
+      "src/app/api/cold-email/platform/do-not-contact/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 2326,
+        "sha256": "2efb9575687053954329cb21ca5116ca50cbc4da0c96a102ad984f2f245d8ef6"
+      },
+      "src/app/api/cold-email/platform/do-not-contact/route.ts": {
+        "category": "ast-source",
+        "bytes": 4211,
+        "sha256": "fbe39a47505adafddc7a111e89b42bf956face5068443f560b0e878a0a169689"
+      },
+      "src/app/api/cold-email/platform/domains/route.ts": {
+        "category": "ast-source",
+        "bytes": 1715,
+        "sha256": "11f13714c69ba84a7aa869011827cac13db2af0e6ca07a7b0923e00976393285"
+      },
+      "src/app/api/cold-email/platform/export/route.ts": {
+        "category": "ast-source",
+        "bytes": 1087,
+        "sha256": "ce0d355f57c8fbd73141ec2bfe809008d94bee89c96927a314b8457c1e41a700"
+      },
+      "src/app/api/cold-email/platform/inbox/[id]/ai-draft/route.ts": {
+        "category": "ast-source",
+        "bytes": 4679,
+        "sha256": "52d9f238f9aea387514041afed9c1102b68bf46398d9469a30dc50eba0102a0e"
+      },
+      "src/app/api/cold-email/platform/inbox/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 3808,
+        "sha256": "c524cde6b211e5f35901116977b63882d2fd4a5cf58382bafe4d8050fab98af9"
+      },
+      "src/app/api/cold-email/platform/inbox/route.ts": {
+        "category": "ast-source",
+        "bytes": 4191,
+        "sha256": "30d72834c92a6a1c5b8a96ea07a18bbb2069eb8e001ec95c49550399d10746f8"
+      },
+      "src/app/api/cold-email/platform/infrastructure/route.ts": {
+        "category": "ast-source",
+        "bytes": 3895,
+        "sha256": "c7253d5086bb5b0ad58dcc6f282ffd78febb4ecbfb790e43a9bf5b83c015ada7"
+      },
+      "src/app/api/cold-email/platform/opportunities/route.ts": {
+        "category": "ast-source",
+        "bytes": 8973,
+        "sha256": "1daae0402a3ce13692f2c749a917678a552c30bb8350f2367872ec4be595a1d7"
+      },
+      "src/app/api/cold-email/platform/overview/route.ts": {
+        "category": "ast-source",
+        "bytes": 1324,
+        "sha256": "4e6120a49ab1e7619a19d66709b75faaeac55d36265c8b6559b72fe53f78bce6"
+      },
+      "src/app/api/cold-email/platform/recovery/route.ts": {
+        "category": "ast-source",
+        "bytes": 4323,
+        "sha256": "d149cc9e3020e5667258d52e7d2c8b20d1b4e4dd5c5f985827fa72523994e18a"
+      },
+      "src/app/api/cold-email/platform/reports/route.ts": {
+        "category": "ast-source",
+        "bytes": 1710,
+        "sha256": "97d43042a951c3f9fa3c3a972b4c7b9fcdcc429e38899132c7e9ccd6a8bd4e5b"
+      },
+      "src/app/api/cold-email/platform/saved-views/route.ts": {
+        "category": "ast-source",
+        "bytes": 2122,
+        "sha256": "9cef9ccddd3187922567cf0de06c4b0e0256759dd350a88cecec9c50875dbc43"
+      },
+      "src/app/api/cold-email/platform/search/route.ts": {
+        "category": "ast-source",
+        "bytes": 814,
+        "sha256": "b54ebee845559fa791c4ad2953911bf3d94c7628115a13fe85e63088f5136f20"
+      },
+      "src/app/api/cold-email/platform/settings/route.ts": {
+        "category": "ast-source",
+        "bytes": 5327,
+        "sha256": "23973e0e938978cb6fb2be4bb873a50441ebd031008f334573d6611e3d6ff197"
+      },
+      "src/app/api/cron/cold-email-accounts/route.ts": {
+        "category": "ast-source",
+        "bytes": 4135,
+        "sha256": "943869a066870b4e7c21af4c97a380a9880568d9cce22c0d7c0aa1767e0cc92d"
+      },
+      "src/app/api/cron/cold-email-audience/route.ts": {
+        "category": "ast-source",
+        "bytes": 1074,
+        "sha256": "8d946a3eb9344ddd03c000156263409658eaa429f2bec66446f3c016681cf591"
+      },
+      "src/app/api/cron/cold-email-blackouts/route.ts": {
+        "category": "ast-source",
+        "bytes": 1662,
+        "sha256": "3d59de4aa645a1ec72800d15a4283163f0b009466dfe256da7482a75477eb98c"
+      },
+      "src/app/api/cron/cold-email-calendar-reconcile/route.ts": {
+        "category": "ast-source",
+        "bytes": 3144,
+        "sha256": "a9af13266789960b9dae7d3241d65adf9f3c1d12a17ddb10e936ab046a35a332"
+      },
+      "src/app/api/cron/cold-email-capabilities/route.ts": {
+        "category": "ast-source",
+        "bytes": 3353,
+        "sha256": "3ce99ecbc59c6bcf46c54123752714f8a642507cac7dea1d4b3b3ef413d8bfa8"
+      },
+      "src/app/api/cron/cold-email-events/route.ts": {
+        "category": "ast-source",
+        "bytes": 1955,
+        "sha256": "92a73030532b811641e19eabc4778ae62d6db7d6988c895500ea7a58f2419cd4"
+      },
+      "src/app/api/cron/cold-email-health-sync/route.ts": {
+        "category": "ast-source",
+        "bytes": 3195,
+        "sha256": "4cbe753e2d856cb546805138eb1c004fbf1bd893a2a7a0fcc61c25a7da2a1fb2"
+      },
+      "src/app/api/cron/cold-email-health/route.ts": {
+        "category": "ast-source",
+        "bytes": 942,
+        "sha256": "0c821bf05a0ef174987ae417d8d87a3008a9fdbd84aaad86fc009ddedba04a50"
+      },
+      "src/app/api/cron/cold-email-poll/route.ts": {
+        "category": "ast-source",
+        "bytes": 7476,
+        "sha256": "f625b6ce1cc1189a25bfb889f6aa5ae1407b87ce60d305862d0e60bdac9886b8"
+      },
+      "src/app/api/cron/cold-email-reconcile/route.ts": {
+        "category": "ast-source",
+        "bytes": 5083,
+        "sha256": "98c400a7bd123d9841ea56527ddf67f9ffb3e589f77dd94a76542b388054f9f0"
+      },
+      "src/app/api/cron/cold-email-retention/route.ts": {
+        "category": "ast-source",
+        "bytes": 1185,
+        "sha256": "b5f3c37e2f0e56b1f2cd46dc6f63709ad71a0a9e160aac342f6d97bca05ecbf5"
+      },
+      "src/app/api/cron/cold-email-stripe-events/route.ts": {
+        "category": "ast-source",
+        "bytes": 1286,
+        "sha256": "3c0ecb1e791af1c98fe0cf90d9fc38da57a8611ef55319c6922f01d1bc945498"
+      },
+      "src/app/api/cron/cold-email-worker/route.ts": {
+        "category": "ast-source",
+        "bytes": 2014,
+        "sha256": "81e08796276f312abc19753e016946b222c1cab0661078c2ebaf5d12472c6335"
+      },
+      "src/app/api/cron/website-health/route.ts": {
+        "category": "ast-source",
+        "bytes": 1907,
+        "sha256": "c95477fb21ea428a56b04adff5666c5ac0c29d76d5323b2572abcac4af8565ff"
+      },
+      "src/app/api/demo-scheduler/bookings/[id]/cancel/route.ts": {
+        "category": "ast-source",
+        "bytes": 2141,
+        "sha256": "3952d940767845558cec4082a705efa3e4ed42ae120cc522fc10e1fd0cb19124"
+      },
+      "src/app/api/demo-scheduler/bookings/[id]/reschedule/route.ts": {
+        "category": "ast-source",
+        "bytes": 1933,
+        "sha256": "705f23b51139b27963a8f9836dabead40723b4aa8b021215770d8aefb963c5ff"
+      },
+      "src/app/api/demo-scheduler/bookings/route.ts": {
+        "category": "ast-source",
+        "bytes": 1436,
+        "sha256": "d8676555da14ca30dcb4d7bc91b3ef6b901d99c20a8fe81bc118259036ac9282"
+      },
+      "src/app/api/demo-scheduler/callback/route.ts": {
+        "category": "ast-source",
+        "bytes": 4565,
+        "sha256": "96e0ada4fa2eb3a87ca1d2c47a365674e9315bed9d727ec4a71ea750150138e1"
+      },
+      "src/app/api/demo-scheduler/config/route.ts": {
+        "category": "ast-source",
+        "bytes": 4109,
+        "sha256": "e22485f6d1abf3fcab1437e50d7649f8c24c593b20bf7a029564ee67cd73f7fc"
+      },
+      "src/app/api/demo-scheduler/connect/route.ts": {
+        "category": "ast-source",
+        "bytes": 1973,
+        "sha256": "8d567d44efe3151ab504d613f78873f85fe404be812dcaba3fe1ccf86ae0f2e5"
+      },
+      "src/app/api/demo-scheduler/disconnect/route.ts": {
+        "category": "ast-source",
+        "bytes": 1289,
+        "sha256": "f338614d4f7ce6446c9952e0de07f6eade79b7d9e505559e512408b467a4736c"
+      },
+      "src/app/api/demo-scheduler/status/route.ts": {
+        "category": "ast-source",
+        "bytes": 875,
+        "sha256": "5b8e2f76998869b0f1805f736c528b7f56e4163c29e183e53de146c876e0c5df"
+      },
+      "src/app/api/export/clients/route.ts": {
+        "category": "ast-source",
+        "bytes": 2819,
+        "sha256": "9a864388d3ab5c6bd71715b7ed717be012ebd98d27eb257a39ea21c4f7646d7d"
+      },
+      "src/app/api/gmail/callback/route.ts": {
+        "category": "ast-source",
+        "bytes": 2985,
+        "sha256": "bf7f22dac677f8a2d39fff4cd48ab964607d3f81d08e531c95ae4b2e232a01c0"
+      },
+      "src/app/api/gmail/connect/route.ts": {
+        "category": "ast-source",
+        "bytes": 1400,
+        "sha256": "a352ba024b997c3d6c504a2c78c60d0554708af7003f22d54a9c2156eeb00441"
+      },
+      "src/app/api/gmail/disconnect/route.ts": {
+        "category": "ast-source",
+        "bytes": 538,
+        "sha256": "d78daf9e3d0dd529c51758074e164012ebe3085c5177614e6e65b2804147b6b2"
+      },
+      "src/app/api/gmail/status/route.ts": {
+        "category": "ast-source",
+        "bytes": 497,
+        "sha256": "c57be7c19b6b5c72f604cdaea4db349f98535c264713e739f836724b020ca1d8"
+      },
+      "src/app/api/growth/demo-leads/route.ts": {
+        "category": "ast-source",
+        "bytes": 588,
+        "sha256": "f59ea551b1e415461f7f156f027fc0dd9bf8e7ebf50191f6d49c8b9e8adb689c"
+      },
+      "src/app/api/growth/route.ts": {
+        "category": "ast-source",
+        "bytes": 2639,
+        "sha256": "7cf5b8124c8f7e3ae48459229db432b32330ac7fdc26cd1acde29c3a534857dc"
+      },
+      "src/app/api/monitoring/cron/route.ts": {
+        "category": "ast-source",
+        "bytes": 2492,
+        "sha256": "60745845b486dbf8c484615079f5b5b21cbe6e3dc84f00d4806330f79df5ba4b"
+      },
+      "src/app/api/monitoring/engagement/route.ts": {
+        "category": "ast-source",
+        "bytes": 3778,
+        "sha256": "727e8f9cd4c6a8db9013fccbbb46472c7e685e3bedf4be1db820322a2caff66f"
+      },
+      "src/app/api/monitoring/integrations/route.ts": {
+        "category": "ast-source",
+        "bytes": 3055,
+        "sha256": "07368da3c0251c553e5cfca834095448612c2a6668fa366129ac33ade614801d"
+      },
+      "src/app/api/monitoring/payment-alerts/route.ts": {
+        "category": "ast-source",
+        "bytes": 1347,
+        "sha256": "c63dcef88c8dd07cb64c7f5249f9998b139b728e9199adbfc07d5b309f1aa7ca"
+      },
+      "src/app/api/monitoring/website-health/route.ts": {
+        "category": "ast-source",
+        "bytes": 3735,
+        "sha256": "2da97fee35b7653295512b1b150f07dae12ebc04f09b274b4cd53e7416b2fbb2"
+      },
+      "src/app/api/onboarding/progress/route.ts": {
+        "category": "ast-source",
+        "bytes": 8093,
+        "sha256": "21ea2fd527585e60ea904da3c03011b5153ae00858717bde804b61f33426378f"
+      },
+      "src/app/api/phones/route.ts": {
+        "category": "ast-source",
+        "bytes": 1552,
+        "sha256": "38f4457c02e075f9dd6f2f07ee37a4b9704fa2f69bc570da604090444a3a9421"
+      },
+      "src/app/api/platform-promo-codes/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 5195,
+        "sha256": "b920be1783a399ce54b089aeafa246a70ccb91503321992398ef6cacf67fd33c"
+      },
+      "src/app/api/platform-promo-codes/route.ts": {
+        "category": "ast-source",
+        "bytes": 7432,
+        "sha256": "a05411e60cb73a36e3699983706e51bc6839bb2709fc90c19533ea58c6fa6c10"
+      },
+      "src/app/api/reports/[id]/download/route.ts": {
+        "category": "ast-source",
+        "bytes": 1126,
+        "sha256": "7105c68ab58633c5ac39e7add983e522ba448134f00eee8ce9f623b740282347"
+      },
+      "src/app/api/revenue/route.ts": {
+        "category": "ast-source",
+        "bytes": 2942,
+        "sha256": "3ee8f270d3d30f9c3a228620ee4ce3b04a28b9b9160e5ca7cca085544c69d3df"
+      },
+      "src/app/api/seed/route.ts": {
+        "category": "ast-source",
+        "bytes": 6057,
+        "sha256": "6e38f4546c1383a468b0d02643ffb804258eceb04ede9438045b69b161b7b8f1"
+      },
+      "src/app/api/support/tickets/[id]/reply/route.ts": {
+        "category": "ast-source",
+        "bytes": 4355,
+        "sha256": "a5dd82e4a090530e115fa760c3b5ab6f261dd5bb08b6653bb548d527a446a47d"
+      },
+      "src/app/api/support/tickets/[id]/route.ts": {
+        "category": "ast-source",
+        "bytes": 1620,
+        "sha256": "0e1a378cc163ab180b160ece5efbba7d26c3fb8dda305b859002ff3988758926"
+      },
+      "src/app/api/support/tickets/route.ts": {
+        "category": "ast-source",
+        "bytes": 2323,
+        "sha256": "2aa9e0a60e28c491ef1e167b1ec486822dfc0fff801f0d8ec1401be373b80460"
+      },
+      "src/app/api/system/health/route.ts": {
+        "category": "ast-source",
+        "bytes": 2126,
+        "sha256": "5e6e4aeaa650ac6e204406f69d07539882e87c9b8f96cc5fc28e7dfcb132a2ab"
+      },
+      "src/app/api/webhooks/instantly/route.ts": {
+        "category": "ast-source",
+        "bytes": 2302,
+        "sha256": "4e3f265bbd5f2a75bd629d592f9771ada5add4c2a3ae99042a6a40369f27f803"
+      },
+      "src/app/api/webhooks/stripe/route.ts": {
+        "category": "ast-source",
+        "bytes": 2979,
+        "sha256": "b1be002b48e86ebc551c653b2ec52dee816554e759b2ed22ff1c017b379129c2"
+      },
+      "src/app/api/websites/[id]/deployments/[deployId]/logs/route.ts": {
+        "category": "ast-source",
+        "bytes": 612,
+        "sha256": "4252113ca36e9af8e862943b10bd952d1e66259552ec9c20f6cf1bdd37d654cd"
+      },
+      "src/app/api/websites/[id]/deployments/route.ts": {
+        "category": "ast-source",
+        "bytes": 909,
+        "sha256": "04afa07f46deb97ebb702252c40ce839849a118bad483e32ea84f17ea276dda8"
+      },
+      "src/app/api/websites/[id]/redeploy/route.ts": {
+        "category": "ast-source",
+        "bytes": 8165,
+        "sha256": "2cccabc638080793cb4e90ed3ee371d71fd380f84187c02d24b2addb89b6d7dd"
+      },
+      "src/app/api/websites/[id]/resync/route.ts": {
+        "category": "ast-source",
+        "bytes": 1919,
+        "sha256": "c58a142cbff35c1ae30c397cfd1b9edd3b7e47eb11f17b2858d0385d5d42183e"
+      },
+      "src/app/api/websites/route.ts": {
+        "category": "ast-source",
+        "bytes": 2895,
+        "sha256": "c4804ce17756e0616b649da18fac7591172e9641ac7a03289216367a1ee922a5"
+      },
+      "src/app/components/Badge.tsx": {
+        "category": "ast-source",
+        "bytes": 1828,
+        "sha256": "d2962089d38064f2ce13a4ff06babcfe0f675e0c65e11944a40b1f725fa21dc6"
+      },
+      "src/app/components/FilterChip.tsx": {
+        "category": "ast-source",
+        "bytes": 290,
+        "sha256": "32ad701ad55b67cd1955b9da15716e75a73db9646f869fc7721c9019c1188bdb"
+      },
+      "src/app/components/Kpi.tsx": {
+        "category": "ast-source",
+        "bytes": 353,
+        "sha256": "d625260e6a7579e44323a4ac78343ba1578eedb6fed2173c8c6b6453154214e5"
+      },
+      "src/app/components/TabBar.tsx": {
+        "category": "ast-source",
+        "bytes": 790,
+        "sha256": "0da8164e38c4fe474a6ddff9ef5d6d0b8ba48381abc4489b9a2c36e6c7ce7ca4"
+      },
+      "src/app/components/Toast.tsx": {
+        "category": "ast-source",
+        "bytes": 693,
+        "sha256": "0f9e2c8ba2b7f5c8e42a40e8211c30dd32af817f7d2270ac388084803b813466"
+      },
+      "src/app/globals.css": {
+        "category": "source-without-ast",
+        "bytes": 23414,
+        "sha256": "96103a3c8ad276dc12d45a97eec7917476ddba6762f06fae319ab71276b549b2"
+      },
+      "src/app/layout.tsx": {
+        "category": "ast-source",
+        "bytes": 407,
+        "sha256": "325dc7e670d39cbf31aba73bf6d0bef491066b275ffc60b9500d86eb998ab46f"
+      },
+      "src/app/login/page.tsx": {
+        "category": "ast-source",
+        "bytes": 3385,
+        "sha256": "c007691b02dc14e1d6a0455a58a373db264e94212317ccbf2ec0cc35bacdbb4b"
+      },
+      "src/components/cold-email/CanonicalColdEmailOverview.tsx": {
+        "category": "ast-source",
+        "bytes": 8339,
+        "sha256": "f749302f71973e278f5a232928db0718dc870eb3e68bb93334a537433d9d4884"
+      },
+      "src/components/cold-email/ColdEmailAccountsPage.tsx": {
+        "category": "ast-source",
+        "bytes": 8887,
+        "sha256": "f3ee0087927ebb9703a3798fa158c4a6af13b726db6dbee115c0e8c2af7c0f3c"
+      },
+      "src/components/cold-email/ColdEmailCampaignPages.tsx": {
+        "category": "ast-source",
+        "bytes": 48668,
+        "sha256": "839b7a8d4e9d624f46338fdf8c61b45a2db58d56d8da5530e746df7fb2fe6a8e"
+      },
+      "src/components/cold-email/ColdEmailCatalogPages.tsx": {
+        "category": "ast-source",
+        "bytes": 13105,
+        "sha256": "6b50ff4c577c3bde21b8d768834edcff12bcc87ba312f50e3ae48cce914405b2"
+      },
+      "src/components/cold-email/ColdEmailDeliverabilityPage.tsx": {
+        "category": "ast-source",
+        "bytes": 9290,
+        "sha256": "cd4aaf2266a98d18c859cb989b77bd7c652b2c6a0bcd9516455e3020198501b5"
+      },
+      "src/components/cold-email/ColdEmailDomainsPage.tsx": {
+        "category": "ast-source",
+        "bytes": 19345,
+        "sha256": "a9be1a0851cd33e6fd2470fe42218dae311bf0c2a512e5c8e7abbcc9e52523e0"
+      },
+      "src/components/cold-email/ColdEmailInboxPage.tsx": {
+        "category": "ast-source",
+        "bytes": 22822,
+        "sha256": "748f8fa413b5892cbde477663debdca2305fe949ae5446090c32903db4fa02e9"
+      },
+      "src/components/cold-email/ColdEmailOpportunitiesPage.tsx": {
+        "category": "ast-source",
+        "bytes": 26444,
+        "sha256": "78d30053abb4acbf6bf115116e69739a91b04669f78c14ee632543003543cc22"
+      },
+      "src/components/cold-email/ColdEmailReportsPage.tsx": {
+        "category": "ast-source",
+        "bytes": 7005,
+        "sha256": "c3eaee9f14f988355e2bbc2ee6b42ab51bfa755de0f32a1446fbdf031bc4fc84"
+      },
+      "src/components/cold-email/ColdEmailSectionNav.tsx": {
+        "category": "ast-source",
+        "bytes": 1470,
+        "sha256": "5dffaf19c4847b5760726a27a22591598f400675fe895641477fa62cbab0015e"
+      },
+      "src/components/cold-email/ColdEmailSettingsPage.tsx": {
+        "category": "ast-source",
+        "bytes": 22528,
+        "sha256": "0c2d84e177593ede85898c4c371ded0d6cad459d0db40a48cd2d421fcccfcd70"
+      },
+      "src/components/cold-email/ColdEmailWorkspace.module.css": {
+        "category": "source-without-ast",
+        "bytes": 12364,
+        "sha256": "5bfe1962f7f7dad1ca1b6adb2473c723f1fafad1d4fde5645e14778c440c6387"
+      },
+      "src/components/cold-email/ColdEmailWorkspace.tsx": {
+        "category": "ast-source",
+        "bytes": 12712,
+        "sha256": "8bed60ed92ed3381f0dab6cee92a88a78066ad55df7c67da5a96491ff1af899d"
+      },
+      "src/components/leads/LeadSignalEvidence.tsx": {
+        "category": "ast-source",
+        "bytes": 7705,
+        "sha256": "fce66296df6f61bd18e109558f6e5c54ef5129ba7cc3fc3d3bedf6619d5d3c16"
+      },
+      "src/components/leads/LeadSignalFilters.tsx": {
+        "category": "ast-source",
+        "bytes": 12382,
+        "sha256": "b27786dfefbbc47f7c8fdf7bb24263cd9cba59ab0913aa03a07233475d4aa4a0"
+      },
+      "src/components/ui/Avatar.tsx": {
+        "category": "ast-source",
+        "bytes": 1127,
+        "sha256": "f9b981635631d3b547becc2badcf12f9d96a480d5a7c4d050ea72e1d8d0cdbcc"
+      },
+      "src/components/ui/Badge.tsx": {
+        "category": "ast-source",
+        "bytes": 2319,
+        "sha256": "6597cb3bd66598de3001e0b60b1e9a4aed0f804e8c9ede1161edc1afe8061403"
+      },
+      "src/components/ui/Kpi.tsx": {
+        "category": "ast-source",
+        "bytes": 604,
+        "sha256": "ced853caea802b24bdf0abd91f4697a6edc09cd412b44ef43aa861497641b491"
+      },
+      "src/lib/__tests__/admin-confirmed-fixes.test.ts": {
+        "category": "ast-source",
+        "bytes": 13652,
+        "sha256": "85283c8ebfb800e33b708efccb43553475de4bc9a19a5fef5523015abb26ae6e"
+      },
+      "src/lib/__tests__/admin-delivery-auth.test.ts": {
+        "category": "ast-source",
+        "bytes": 18035,
+        "sha256": "74f23ae3114e96498b043f568cf0dc60203db70cb3970d4e904061a6740c1bf0"
+      },
+      "src/lib/__tests__/admin-handoff.test.ts": {
+        "category": "ast-source",
+        "bytes": 7376,
+        "sha256": "0990cec63b3a8b14700f066caa9ae76b86fac5c9f6f09a3a9eb7347150824532"
+      },
+      "src/lib/__tests__/admin-routes.test.ts": {
+        "category": "ast-source",
+        "bytes": 19809,
+        "sha256": "5066fea971141f7bdb03b92036bd0ab740f227e2a7cdc51449c2795de1775b5e"
+      },
+      "src/lib/__tests__/cold-email-audience.test.ts": {
+        "category": "ast-source",
+        "bytes": 3589,
+        "sha256": "bbad83959336b59101f1e858b3a2e25b136a4ca178193442ebdb139d020f1a57"
+      },
+      "src/lib/__tests__/cold-email-blackout.test.ts": {
+        "category": "ast-source",
+        "bytes": 1125,
+        "sha256": "98224a4993358edade54ea3630f613880be0a5c5f2459c4ed4623fd9c6185ded"
+      },
+      "src/lib/__tests__/cold-email-calendar.test.ts": {
+        "category": "ast-source",
+        "bytes": 1577,
+        "sha256": "cb91536a9b8599a28ed58d27f3554e6f0540f3c27623df2595bd0996c4dc0174"
+      },
+      "src/lib/__tests__/cold-email-campaign-review.test.ts": {
+        "category": "ast-source",
+        "bytes": 1981,
+        "sha256": "aee4276060a60c2dc9201f9bb161ebb80f27b3dcd254ea42ae834cafcefc7216"
+      },
+      "src/lib/__tests__/cold-email-campaign.test.ts": {
+        "category": "ast-source",
+        "bytes": 5614,
+        "sha256": "1fb198bd6c732b746b786e712c8f8638effe9096914491ccb4db7db6873ef9ee"
+      },
+      "src/lib/__tests__/cold-email-capabilities.test.ts": {
+        "category": "ast-source",
+        "bytes": 2821,
+        "sha256": "af8354e0e68e77a0c4ef3fb47df475525997b55e6efe1d38ca54343ecced2043"
+      },
+      "src/lib/__tests__/cold-email-catalog.test.ts": {
+        "category": "ast-source",
+        "bytes": 528,
+        "sha256": "31c879f9a66cece32a52be1a75f7ca54532609b19148681d55e14359ee955002"
+      },
+      "src/lib/__tests__/cold-email-crm.test.ts": {
+        "category": "ast-source",
+        "bytes": 1720,
+        "sha256": "6b8ed6988d35950da7e6d11103b83f12ecf65daf9f7a8ec50979ac49f9cbe619"
+      },
+      "src/lib/__tests__/cold-email-cron-auth.test.ts": {
+        "category": "ast-source",
+        "bytes": 2773,
+        "sha256": "775a9fdbb964ef689b50453a411bc6a99418c6f7e1fe5b75951b0134a3b3733d"
+      },
+      "src/lib/__tests__/cold-email-cron-schedule.test.ts": {
+        "category": "ast-source",
+        "bytes": 3707,
+        "sha256": "db65d184f92533f47ed4638dfa7b5b42f8abb30e1f52deb426e072f21b93c7e9"
+      },
+      "src/lib/__tests__/cold-email-cutover.test.ts": {
+        "category": "ast-source",
+        "bytes": 1124,
+        "sha256": "99ca2d665e144e4ca8a5de28ff2b69aee0f1559cc5f5f61143194874ceb784a2"
+      },
+      "src/lib/__tests__/cold-email-deliverability.test.ts": {
+        "category": "ast-source",
+        "bytes": 2788,
+        "sha256": "bb9e79d5cb6352dcb5c96e2215a693b4fbf849f86f854aecbc053bc57dc239f9"
+      },
+      "src/lib/__tests__/cold-email-domain-metrics.test.ts": {
+        "category": "ast-source",
+        "bytes": 27901,
+        "sha256": "28365ed721f23c7be2268b686e39dea9df3605dbd22a243c4acd254f40e8c9b5"
+      },
+      "src/lib/__tests__/cold-email-event-worker.test.ts": {
+        "category": "ast-source",
+        "bytes": 4728,
+        "sha256": "676c0a6eb5f83f93bca229cd9c0ebe61e0084cf869499c1631fa528228ae852d"
+      },
+      "src/lib/__tests__/cold-email-export.test.ts": {
+        "category": "ast-source",
+        "bytes": 379,
+        "sha256": "ea5da97f4d364f10a5a4984a53a92f54e3adc3a9e0321fd0d21ba3e75b150c22"
+      },
+      "src/lib/__tests__/cold-email-health-sync.test.ts": {
+        "category": "ast-source",
+        "bytes": 2184,
+        "sha256": "cb5bf21b2ab8ce5644becbc138386ac52d14bf171c7ff11810d8ccb932e442f6"
+      },
+      "src/lib/__tests__/cold-email-inbox.test.ts": {
+        "category": "ast-source",
+        "bytes": 1953,
+        "sha256": "15aa7a2566eeb02d7afad6c0767e5b30e6b1c9ebbcb42b52f0e15c9d1f162dae"
+      },
+      "src/lib/__tests__/cold-email-infrastructure.test.ts": {
+        "category": "ast-source",
+        "bytes": 525,
+        "sha256": "8fad2279fe66e8fbd2e044f85a242f955258619ca3ab35fd701ac0d0f1524fda"
+      },
+      "src/lib/__tests__/cold-email-links.test.ts": {
+        "category": "ast-source",
+        "bytes": 1271,
+        "sha256": "f471455bb5396b7aa64516a03e7bff8d34cdb7e70952a94085ffe2109912e4d9"
+      },
+      "src/lib/__tests__/cold-email-metrics.test.ts": {
+        "category": "ast-source",
+        "bytes": 1291,
+        "sha256": "eda60f696520853fb5df7326d09759891c89b55a0b930463b76dbdaebdd68275"
+      },
+      "src/lib/__tests__/cold-email-permissions.test.ts": {
+        "category": "ast-source",
+        "bytes": 1137,
+        "sha256": "0ea608fd374d2ded26949af469f329b1376f957119c3b09added2315ed941733"
+      },
+      "src/lib/__tests__/cold-email-personalization.test.ts": {
+        "category": "ast-source",
+        "bytes": 4096,
+        "sha256": "0bd06c824411048288348f9f561e6694d13bd60b1e2b54add0a86c4c912456e4"
+      },
+      "src/lib/__tests__/cold-email-platform.test.ts": {
+        "category": "ast-source",
+        "bytes": 7518,
+        "sha256": "b1344efa593a11004be160e15d9b159b87f9031d90d7a196484c82757a2124f3"
+      },
+      "src/lib/__tests__/cold-email-poll.test.ts": {
+        "category": "ast-source",
+        "bytes": 5722,
+        "sha256": "a139b90cb0491c07704e2494a3ae8e93d823653208485a3d3fe58ed1a8ac8768"
+      },
+      "src/lib/__tests__/cold-email-reconciliation.test.ts": {
+        "category": "ast-source",
+        "bytes": 1197,
+        "sha256": "c98882062d29ab3ec05f165be6728bc802eeeea558b638a22fd0b26a52c8221c"
+      },
+      "src/lib/__tests__/cold-email-recovery.test.ts": {
+        "category": "ast-source",
+        "bytes": 1411,
+        "sha256": "22785346b85a162136bdcd32e740936935550dffc0a70747ef5fab1af2d99d36"
+      },
+      "src/lib/__tests__/cold-email-release-safety.test.ts": {
+        "category": "ast-source",
+        "bytes": 7054,
+        "sha256": "72cbbd0825a4da42608122849676e280c74f60d1e6e8fa1e1b53a70efb9bea5a"
+      },
+      "src/lib/__tests__/cold-email-retention.test.ts": {
+        "category": "ast-source",
+        "bytes": 1333,
+        "sha256": "94fae4af446ef7bfce711cf37ee9fefd3d4f2f8d08eb4eea4eebe44355458ae6"
+      },
+      "src/lib/__tests__/cold-email-schema-contract.test.ts": {
+        "category": "ast-source",
+        "bytes": 8523,
+        "sha256": "9a95e00035e8965162f5328f68b6ea70f66f9122cb013cac40ece596e8318594"
+      },
+      "src/lib/__tests__/cold-email-stripe.test.ts": {
+        "category": "ast-source",
+        "bytes": 3617,
+        "sha256": "4250e20ee04101e3b6db1c1f8edac51bee081ea00e6ee9c2d5905f5e75ac943d"
+      },
+      "src/lib/__tests__/cold-email-timezone.test.ts": {
+        "category": "ast-source",
+        "bytes": 2080,
+        "sha256": "a617c89cf98e1d4aea892bd0c736422a7f9dc362514f1f6d8586ec1fbd278ca4"
+      },
+      "src/lib/__tests__/cold-email-worker.test.ts": {
+        "category": "ast-source",
+        "bytes": 6640,
+        "sha256": "0deb61688b5e4dd3d8fe31278d840c88330bf9409c7c4f733be43b4c78f97720"
+      },
+      "src/lib/__tests__/enrichment-booking-paths.test.ts": {
+        "category": "ast-source",
+        "bytes": 3616,
+        "sha256": "d9557197abfe53d579c3ef1364830025e3449e41cf0d4fef26cd81f63ddd0104"
+      },
+      "src/lib/__tests__/enrichment-contact-pricing.test.ts": {
+        "category": "ast-source",
+        "bytes": 1566,
+        "sha256": "5599655bf6bc44f2210d60845e2b5f92a40fe74b61b42121e87ca7cd245d948d"
+      },
+      "src/lib/__tests__/enrichment-evidence.test.ts": {
+        "category": "ast-source",
+        "bytes": 21895,
+        "sha256": "8afaf2295027a55c41e9b9e8cec20e30b1b0c110a1c6e974205d6bed0e9459ae"
+      },
+      "src/lib/__tests__/enrichment-signals.test.ts": {
+        "category": "ast-source",
+        "bytes": 6272,
+        "sha256": "190741bb64118386f5e445ea63553445c87f104ef0aabea727b84746b97e3528"
+      },
+      "src/lib/__tests__/enrichment-transaction.test.ts": {
+        "category": "ast-source",
+        "bytes": 7517,
+        "sha256": "1357427036eee5c258892a7ca4d920a0345c532e74d66b77925c4362af7393cf"
+      },
+      "src/lib/__tests__/facebook-scraper-removal.test.ts": {
+        "category": "ast-source",
+        "bytes": 1357,
+        "sha256": "d695c8d121aaf89303f13db50174bddc38a3c4b80f8d7523cc73926709695f41"
+      },
+      "src/lib/__tests__/fixtures/enrichment-signals/booking-cases.json": {
+        "category": "test-fixture-data",
+        "bytes": 2800,
+        "sha256": "6534478ba4cf96b854517560072cadf6eb5b8802422bf036fbd5e62855c33872"
+      },
+      "src/lib/__tests__/fixtures/enrichment-signals/payload.json": {
+        "category": "test-fixture-data",
+        "bytes": 26513,
+        "sha256": "25d4e46538e836a9a7d39d0fe342f91bc6b2d9685b97d9b3f31dd18b319dd442"
+      },
+      "src/lib/__tests__/fixtures/enrichment-signals/reference.ts": {
+        "category": "ast-source",
+        "bytes": 10729,
+        "sha256": "85a5d61906543b7699a0dbf71828b5d2a106a339a23f02e7c62850104058b4e9"
+      },
+      "src/lib/__tests__/helpers/isolated-module.ts": {
+        "category": "ast-source",
+        "bytes": 1695,
+        "sha256": "4bb6fd812f6f17c56f160b2588554f9cb5fe33f719912f2f36700581334c705a"
+      },
+      "src/lib/__tests__/instantly-account-normalization.test.ts": {
+        "category": "ast-source",
+        "bytes": 2083,
+        "sha256": "8daca91a5825effd0cceed6cca0415f5fda2c9419a45f5287defbcee43710363"
+      },
+      "src/lib/__tests__/instantly-contract.test.ts": {
+        "category": "ast-source",
+        "bytes": 4732,
+        "sha256": "d813d2699dfe560ad6b5728111ccf202e59d595b2f0599dc560afaddec795ecf"
+      },
+      "src/lib/__tests__/instantly-events.test.ts": {
+        "category": "ast-source",
+        "bytes": 2825,
+        "sha256": "a5e3e4b5e47456bea3562c878406f8e39446c2b6908a3e99be0dff2238bda134"
+      },
+      "src/lib/__tests__/instantly-webhook.test.ts": {
+        "category": "ast-source",
+        "bytes": 3641,
+        "sha256": "6ebdb281dd4eb3b9f3057835bcb291f9df3b27d3caec31cc1e8a3f79448263d6"
+      },
+      "src/lib/__tests__/junk-cleanup-policy.test.ts": {
+        "category": "ast-source",
+        "bytes": 3474,
+        "sha256": "062bc405ca7ba26f93c9090fa4eaa9cd315d0df79e14e44fe2270c0bb815a298"
+      },
+      "src/lib/__tests__/junk-eligibility.test.ts": {
+        "category": "ast-source",
+        "bytes": 5540,
+        "sha256": "959845d1939a475ac39f4643a4288581ba59f3c225f6c90f636395083d0e55a8"
+      },
+      "src/lib/__tests__/junk-intake.test.ts": {
+        "category": "ast-source",
+        "bytes": 5933,
+        "sha256": "ad53c3da42d19767aaa917c4604d34c9bd8ccf945c20e392e89279929ee82747"
+      },
+      "src/lib/__tests__/lead-classify.test.ts": {
+        "category": "ast-source",
+        "bytes": 21091,
+        "sha256": "48fed41892159b816f9656c30c550793b4d3d7e9a41a0dc8b6fd004d58a2db37"
+      },
+      "src/lib/__tests__/lead-cleaner-util.test.ts": {
+        "category": "ast-source",
+        "bytes": 2907,
+        "sha256": "970358476b8ba91c8d207167a95c00edc16c43912fd2d4ad0dda001efac40fdd"
+      },
+      "src/lib/__tests__/lead-deletion.test.ts": {
+        "category": "ast-source",
+        "bytes": 776,
+        "sha256": "c02b071a34cc3f6339c7c813fa5780a2fdde40d2ab669c700b4ef2ec83ef9ae6"
+      },
+      "src/lib/__tests__/lead-filter-definition.test.ts": {
+        "category": "ast-source",
+        "bytes": 2761,
+        "sha256": "6a450e468905dc9717e4113000ca742fca04ecb0dab147e2dadf73b47169bd81"
+      },
+      "src/lib/__tests__/lead-filter-parity.test.ts": {
+        "category": "ast-source",
+        "bytes": 20601,
+        "sha256": "5c654794f993c58e08db1e47766214880f09bfa41e155b105dfbe5dffc808c44"
+      },
+      "src/lib/__tests__/lead-filter.test.ts": {
+        "category": "ast-source",
+        "bytes": 25839,
+        "sha256": "96c4f9bfc7f70f3692a6db30387305761621fba984df4e2f3bff1d26f5418677"
+      },
+      "src/lib/__tests__/lead-group-approval.test.ts": {
+        "category": "ast-source",
+        "bytes": 6035,
+        "sha256": "edbe7d14e9d460f5237196bc1d4e3dc330f6bf451c6d4dab4b26e97ef747a594"
+      },
+      "src/lib/__tests__/lead-group-refresh.test.ts": {
+        "category": "ast-source",
+        "bytes": 8759,
+        "sha256": "0223fead266b629847e429593979e9177c648086b3934c957a9a41c8d6dd15de"
+      },
+      "src/lib/__tests__/outreach-variables.test.ts": {
+        "category": "ast-source",
+        "bytes": 14473,
+        "sha256": "8ff76e19499cce30bed3050cd1e639a7474aaa160471ae049e92438d230b2251"
+      },
+      "src/lib/agent-presentation.ts": {
+        "category": "ast-source",
+        "bytes": 4224,
+        "sha256": "98194b07c26d7494359010c89edbc71b337900b26003a966362d5c1935956341"
+      },
+      "src/lib/auth.ts": {
+        "category": "ast-source",
+        "bytes": 2343,
+        "sha256": "a5d1c5e4fe0109fcbc6c13d223f4a46418728a4fb9098796891b9a22591a122e"
+      },
+      "src/lib/blog-generator.ts": {
+        "category": "ast-source",
+        "bytes": 23028,
+        "sha256": "17e61eea32673904cf2413bb99816b37a578c5d07157eee7084541b6aa00bbb0"
+      },
+      "src/lib/cold-email-account-sync.ts": {
+        "category": "ast-source",
+        "bytes": 7582,
+        "sha256": "f38e6b6cd08e0b99d3c644f4ec4463b9b898d9975f115594020c1a98a6a90406"
+      },
+      "src/lib/cold-email-audience-store.ts": {
+        "category": "ast-source",
+        "bytes": 22728,
+        "sha256": "2ae2e262778ed1b32477b7d1f7d0a0b5fe6d284af88502cf97ee4dd3b3337679"
+      },
+      "src/lib/cold-email-audience.ts": {
+        "category": "ast-source",
+        "bytes": 5606,
+        "sha256": "9d1906c574e1afdf1474e48a30dbc1a945c36571de4cfba737cad41f1222e929"
+      },
+      "src/lib/cold-email-blackout-store.ts": {
+        "category": "ast-source",
+        "bytes": 17980,
+        "sha256": "883de785ff1d59001763849badc4d046302d3b3a183e73ba8c12b199efb1fd66"
+      },
+      "src/lib/cold-email-blackout.ts": {
+        "category": "ast-source",
+        "bytes": 952,
+        "sha256": "65b3c2110d3e22e7bdebddd69d1a0fd2b394b54a00b0f20cb9a44a82edab3da7"
+      },
+      "src/lib/cold-email-calendar-store.ts": {
+        "category": "ast-source",
+        "bytes": 9015,
+        "sha256": "11e6eae4a76b916b55557d28be2a3b74c8f0a035f5e52f33704d610c04fc15aa"
+      },
+      "src/lib/cold-email-calendar.ts": {
+        "category": "ast-source",
+        "bytes": 2000,
+        "sha256": "3efa520bd68f6ba8468e9efb61fcbc27652a1255ca4f5b62bfb938abfcf86a10"
+      },
+      "src/lib/cold-email-campaign-review.ts": {
+        "category": "ast-source",
+        "bytes": 5405,
+        "sha256": "ec705de9c8ed1f9ae153be92323bb1e38e8479fb01c28f31cb87bfa56c5e76e6"
+      },
+      "src/lib/cold-email-campaign-store.ts": {
+        "category": "ast-source",
+        "bytes": 63003,
+        "sha256": "0fe686ac23996056a58441beb8dad4bca84ff73ed0e3a5f9442477aba8886cfd"
+      },
+      "src/lib/cold-email-campaign.ts": {
+        "category": "ast-source",
+        "bytes": 11071,
+        "sha256": "cacbff79703642cf010b1705da81b83249aa7196fb6c6f3dd07ac1708ceb85af"
+      },
+      "src/lib/cold-email-canonical-store.ts": {
+        "category": "ast-source",
+        "bytes": 69150,
+        "sha256": "fa4d4e359a107227788a3e1814e558a704cccaa78c5e4353c6c28163d36cef2a"
+      },
+      "src/lib/cold-email-capabilities.ts": {
+        "category": "ast-source",
+        "bytes": 4649,
+        "sha256": "dbdc68cce89bbe865ecd2baac72fe5c2229db9769e0fe5810de89636bfbc1f6b"
+      },
+      "src/lib/cold-email-capability-baseline.ts": {
+        "category": "ast-source",
+        "bytes": 5094,
+        "sha256": "48a958f62ba9aa336c6891bb62cbdfd555ca9356b4451b55db028aafa105b380"
+      },
+      "src/lib/cold-email-catalog-store.ts": {
+        "category": "ast-source",
+        "bytes": 9687,
+        "sha256": "822f28b7b072c883b6a52f169a53a044bbd90c02e679421e21571f523f46dc14"
+      },
+      "src/lib/cold-email-crm-store.ts": {
+        "category": "ast-source",
+        "bytes": 30129,
+        "sha256": "0fd2ed5d6aa562a0a7ca45a5bf8f571fcc6ef1effa172e98b8fd201228f29f97"
+      },
+      "src/lib/cold-email-crm.ts": {
+        "category": "ast-source",
+        "bytes": 3749,
+        "sha256": "e54250e4558104628149c5655e036267221d57d898d6dd165cc42f57ef34a099"
+      },
+      "src/lib/cold-email-cron-auth.ts": {
+        "category": "ast-source",
+        "bytes": 495,
+        "sha256": "21f3c83a811dd5e9a3f75bdce3cb45d81194951a50d44b1651eca594896ae78b"
+      },
+      "src/lib/cold-email-cutover.ts": {
+        "category": "ast-source",
+        "bytes": 655,
+        "sha256": "7800bc0b693c318d111c4beac0ea83ae1d36082e9bce5f9ca4037b74b9fc6138"
+      },
+      "src/lib/cold-email-db.ts": {
+        "category": "ast-source",
+        "bytes": 1091,
+        "sha256": "70ad9f13958453531a070e235b5d080894256efa27e0c85bfd1c60be4b4619d3"
+      },
+      "src/lib/cold-email-deliverability-store.ts": {
+        "category": "ast-source",
+        "bytes": 21202,
+        "sha256": "e9aa048aedbc314ec3fab34f58b5870b5f13e0d772ff438c48345af3a492c873"
+      },
+      "src/lib/cold-email-deliverability.ts": {
+        "category": "ast-source",
+        "bytes": 3073,
+        "sha256": "ded2927c36f6e9e7e6fd78cccda622c8d7b5fe8853d72f4dd9b835ff87393e40"
+      },
+      "src/lib/cold-email-dnc-store.ts": {
+        "category": "ast-source",
+        "bytes": 14343,
+        "sha256": "d3b28a9b2058a3f76b12e6f42904d2f54b89170988e8147649fc2a7d10b238fd"
+      },
+      "src/lib/cold-email-domain-metrics-store.ts": {
+        "category": "ast-source",
+        "bytes": 5373,
+        "sha256": "f35e1dd7cbba3fbfae294f1bf2da710449ffe41311d4b8cb711e814d6affebe3"
+      },
+      "src/lib/cold-email-domain-metrics.ts": {
+        "category": "ast-source",
+        "bytes": 31287,
+        "sha256": "541f750b2f2a83be2d9d47941a4b49a3a42ec7556030d70578ef10b11b9622d9"
+      },
+      "src/lib/cold-email-event-canonical-store.ts": {
+        "category": "ast-source",
+        "bytes": 32119,
+        "sha256": "7005eb6a45d6d4f492361de40978d94caf82a70e8feb6f8a787f355512fec122"
+      },
+      "src/lib/cold-email-event-worker.ts": {
+        "category": "ast-source",
+        "bytes": 2459,
+        "sha256": "d5f526917550c0bc2b5c98633d6e5446107893d906badcc33ba471e92c81a6ae"
+      },
+      "src/lib/cold-email-export-store.ts": {
+        "category": "ast-source",
+        "bytes": 3902,
+        "sha256": "e3a9513a7227214028ac39a7096eeea21903826976a928eb2e1d502f7637d4b1"
+      },
+      "src/lib/cold-email-export.ts": {
+        "category": "ast-source",
+        "bytes": 431,
+        "sha256": "fdd3c593d43d1101c04bf6884290ba3efdb7921e0dfa6812ed1f5d14276c790e"
+      },
+      "src/lib/cold-email-health-sync-store.ts": {
+        "category": "ast-source",
+        "bytes": 5490,
+        "sha256": "ae4ec323eb0e35fba067c34d0988994b490a887b5f303ddec2850df3fadc8a12"
+      },
+      "src/lib/cold-email-health-sync.ts": {
+        "category": "ast-source",
+        "bytes": 3644,
+        "sha256": "1a8dbc9af0d34bb557c2f1b86924d7aa62ee4844eeb3fa3cf44a6bbc5eaadf34"
+      },
+      "src/lib/cold-email-inbox-store.ts": {
+        "category": "ast-source",
+        "bytes": 27732,
+        "sha256": "b6ad54747aaac418c7fe589ada248973082f0ce21048ddcd1b3e9ce08745fe4b"
+      },
+      "src/lib/cold-email-inbox.ts": {
+        "category": "ast-source",
+        "bytes": 3194,
+        "sha256": "3f01c8db1034832862c1b4b1697bbc5063c27c9f479c87f027883c3053374eb0"
+      },
+      "src/lib/cold-email-infrastructure-store.ts": {
+        "category": "ast-source",
+        "bytes": 19591,
+        "sha256": "ed04acfaeb8dfe27540dcb03329698e026595eef549246188180ff55e111c293"
+      },
+      "src/lib/cold-email-infrastructure.ts": {
+        "category": "ast-source",
+        "bytes": 714,
+        "sha256": "7cf8517a939a6e716751892c35253750921d810fa06154277ca125e5c4b85574"
+      },
+      "src/lib/cold-email-links.ts": {
+        "category": "ast-source",
+        "bytes": 1548,
+        "sha256": "14c87bc0e4f6e25c0aabd747d829a90c89d5a825fa778111ef9d29488df3c29b"
+      },
+      "src/lib/cold-email-metrics.ts": {
+        "category": "ast-source",
+        "bytes": 3727,
+        "sha256": "aea846ee6a9cda882f32610a8da70451646492398d1d2488159b4771a8b8581a"
+      },
+      "src/lib/cold-email-operation-executor.ts": {
+        "category": "ast-source",
+        "bytes": 953,
+        "sha256": "7f0b2a97d898f36d02ac8bbde454c56bdbeaef4dd071e4d24fd27449476d52c8"
+      },
+      "src/lib/cold-email-operator-store.ts": {
+        "category": "ast-source",
+        "bytes": 3985,
+        "sha256": "6e9e5ef005e81fb3e40f892c2755b1545de367174ca6db273db8a23cf58f18f9"
+      },
+      "src/lib/cold-email-overview-store.ts": {
+        "category": "ast-source",
+        "bytes": 5750,
+        "sha256": "e7f3cea57815af69a66dea636296cb433f5d54c1bec74510d38d313988a9c33c"
+      },
+      "src/lib/cold-email-permissions.ts": {
+        "category": "ast-source",
+        "bytes": 1799,
+        "sha256": "a1266dc8534a40c356af7dae7733c47a7cbd373831f27371bb5af68ecc5b34e4"
+      },
+      "src/lib/cold-email-platform.ts": {
+        "category": "ast-source",
+        "bytes": 17329,
+        "sha256": "fa7fbcf6c5bec6358bbdbe6d625522c3f9fc4a7de117cd61cfe38a58b94b669b"
+      },
+      "src/lib/cold-email-poll-store.ts": {
+        "category": "ast-source",
+        "bytes": 5944,
+        "sha256": "a6183ed3ab1f927131b496e8c5ed04870ce537386a53a163c37d7870de08ce74"
+      },
+      "src/lib/cold-email-poll.ts": {
+        "category": "ast-source",
+        "bytes": 6954,
+        "sha256": "dc6a7353a9d69b58bc076cdf0eb6650e079cee22440e348a7d3aa15909cf66d8"
+      },
+      "src/lib/cold-email-reconciliation-store.ts": {
+        "category": "ast-source",
+        "bytes": 14144,
+        "sha256": "f0b12980575e3a3ad55b3d2ccf7e117cf07b502e08d281b6c16085a5998a0b8b"
+      },
+      "src/lib/cold-email-reconciliation.ts": {
+        "category": "ast-source",
+        "bytes": 2571,
+        "sha256": "7c675fc215c742e61037b6d3d6ca2b48a96ce44554721903850d7a0959b0af42"
+      },
+      "src/lib/cold-email-recovery-store.ts": {
+        "category": "ast-source",
+        "bytes": 16780,
+        "sha256": "eeb8ea30c62554842da37f57b8cd555189600c0d75bd43451a1fa8cb272c97e2"
+      },
+      "src/lib/cold-email-recovery.ts": {
+        "category": "ast-source",
+        "bytes": 1651,
+        "sha256": "da4db5cf9a58f3995aeb624391e524414d14e4ec57588da4214cb7fa488229f9"
+      },
+      "src/lib/cold-email-reporting-store.ts": {
+        "category": "ast-source",
+        "bytes": 12692,
+        "sha256": "e387a3d35ca40dcb779e7468adf17475c54660f2353cdd4e7123a31797aa7282"
+      },
+      "src/lib/cold-email-retention-store.ts": {
+        "category": "ast-source",
+        "bytes": 9515,
+        "sha256": "6a549251cb5abee421e398a8c031c6c53754d5e4defbdd02547a448f7f82ced0"
+      },
+      "src/lib/cold-email-retention.ts": {
+        "category": "ast-source",
+        "bytes": 1420,
+        "sha256": "598206dd10a6041f1586f90d6aadbb8343cc131caf8da7dbb49bdda5c46449d3"
+      },
+      "src/lib/cold-email-role-policy.ts": {
+        "category": "ast-source",
+        "bytes": 1793,
+        "sha256": "6b488c66346e9956b0558bb54f31968bf9a4a914c27097aba7a72d9856ffb936"
+      },
+      "src/lib/cold-email-search-store.ts": {
+        "category": "ast-source",
+        "bytes": 3281,
+        "sha256": "b6b633c7d596beb28abe12cfde8ce270f3bdc260c730b3c0a4d8e1f25eb3a2c4"
+      },
+      "src/lib/cold-email-settings-store.ts": {
+        "category": "ast-source",
+        "bytes": 4233,
+        "sha256": "f0461982063d6d231700230fcbc0f244cd2e80c2f4938e598bfca125863748d6"
+      },
+      "src/lib/cold-email-source-of-truth.ts": {
+        "category": "ast-source",
+        "bytes": 1732,
+        "sha256": "99249c110dc505ce40975e59c15abe7c58d23c85c61fad27ebe84be39fe3fa8a"
+      },
+      "src/lib/cold-email-stripe-store.ts": {
+        "category": "ast-source",
+        "bytes": 30757,
+        "sha256": "118e10900b77f470bd42669fa120787c5411605f78247611b9673d58f86f9330"
+      },
+      "src/lib/cold-email-stripe.ts": {
+        "category": "ast-source",
+        "bytes": 10870,
+        "sha256": "1a2c4f951c7e75030430f2478a7e93257b9f27b817420aca2b9b6867d7d80761"
+      },
+      "src/lib/cold-email-timezone.ts": {
+        "category": "ast-source",
+        "bytes": 4256,
+        "sha256": "9985ede494736bdf0b3515c5c7fad56b988c71ba25c832ac494227358dcc8092"
+      },
+      "src/lib/cold-email-worker.ts": {
+        "category": "ast-source",
+        "bytes": 4139,
+        "sha256": "2f17c30dedf37d37a70e9d76cf4603a6491c6f6bb9823ce01db7d642f2902f03"
+      },
+      "src/lib/cold-email.ts": {
+        "category": "ast-source",
+        "bytes": 8197,
+        "sha256": "f3404eb0e5724f54ecd1b5857c050e9ef4227468edba70f2a1727f048ad74310"
+      },
+      "src/lib/content-generator.tsx": {
+        "category": "ast-source",
+        "bytes": 22418,
+        "sha256": "5340db9c6b42f198cf16afa7a0c18dc1387e956418bebecde3a8a17193110510"
+      },
+      "src/lib/content/library.ts": {
+        "category": "ast-source",
+        "bytes": 8097,
+        "sha256": "f7a9a3f6ec3a13b4698e7e924200b37f20f56afc1727afc568a5262b25f21899"
+      },
+      "src/lib/content/mockups/BrowserFrame.tsx": {
+        "category": "ast-source",
+        "bytes": 4576,
+        "sha256": "37408e67e0b2c0f8b8a0cda03d0e9b2f8dd0b135fc54844018771a8cfd9ae2b2"
+      },
+      "src/lib/content/mockups/IPadFrame.tsx": {
+        "category": "ast-source",
+        "bytes": 1864,
+        "sha256": "2dd7e41a109fafb98bb1357ab4401f25616fa4b3a9d90c972a4fa86a049283ae"
+      },
+      "src/lib/content/mockups/IPhoneFrameSatori.tsx": {
+        "category": "ast-source",
+        "bytes": 3332,
+        "sha256": "eb0f22cc6d5fbf007c0f811fa712a36bdb44701d75e02d100d2d2a90e3dd3aa6"
+      },
+      "src/lib/content/mockups/MacBookFrame.tsx": {
+        "category": "ast-source",
+        "bytes": 3191,
+        "sha256": "14e85327e55fb4b5b342738514ae198ed0258d8b853f7fc1013c2e13f101b469"
+      },
+      "src/lib/content/mockups/PhoneInHandFrame.tsx": {
+        "category": "ast-source",
+        "bytes": 2876,
+        "sha256": "7d34782d9f7c6e387eae2337666c1a5e3426c5486279e7b0cc75e0d4df188b64"
+      },
+      "src/lib/content/templates/BeforeAfterSplitTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 10195,
+        "sha256": "3021bf0505b898c28673be5c4748d9035b6a80b220665615ef621fe21e383ca1"
+      },
+      "src/lib/content/templates/FeatureCalloutTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 8914,
+        "sha256": "3bc5a8909d5c40b8bccd6979a53bf6b8717712827455cd3850d83e431e3a88f3"
+      },
+      "src/lib/content/templates/PhoneMockupTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 4850,
+        "sha256": "73914b6ff6ba57729859dee93990a08bb07221494f0c266108dbee75b0c30d5f"
+      },
+      "src/lib/content/templates/ProductHighlightTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 9199,
+        "sha256": "d685738e578d2b83642687f9de57b2f440c25bbbd896d6219e78fc8548c1bb6d"
+      },
+      "src/lib/content/templates/QuoteCardTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 6293,
+        "sha256": "e3bf2439385e6ca9913bc95e5bdd04010cf2f48de61f9452832f782bb0b7e5bd"
+      },
+      "src/lib/content/templates/StatSplitTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 5625,
+        "sha256": "e1996a0665cfc157e8072b028103b675149db73646e25914086d1d1af59ea906"
+      },
+      "src/lib/content/templates/index.ts": {
+        "category": "ast-source",
+        "bytes": 5770,
+        "sha256": "feb85b5700d0cba8a0ac75334408a4424e169a47f535cc7c93b58cd09a5a664a"
+      },
+      "src/lib/demo-scheduler-auth.ts": {
+        "category": "ast-source",
+        "bytes": 5008,
+        "sha256": "359dd619f47d8b9477a53d681caf41e7955e949f2d880910b3ae9a5bc04ec183"
+      },
+      "src/lib/email-cleaner-db.ts": {
+        "category": "ast-source",
+        "bytes": 26468,
+        "sha256": "4fd81475e48c8ac0ad0a03cc8796be0d7f97bf1b2e06f42d0ae3483d5869d9f6"
+      },
+      "src/lib/email-cleaner-presentation.ts": {
+        "category": "ast-source",
+        "bytes": 1141,
+        "sha256": "608db4fb0b2ae3f6a62501c72d708f43ffeaf7e664e815a3ae0b4fc255b14029"
+      },
+      "src/lib/emailable.ts": {
+        "category": "ast-source",
+        "bytes": 9511,
+        "sha256": "5e955acd0be853bf82f5d906c2844d72ebff3953897f286ee3e0afe759cfb9da"
+      },
+      "src/lib/enrichment-evidence.ts": {
+        "category": "ast-source",
+        "bytes": 16227,
+        "sha256": "ddc545cc3771226fdbe608faabedfe0eb71b2d09d357a36ea1ee341145d727ce"
+      },
+      "src/lib/enrichment-run-config.ts": {
+        "category": "ast-source",
+        "bytes": 526,
+        "sha256": "1933d0d2302ca4274f9d36edb6f8f736a8f2fd502519ee7fd76c0324a4543e98"
+      },
+      "src/lib/enrichment-signals-schema.ts": {
+        "category": "ast-source",
+        "bytes": 21575,
+        "sha256": "46f7652c911a6e989cf492fe236b3d96b70f182e2be6ab21af9fd94930e82254"
+      },
+      "src/lib/enrichment-signals.ts": {
+        "category": "ast-source",
+        "bytes": 16915,
+        "sha256": "cca534d27cf98dcce7df7a873f73a146d03cb0a604c78bbdd19ea64700129eef"
+      },
+      "src/lib/general-cron-inventory.ts": {
+        "category": "ast-source",
+        "bytes": 1807,
+        "sha256": "ec50b606d03efbcf6088f3512e50d442e878680ddf27dc9d8a816b5b59691a28"
+      },
+      "src/lib/generate-images.ts": {
+        "category": "ast-source",
+        "bytes": 10769,
+        "sha256": "4fa8a0dd433e0a6873500b73ea7ba0e737533f613d10ed78c1ce514c699bf3bb"
+      },
+      "src/lib/gmail.ts": {
+        "category": "ast-source",
+        "bytes": 7652,
+        "sha256": "1d8fb0c6e00298430a73ba5df0edae44449a0217b82a088c12d1d3c17ca689f7"
+      },
+      "src/lib/google-calendar-operation-executor.ts": {
+        "category": "ast-source",
+        "bytes": 2200,
+        "sha256": "3db58270672f900513e74aeaef9a3af2405260fed25820b6103e29f4b529a5f9"
+      },
+      "src/lib/instantly-account-normalization.ts": {
+        "category": "ast-source",
+        "bytes": 5329,
+        "sha256": "fe89f09a2d4eab99488f9187e4a774b041e12b143ddeadcb31b86a6a9f02c422"
+      },
+      "src/lib/instantly-event-processor.ts": {
+        "category": "ast-source",
+        "bytes": 11137,
+        "sha256": "e65edf6d7ba313ff24f547865997964a67a4ae583b84142d27d8f8080556d798"
+      },
+      "src/lib/instantly-events.ts": {
+        "category": "ast-source",
+        "bytes": 5770,
+        "sha256": "e7559e7adeb969c4eedb0108d6c8798c2ff16211d469ffd2c76651ff2d7c1374"
+      },
+      "src/lib/instantly-operation-executor.ts": {
+        "category": "ast-source",
+        "bytes": 8611,
+        "sha256": "6a0c0e3aa8803eb39130879165136302210c7018a36ccff4f7cee13651432622"
+      },
+      "src/lib/instantly-webhook.ts": {
+        "category": "ast-source",
+        "bytes": 6499,
+        "sha256": "d69e278d1697018ad36ad6a5b97ade2a8a473f196ecdc8a3c4b13bb961f087f6"
+      },
+      "src/lib/instantly.ts": {
+        "category": "ast-source",
+        "bytes": 21413,
+        "sha256": "86a98b6cad88e30ab2a9727de8cba32cefcdbfe6e097abcb09e3b3e42aba5118"
+      },
+      "src/lib/integration-token-encryption.ts": {
+        "category": "ast-source",
+        "bytes": 1942,
+        "sha256": "5d733633062761f51c48051375fd394896f70c8ccec541213b638d3d4d387961"
+      },
+      "src/lib/junk-cleanup-policy.ts": {
+        "category": "ast-source",
+        "bytes": 4825,
+        "sha256": "377d7f8ff09951adce356c5acaf29af8ccf4d0e968e4fa263ddf3d9a403f9e95"
+      },
+      "src/lib/junk-eligibility.ts": {
+        "category": "ast-source",
+        "bytes": 6523,
+        "sha256": "94d73576e4019f3d3def56faeb5debe70420d926c085498aa54c11374035015a"
+      },
+      "src/lib/lead-classify.ts": {
+        "category": "ast-source",
+        "bytes": 31921,
+        "sha256": "0ba254d50ed12c9f715e134416f1140bbc816c1cf64db04da8766111553876a8"
+      },
+      "src/lib/lead-cleaner-db.ts": {
+        "category": "ast-source",
+        "bytes": 36114,
+        "sha256": "821e4a7a85296fbae164c3dd32c7acf4f4eed272761765eeaaf84753cbc9378f"
+      },
+      "src/lib/lead-cleaner-util.ts": {
+        "category": "ast-source",
+        "bytes": 2782,
+        "sha256": "3fc3cddd085e287d83781bd777d1c5cf871a5d519d8364c0a11899b9ff6730ae"
+      },
+      "src/lib/lead-deletion.ts": {
+        "category": "ast-source",
+        "bytes": 415,
+        "sha256": "bb07d78b2d2a17920ac74e0c30f696d606583ec9441da4f3dfb2765d63bce3e1"
+      },
+      "src/lib/lead-filter-catalog.ts": {
+        "category": "ast-source",
+        "bytes": 18477,
+        "sha256": "d9879da261139a2091c1185b965ce1b2fffda27018efab9c07766a21d3cb4c0d"
+      },
+      "src/lib/lead-filter-definition.ts": {
+        "category": "ast-source",
+        "bytes": 11272,
+        "sha256": "3f2929e3d1dc3f1bef8494b6f914ec157816dae11ec5d31cf07b70e03897698c"
+      },
+      "src/lib/lead-filter-query.ts": {
+        "category": "ast-source",
+        "bytes": 19591,
+        "sha256": "138723600af4b868f5f337c2376c87c2678b30e3bf145e1eb3a6bdd113ccfa74"
+      },
+      "src/lib/lead-filter.ts": {
+        "category": "ast-source",
+        "bytes": 45708,
+        "sha256": "5822f91096f0ef0d660b8c9cf6e71eac8c437dd2d28426b2f656c8ec1396797f"
+      },
+      "src/lib/lead-geography.ts": {
+        "category": "ast-source",
+        "bytes": 3037,
+        "sha256": "3f6769e74dd069a56d3c5b7eac058c172a4a40c5bf45e2318f2afc3d90b1da91"
+      },
+      "src/lib/lead-group-policy.ts": {
+        "category": "ast-source",
+        "bytes": 4659,
+        "sha256": "adc246f50e6bbe52b63a6fc860953cb68e3081c5842e6eee39a61d8d16e3a0a1"
+      },
+      "src/lib/lead-group-refresh.ts": {
+        "category": "ast-source",
+        "bytes": 4155,
+        "sha256": "87183d60582a75de3549053b7d697416529c49f5b5e68d959bccfc8fd3c8d543"
+      },
+      "src/lib/lead-segment-client.ts": {
+        "category": "ast-source",
+        "bytes": 739,
+        "sha256": "f3215f4e57e55d6eca9894d3025bcc28183b5f4f14c02e3f0561ad3382e3de87"
+      },
+      "src/lib/lead-website.ts": {
+        "category": "ast-source",
+        "bytes": 1888,
+        "sha256": "6e281bdc4de956144fa5c9831a7d0ae2f5d52f9cc2283a5a0d689330114804ce"
+      },
+      "src/lib/outreach-status.ts": {
+        "category": "ast-source",
+        "bytes": 1470,
+        "sha256": "84b6ed4e761d7b52db7e37a200122f28a9beee12ca03d131f3984ce9c1257442"
+      },
+      "src/lib/outreach-variables.ts": {
+        "category": "ast-source",
+        "bytes": 54769,
+        "sha256": "fe25f2283aa1c9d69df4682c8530e2ccdd4525cef90aa63d1999297481b8c087"
+      },
+      "src/lib/pain-taxonomy.ts": {
+        "category": "ast-source",
+        "bytes": 6610,
+        "sha256": "3db712d7e8edc9c2f35a6ad07d755e9eeea5710feefa43f7a7b697160935e335"
+      },
+      "src/lib/pdf/ResearchReportTemplate.tsx": {
+        "category": "ast-source",
+        "bytes": 12825,
+        "sha256": "941558e701a309ff286990c9a22d06c6dc797052dac474eb47f33ec8151916c3"
+      },
+      "src/lib/platform-billing.ts": {
+        "category": "ast-source",
+        "bytes": 899,
+        "sha256": "596eaaad5f2400655bd829ec5f617ea8f603c6c1be32a30beebc1a28e812071c"
+      },
+      "src/lib/platform-promo-admin.ts": {
+        "category": "ast-source",
+        "bytes": 2038,
+        "sha256": "6beccea3d9211f3a32b30c23ab46a0be92d3d95ef6aa57b34bdf464f474db9ad"
+      },
+      "src/lib/prisma.ts": {
+        "category": "ast-source",
+        "bytes": 672,
+        "sha256": "1318159413f1c7ad2b1c5fb7e59894befa1bbd5f67e25352d9574d0b9e5a56d0"
+      },
+      "src/lib/research-report-delivery.ts": {
+        "category": "ast-source",
+        "bytes": 2952,
+        "sha256": "bb523b7afd59c495f51c83be4378194b5cbe0c2b90276df958c158975ad99295"
+      },
+      "src/lib/research-report-generator.tsx": {
+        "category": "ast-source",
+        "bytes": 26571,
+        "sha256": "aa7f3ae4135df9dd359911cca3da25665ee294d02f2968d361eaa2ec18791f36"
+      },
+      "src/lib/stripe.ts": {
+        "category": "ast-source",
+        "bytes": 1862,
+        "sha256": "dd03a1d26c5866e71fb4ccdd1556f2cc85502ce759019bf0e63b5f998e85edec"
+      },
+      "src/lib/twilio.ts": {
+        "category": "ast-source",
+        "bytes": 837,
+        "sha256": "127db06980e139b1427f614547ee5b00d238b2f4cc0ec8aebff93c06b392e687"
+      },
+      "src/lib/vercel.ts": {
+        "category": "ast-source",
+        "bytes": 4785,
+        "sha256": "1f8285841e78063e3140a480f12ad31a8a2666ef1d2a494990770d50c589baa3"
+      },
+      "src/middleware.ts": {
+        "category": "ast-source",
+        "bytes": 675,
+        "sha256": "05d6125c14054151b49596ffe61213804ca9d7e1e26dcdd8ba86c98635530e3b"
+      },
+      "syj-ops.jsx": {
+        "category": "ast-source",
+        "bytes": 91877,
+        "sha256": "ff1ca8ef9e1f5918e369f03d55dcb830e767b1576addbe4e1c525ec77a1df22d"
+      },
+      "tsconfig.json": {
+        "category": "ast-source",
+        "bytes": 959,
+        "sha256": "c0c446f65d585c4a44b6af8190a197265a3c7c315a8de65313f54b19ade27c60"
+      },
+      "tsconfig.test.json": {
+        "category": "ast-source",
+        "bytes": 302,
+        "sha256": "d6645a6624d9c5ce9168cd86f1316c10bd759d5a13764bc4df2a26c262e3264e"
+      },
+      "tsconfig.test.tsbuildinfo": {
+        "category": "runtime-generated-not-read"
+      },
+      "tsconfig.tsbuildinfo": {
+        "category": "runtime-generated-not-read"
+      },
+      "vercel.json": {
+        "category": "ast-source",
+        "bytes": 882,
+        "sha256": "ef19f8a0491a3cb173f6cc3e5f7f4a937cb746ea70febfdd33e9a9aefa42227d"
+      }
+    },
+    "excluded_directories": [
+      ".claude/worktrees/",
+      ".git/",
+      ".next.stale-20260505-local-dev-restart/",
+      ".next/",
+      ".vercel/",
+      "Lead Scraper Agent/worker/__pycache__/",
+      "Lead Scraper Agent/worker/scraper/__pycache__/",
+      "Lead Scraper Agent/worker/simplemaps_uszips_basicv1/",
+      "Lead Scraper Agent/worker/tests/__pycache__/",
+      "Lead Scraper Agent/worker/venv/",
+      "__pycache__/",
+      "gateway_venv/",
+      "graphify-out/",
+      "node_modules/"
+    ]
+  },
+  "ast_files": [
+    "Ads Template - Content/BeforeAfterSplitTemplate.jsx",
+    "Ads Template - Content/FeatureCalloutTemplate.jsx",
+    "Ads Template - Content/PhoneMockupTemplate.jsx",
+    "Ads Template - Content/ProductHighlightTemplate.jsx",
+    "Ads Template - Content/QuoteCardTemplate.jsx",
+    "Ads Template - Content/StatSplitTemplate.jsx",
+    "Lead Scraper Agent/admin/NEW_FILE__api_agents_lead-scraper__route.ts",
+    "Lead Scraper Agent/worker/scraper/__init__.py",
+    "Lead Scraper Agent/worker/scraper/config.py",
+    "Lead Scraper Agent/worker/scraper/control.py",
+    "Lead Scraper Agent/worker/scraper/ingest.py",
+    "Lead Scraper Agent/worker/scraper/ledger.py",
+    "Lead Scraper Agent/worker/scraper/mapper.py",
+    "Lead Scraper Agent/worker/scraper/outscraper_client.py",
+    "Lead Scraper Agent/worker/scraper/region.py",
+    "Lead Scraper Agent/worker/scraper/relevance.py",
+    "Lead Scraper Agent/worker/server.py",
+    "Lead Scraper Agent/worker/tests/__init__.py",
+    "Lead Scraper Agent/worker/tests/test_junk_eligibility.py",
+    "Lead Scraper Agent/worker/tests/test_ledger.py",
+    "Lead Scraper Agent/worker/tests/test_mapper.py",
+    "Lead Scraper Agent/worker/tests/test_outscraper_client.py",
+    "Lead Scraper Agent/worker/tests/test_region.py",
+    "Lead Scraper Agent/worker/tests/test_relevance.py",
+    "Lead Scraper Agent/worker/tests/test_server.py",
+    "eslint.config.mjs",
+    "gateway.py",
+    "next.config.ts",
+    "package.json",
+    "prisma.config.ts",
+    "scripts/analyze-pain-complaints.mjs",
+    "scripts/audit-enrichment-fields.mjs",
+    "scripts/backfill-failed-review-fetches.mjs",
+    "scripts/backfill-review-dates.mjs",
+    "scripts/backfill-website-emails.mjs",
+    "scripts/diag-google-placeid.mjs",
+    "scripts/diag-outscraper-gbp-multi.mjs",
+    "scripts/diag-outscraper-gbp.mjs",
+    "scripts/diag-review-fetch-gap.mjs",
+    "scripts/inspect-review-dates.mjs",
+    "scripts/test-admin-dashboard-browser.mjs",
+    "scripts/test-no-network.mjs",
+    "scripts/test-scraper-run-fencing.py",
+    "scripts/verify-review-bug-scope.mjs",
+    "scripts/verify-round-8.mjs",
+    "scripts/verify-schema.mjs",
+    "src/app/(dashboard)/agents/page.tsx",
+    "src/app/(dashboard)/alerts/page.tsx",
+    "src/app/(dashboard)/billing/page.tsx",
+    "src/app/(dashboard)/churn/page.tsx",
+    "src/app/(dashboard)/clients/[id]/page.tsx",
+    "src/app/(dashboard)/clients/page.tsx",
+    "src/app/(dashboard)/cold-email/accounts/page.tsx",
+    "src/app/(dashboard)/cold-email/campaigns/[id]/page.tsx",
+    "src/app/(dashboard)/cold-email/campaigns/new/page.tsx",
+    "src/app/(dashboard)/cold-email/campaigns/page.tsx",
+    "src/app/(dashboard)/cold-email/deliverability/page.tsx",
+    "src/app/(dashboard)/cold-email/do-not-contact/page.tsx",
+    "src/app/(dashboard)/cold-email/domains/page.tsx",
+    "src/app/(dashboard)/cold-email/inbox/page.tsx",
+    "src/app/(dashboard)/cold-email/lead-groups/page.tsx",
+    "src/app/(dashboard)/cold-email/opportunities/page.tsx",
+    "src/app/(dashboard)/cold-email/page.tsx",
+    "src/app/(dashboard)/cold-email/reports/page.tsx",
+    "src/app/(dashboard)/cold-email/settings/page.tsx",
+    "src/app/(dashboard)/cold-email/templates/page.tsx",
+    "src/app/(dashboard)/demo-scheduler/page.tsx",
+    "src/app/(dashboard)/growth/page.tsx",
+    "src/app/(dashboard)/layout.tsx",
+    "src/app/(dashboard)/leads/demo/page.tsx",
+    "src/app/(dashboard)/leads/scraped/page.tsx",
+    "src/app/(dashboard)/monitoring/page.tsx",
+    "src/app/(dashboard)/onboarding/page.tsx",
+    "src/app/(dashboard)/page.tsx",
+    "src/app/(dashboard)/phones/page.tsx",
+    "src/app/(dashboard)/platform-promos/page.tsx",
+    "src/app/(dashboard)/revenue/page.tsx",
+    "src/app/(dashboard)/settings/page.tsx",
+    "src/app/(dashboard)/support/page.tsx",
+    "src/app/(dashboard)/websites/page.tsx",
+    "src/app/api/agents/[id]/route.ts",
+    "src/app/api/agents/[id]/runs/route.ts",
+    "src/app/api/agents/blog-config-generate/route.ts",
+    "src/app/api/agents/blogs/[id]/route.ts",
+    "src/app/api/agents/blogs/public/route.ts",
+    "src/app/api/agents/blogs/route.ts",
+    "src/app/api/agents/callback/route.ts",
+    "src/app/api/agents/claim-run/route.ts",
+    "src/app/api/agents/content/route.ts",
+    "src/app/api/agents/content/upload/route.ts",
+    "src/app/api/agents/email-cleaner/callback/route.ts",
+    "src/app/api/agents/email-cleaner/route.ts",
+    "src/app/api/agents/email-cleaner/status/route.ts",
+    "src/app/api/agents/enrichment-cancel/route.ts",
+    "src/app/api/agents/enrichment-data/route.ts",
+    "src/app/api/agents/enrichment-results/route.ts",
+    "src/app/api/agents/enrichment/route.ts",
+    "src/app/api/agents/error-log/route.ts",
+    "src/app/api/agents/incoming-message/route.ts",
+    "src/app/api/agents/lead-cleaner/route.ts",
+    "src/app/api/agents/lead-groups/members/route.ts",
+    "src/app/api/agents/lead-groups/refresh/route.ts",
+    "src/app/api/agents/lead-groups/route.ts",
+    "src/app/api/agents/lead-groups/send/route.ts",
+    "src/app/api/agents/lead-scraper/route.ts",
+    "src/app/api/agents/leads/[leadId]/enrichment-evidence/route.ts",
+    "src/app/api/agents/leads/route.ts",
+    "src/app/api/agents/outreach-log/route.ts",
+    "src/app/api/agents/outreach-queue/route.ts",
+    "src/app/api/agents/pending-runs/route.ts",
+    "src/app/api/agents/research-reports/[id]/pdf/route.ts",
+    "src/app/api/agents/research-reports/[id]/route.ts",
+    "src/app/api/agents/research-reports/route.ts",
+    "src/app/api/agents/route.ts",
+    "src/app/api/agents/seed/route.ts",
+    "src/app/api/agents/send-message/route.ts",
+    "src/app/api/alerts/route.ts",
+    "src/app/api/announcements/route.ts",
+    "src/app/api/auth/[...nextauth]/route.ts",
+    "src/app/api/billing/[clientId]/route.ts",
+    "src/app/api/billing/route.ts",
+    "src/app/api/churn/route.ts",
+    "src/app/api/clients/[id]/calls/route.ts",
+    "src/app/api/clients/[id]/route.ts",
+    "src/app/api/clients/[id]/sms/route.ts",
+    "src/app/api/clients/route.ts",
+    "src/app/api/cold-email/platform/alerts/route.ts",
+    "src/app/api/cold-email/platform/campaigns/[id]/actions/route.ts",
+    "src/app/api/cold-email/platform/campaigns/[id]/audience/route.ts",
+    "src/app/api/cold-email/platform/campaigns/[id]/route.ts",
+    "src/app/api/cold-email/platform/campaigns/route.ts",
+    "src/app/api/cold-email/platform/catalog/route.ts",
+    "src/app/api/cold-email/platform/deliverability/route.ts",
+    "src/app/api/cold-email/platform/do-not-contact/[id]/route.ts",
+    "src/app/api/cold-email/platform/do-not-contact/route.ts",
+    "src/app/api/cold-email/platform/domains/route.ts",
+    "src/app/api/cold-email/platform/export/route.ts",
+    "src/app/api/cold-email/platform/inbox/[id]/ai-draft/route.ts",
+    "src/app/api/cold-email/platform/inbox/[id]/route.ts",
+    "src/app/api/cold-email/platform/inbox/route.ts",
+    "src/app/api/cold-email/platform/infrastructure/route.ts",
+    "src/app/api/cold-email/platform/opportunities/route.ts",
+    "src/app/api/cold-email/platform/overview/route.ts",
+    "src/app/api/cold-email/platform/recovery/route.ts",
+    "src/app/api/cold-email/platform/reports/route.ts",
+    "src/app/api/cold-email/platform/saved-views/route.ts",
+    "src/app/api/cold-email/platform/search/route.ts",
+    "src/app/api/cold-email/platform/settings/route.ts",
+    "src/app/api/cron/cold-email-accounts/route.ts",
+    "src/app/api/cron/cold-email-audience/route.ts",
+    "src/app/api/cron/cold-email-blackouts/route.ts",
+    "src/app/api/cron/cold-email-calendar-reconcile/route.ts",
+    "src/app/api/cron/cold-email-capabilities/route.ts",
+    "src/app/api/cron/cold-email-events/route.ts",
+    "src/app/api/cron/cold-email-health-sync/route.ts",
+    "src/app/api/cron/cold-email-health/route.ts",
+    "src/app/api/cron/cold-email-poll/route.ts",
+    "src/app/api/cron/cold-email-reconcile/route.ts",
+    "src/app/api/cron/cold-email-retention/route.ts",
+    "src/app/api/cron/cold-email-stripe-events/route.ts",
+    "src/app/api/cron/cold-email-worker/route.ts",
+    "src/app/api/cron/website-health/route.ts",
+    "src/app/api/demo-scheduler/bookings/[id]/cancel/route.ts",
+    "src/app/api/demo-scheduler/bookings/[id]/reschedule/route.ts",
+    "src/app/api/demo-scheduler/bookings/route.ts",
+    "src/app/api/demo-scheduler/callback/route.ts",
+    "src/app/api/demo-scheduler/config/route.ts",
+    "src/app/api/demo-scheduler/connect/route.ts",
+    "src/app/api/demo-scheduler/disconnect/route.ts",
+    "src/app/api/demo-scheduler/status/route.ts",
+    "src/app/api/export/clients/route.ts",
+    "src/app/api/gmail/callback/route.ts",
+    "src/app/api/gmail/connect/route.ts",
+    "src/app/api/gmail/disconnect/route.ts",
+    "src/app/api/gmail/status/route.ts",
+    "src/app/api/growth/demo-leads/route.ts",
+    "src/app/api/growth/route.ts",
+    "src/app/api/monitoring/cron/route.ts",
+    "src/app/api/monitoring/engagement/route.ts",
+    "src/app/api/monitoring/integrations/route.ts",
+    "src/app/api/monitoring/payment-alerts/route.ts",
+    "src/app/api/monitoring/website-health/route.ts",
+    "src/app/api/onboarding/progress/route.ts",
+    "src/app/api/phones/route.ts",
+    "src/app/api/platform-promo-codes/[id]/route.ts",
+    "src/app/api/platform-promo-codes/route.ts",
+    "src/app/api/reports/[id]/download/route.ts",
+    "src/app/api/revenue/route.ts",
+    "src/app/api/seed/route.ts",
+    "src/app/api/support/tickets/[id]/reply/route.ts",
+    "src/app/api/support/tickets/[id]/route.ts",
+    "src/app/api/support/tickets/route.ts",
+    "src/app/api/system/health/route.ts",
+    "src/app/api/webhooks/instantly/route.ts",
+    "src/app/api/webhooks/stripe/route.ts",
+    "src/app/api/websites/[id]/deployments/[deployId]/logs/route.ts",
+    "src/app/api/websites/[id]/deployments/route.ts",
+    "src/app/api/websites/[id]/redeploy/route.ts",
+    "src/app/api/websites/[id]/resync/route.ts",
+    "src/app/api/websites/route.ts",
+    "src/app/components/Badge.tsx",
+    "src/app/components/FilterChip.tsx",
+    "src/app/components/Kpi.tsx",
+    "src/app/components/TabBar.tsx",
+    "src/app/components/Toast.tsx",
+    "src/app/layout.tsx",
+    "src/app/login/page.tsx",
+    "src/components/cold-email/CanonicalColdEmailOverview.tsx",
+    "src/components/cold-email/ColdEmailAccountsPage.tsx",
+    "src/components/cold-email/ColdEmailCampaignPages.tsx",
+    "src/components/cold-email/ColdEmailCatalogPages.tsx",
+    "src/components/cold-email/ColdEmailDeliverabilityPage.tsx",
+    "src/components/cold-email/ColdEmailDomainsPage.tsx",
+    "src/components/cold-email/ColdEmailInboxPage.tsx",
+    "src/components/cold-email/ColdEmailOpportunitiesPage.tsx",
+    "src/components/cold-email/ColdEmailReportsPage.tsx",
+    "src/components/cold-email/ColdEmailSectionNav.tsx",
+    "src/components/cold-email/ColdEmailSettingsPage.tsx",
+    "src/components/cold-email/ColdEmailWorkspace.tsx",
+    "src/components/leads/LeadSignalEvidence.tsx",
+    "src/components/leads/LeadSignalFilters.tsx",
+    "src/components/ui/Avatar.tsx",
+    "src/components/ui/Badge.tsx",
+    "src/components/ui/Kpi.tsx",
+    "src/lib/__tests__/admin-confirmed-fixes.test.ts",
+    "src/lib/__tests__/admin-delivery-auth.test.ts",
+    "src/lib/__tests__/admin-handoff.test.ts",
+    "src/lib/__tests__/admin-routes.test.ts",
+    "src/lib/__tests__/cold-email-audience.test.ts",
+    "src/lib/__tests__/cold-email-blackout.test.ts",
+    "src/lib/__tests__/cold-email-calendar.test.ts",
+    "src/lib/__tests__/cold-email-campaign-review.test.ts",
+    "src/lib/__tests__/cold-email-campaign.test.ts",
+    "src/lib/__tests__/cold-email-capabilities.test.ts",
+    "src/lib/__tests__/cold-email-catalog.test.ts",
+    "src/lib/__tests__/cold-email-crm.test.ts",
+    "src/lib/__tests__/cold-email-cron-auth.test.ts",
+    "src/lib/__tests__/cold-email-cron-schedule.test.ts",
+    "src/lib/__tests__/cold-email-cutover.test.ts",
+    "src/lib/__tests__/cold-email-deliverability.test.ts",
+    "src/lib/__tests__/cold-email-domain-metrics.test.ts",
+    "src/lib/__tests__/cold-email-event-worker.test.ts",
+    "src/lib/__tests__/cold-email-export.test.ts",
+    "src/lib/__tests__/cold-email-health-sync.test.ts",
+    "src/lib/__tests__/cold-email-inbox.test.ts",
+    "src/lib/__tests__/cold-email-infrastructure.test.ts",
+    "src/lib/__tests__/cold-email-links.test.ts",
+    "src/lib/__tests__/cold-email-metrics.test.ts",
+    "src/lib/__tests__/cold-email-permissions.test.ts",
+    "src/lib/__tests__/cold-email-personalization.test.ts",
+    "src/lib/__tests__/cold-email-platform.test.ts",
+    "src/lib/__tests__/cold-email-poll.test.ts",
+    "src/lib/__tests__/cold-email-reconciliation.test.ts",
+    "src/lib/__tests__/cold-email-recovery.test.ts",
+    "src/lib/__tests__/cold-email-release-safety.test.ts",
+    "src/lib/__tests__/cold-email-retention.test.ts",
+    "src/lib/__tests__/cold-email-schema-contract.test.ts",
+    "src/lib/__tests__/cold-email-stripe.test.ts",
+    "src/lib/__tests__/cold-email-timezone.test.ts",
+    "src/lib/__tests__/cold-email-worker.test.ts",
+    "src/lib/__tests__/enrichment-booking-paths.test.ts",
+    "src/lib/__tests__/enrichment-contact-pricing.test.ts",
+    "src/lib/__tests__/enrichment-evidence.test.ts",
+    "src/lib/__tests__/enrichment-signals.test.ts",
+    "src/lib/__tests__/enrichment-transaction.test.ts",
+    "src/lib/__tests__/facebook-scraper-removal.test.ts",
+    "src/lib/__tests__/fixtures/enrichment-signals/reference.ts",
+    "src/lib/__tests__/helpers/isolated-module.ts",
+    "src/lib/__tests__/instantly-account-normalization.test.ts",
+    "src/lib/__tests__/instantly-contract.test.ts",
+    "src/lib/__tests__/instantly-events.test.ts",
+    "src/lib/__tests__/instantly-webhook.test.ts",
+    "src/lib/__tests__/junk-cleanup-policy.test.ts",
+    "src/lib/__tests__/junk-eligibility.test.ts",
+    "src/lib/__tests__/junk-intake.test.ts",
+    "src/lib/__tests__/lead-classify.test.ts",
+    "src/lib/__tests__/lead-cleaner-util.test.ts",
+    "src/lib/__tests__/lead-deletion.test.ts",
+    "src/lib/__tests__/lead-filter-definition.test.ts",
+    "src/lib/__tests__/lead-filter-parity.test.ts",
+    "src/lib/__tests__/lead-filter.test.ts",
+    "src/lib/__tests__/lead-group-approval.test.ts",
+    "src/lib/__tests__/lead-group-refresh.test.ts",
+    "src/lib/__tests__/outreach-variables.test.ts",
+    "src/lib/agent-presentation.ts",
+    "src/lib/auth.ts",
+    "src/lib/blog-generator.ts",
+    "src/lib/cold-email-account-sync.ts",
+    "src/lib/cold-email-audience-store.ts",
+    "src/lib/cold-email-audience.ts",
+    "src/lib/cold-email-blackout-store.ts",
+    "src/lib/cold-email-blackout.ts",
+    "src/lib/cold-email-calendar-store.ts",
+    "src/lib/cold-email-calendar.ts",
+    "src/lib/cold-email-campaign-review.ts",
+    "src/lib/cold-email-campaign-store.ts",
+    "src/lib/cold-email-campaign.ts",
+    "src/lib/cold-email-canonical-store.ts",
+    "src/lib/cold-email-capabilities.ts",
+    "src/lib/cold-email-capability-baseline.ts",
+    "src/lib/cold-email-catalog-store.ts",
+    "src/lib/cold-email-crm-store.ts",
+    "src/lib/cold-email-crm.ts",
+    "src/lib/cold-email-cron-auth.ts",
+    "src/lib/cold-email-cutover.ts",
+    "src/lib/cold-email-db.ts",
+    "src/lib/cold-email-deliverability-store.ts",
+    "src/lib/cold-email-deliverability.ts",
+    "src/lib/cold-email-dnc-store.ts",
+    "src/lib/cold-email-domain-metrics-store.ts",
+    "src/lib/cold-email-domain-metrics.ts",
+    "src/lib/cold-email-event-canonical-store.ts",
+    "src/lib/cold-email-event-worker.ts",
+    "src/lib/cold-email-export-store.ts",
+    "src/lib/cold-email-export.ts",
+    "src/lib/cold-email-health-sync-store.ts",
+    "src/lib/cold-email-health-sync.ts",
+    "src/lib/cold-email-inbox-store.ts",
+    "src/lib/cold-email-inbox.ts",
+    "src/lib/cold-email-infrastructure-store.ts",
+    "src/lib/cold-email-infrastructure.ts",
+    "src/lib/cold-email-links.ts",
+    "src/lib/cold-email-metrics.ts",
+    "src/lib/cold-email-operation-executor.ts",
+    "src/lib/cold-email-operator-store.ts",
+    "src/lib/cold-email-overview-store.ts",
+    "src/lib/cold-email-permissions.ts",
+    "src/lib/cold-email-platform.ts",
+    "src/lib/cold-email-poll-store.ts",
+    "src/lib/cold-email-poll.ts",
+    "src/lib/cold-email-reconciliation-store.ts",
+    "src/lib/cold-email-reconciliation.ts",
+    "src/lib/cold-email-recovery-store.ts",
+    "src/lib/cold-email-recovery.ts",
+    "src/lib/cold-email-reporting-store.ts",
+    "src/lib/cold-email-retention-store.ts",
+    "src/lib/cold-email-retention.ts",
+    "src/lib/cold-email-role-policy.ts",
+    "src/lib/cold-email-search-store.ts",
+    "src/lib/cold-email-settings-store.ts",
+    "src/lib/cold-email-source-of-truth.ts",
+    "src/lib/cold-email-stripe-store.ts",
+    "src/lib/cold-email-stripe.ts",
+    "src/lib/cold-email-timezone.ts",
+    "src/lib/cold-email-worker.ts",
+    "src/lib/cold-email.ts",
+    "src/lib/content-generator.tsx",
+    "src/lib/content/library.ts",
+    "src/lib/content/mockups/BrowserFrame.tsx",
+    "src/lib/content/mockups/IPadFrame.tsx",
+    "src/lib/content/mockups/IPhoneFrameSatori.tsx",
+    "src/lib/content/mockups/MacBookFrame.tsx",
+    "src/lib/content/mockups/PhoneInHandFrame.tsx",
+    "src/lib/content/templates/BeforeAfterSplitTemplate.tsx",
+    "src/lib/content/templates/FeatureCalloutTemplate.tsx",
+    "src/lib/content/templates/PhoneMockupTemplate.tsx",
+    "src/lib/content/templates/ProductHighlightTemplate.tsx",
+    "src/lib/content/templates/QuoteCardTemplate.tsx",
+    "src/lib/content/templates/StatSplitTemplate.tsx",
+    "src/lib/content/templates/index.ts",
+    "src/lib/demo-scheduler-auth.ts",
+    "src/lib/email-cleaner-db.ts",
+    "src/lib/email-cleaner-presentation.ts",
+    "src/lib/emailable.ts",
+    "src/lib/enrichment-evidence.ts",
+    "src/lib/enrichment-run-config.ts",
+    "src/lib/enrichment-signals-schema.ts",
+    "src/lib/enrichment-signals.ts",
+    "src/lib/general-cron-inventory.ts",
+    "src/lib/generate-images.ts",
+    "src/lib/gmail.ts",
+    "src/lib/google-calendar-operation-executor.ts",
+    "src/lib/instantly-account-normalization.ts",
+    "src/lib/instantly-event-processor.ts",
+    "src/lib/instantly-events.ts",
+    "src/lib/instantly-operation-executor.ts",
+    "src/lib/instantly-webhook.ts",
+    "src/lib/instantly.ts",
+    "src/lib/integration-token-encryption.ts",
+    "src/lib/junk-cleanup-policy.ts",
+    "src/lib/junk-eligibility.ts",
+    "src/lib/lead-classify.ts",
+    "src/lib/lead-cleaner-db.ts",
+    "src/lib/lead-cleaner-util.ts",
+    "src/lib/lead-deletion.ts",
+    "src/lib/lead-filter-catalog.ts",
+    "src/lib/lead-filter-definition.ts",
+    "src/lib/lead-filter-query.ts",
+    "src/lib/lead-filter.ts",
+    "src/lib/lead-geography.ts",
+    "src/lib/lead-group-policy.ts",
+    "src/lib/lead-group-refresh.ts",
+    "src/lib/lead-segment-client.ts",
+    "src/lib/lead-website.ts",
+    "src/lib/outreach-status.ts",
+    "src/lib/outreach-variables.ts",
+    "src/lib/pain-taxonomy.ts",
+    "src/lib/pdf/ResearchReportTemplate.tsx",
+    "src/lib/platform-billing.ts",
+    "src/lib/platform-promo-admin.ts",
+    "src/lib/prisma.ts",
+    "src/lib/research-report-delivery.ts",
+    "src/lib/research-report-generator.tsx",
+    "src/lib/stripe.ts",
+    "src/lib/twilio.ts",
+    "src/lib/vercel.ts",
+    "src/middleware.ts",
+    "syj-ops.jsx",
+    "tsconfig.json",
+    "tsconfig.test.json",
+    "vercel.json"
+  ],
+  "unsupported_source_files": [
+    ".gitignore",
+    "Lead Scraper Agent/worker/.gitignore",
+    "Lead Scraper Agent/worker/requirements.txt",
+    "prisma/schema.prisma",
+    "src/app/(dashboard)/cold-email/page.module.css",
+    "src/app/globals.css",
+    "src/components/cold-email/ColdEmailWorkspace.module.css"
+  ],
+  "external_pseudo_sources": [
+    "@prisma/adapter-pg",
+    "@prisma/client",
+    "node:fs",
+    "node:fs/promises",
+    "node:path"
+  ],
+  "limitations": [
+    "SOURCE_VERIFIED structural extraction only; no application tests, runtime, database, provider, deployment, or production verification is implied.",
+    "Only this dashboard root is scanned. /Volumes/CODE/ENRICHMENT AGENT and all other sibling repositories are outside this graph.",
+    "An extracted edge is parser evidence, not proof that a path runs. INFERRED edges remain explicitly labeled and are excluded from the strict reachability calculation.",
+    "Dynamic dispatch, string-based SQL, HTTP calls, environment wiring, and unsupported formats can hide real connections. No static path does not prove dead code.",
+    "Documents are inventoried, not parsed into graph assertions or certified by this build. Generated output, secrets, dependencies, and runtime data are excluded from AST extraction.",
+    "Graphify uses a directed simple graph: parallel relationships with the same endpoints can collapse. ast-raw.json preserves the extracted relationships before this projection.",
+    "HTML generation is local; the interactive viewer loads vis-network 9.1.6 from unpkg.com when opened.",
+    "Use refresh.py for updates. Generic graphify update/extract uses a different corpus policy and does not maintain this inventory, evidence classification, or provenance."
+  ]
+}

@@ -1,4 +1,29 @@
-# Round 8 — Pain Severity, Business Specialty, Review Trend + Enrichment Retry Fix
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+The review-trend calculation now receives up to 10 newest reviews on a fresh enrichment. Its existing sample/insufficient-data rules were not redesigned. References below to a 50-review window describe the older implementation.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Round 8 Severity, Specialty, Trend, and Retry Fix
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The Round 8 fields and substantive-only `enrichedAt` stamping remain present in the current worker/dashboard code. Both live schemas already contain the fields. Do not run the archived SQL, Prisma, migration, rollback, deploy, re-enrichment, or old-path commands below; current behavior is documented in `PROJECT_KNOWLEDGE.md` and `OWNER_ENRICHMENT_BRIEF.md`.
 
 Addresses 4 targeted issues surfaced during post-Round-7 review:
 

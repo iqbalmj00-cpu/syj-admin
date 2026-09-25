@@ -1,3 +1,22 @@
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<!-- local-knowledge-routing-2026-09-25 -->
+## Current local documentation — September 25, 2026
+
+The historical body below is retained. For the current local source map use [WORKING_KNOWLEDGE.md](../WORKING_KNOWLEDGE.md), the [documentation inventory](../DOCUMENTATION_INDEX.md), and the rebuilt [Graphify report](../graphify-out/GRAPH_REPORT.md). Current file coverage and freshness are recorded in `graphify-out/`; the older counts, verification claims and operating instructions below are not current authority.
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
 # Project Knowledge
 
 Last verified: 2026-06-26

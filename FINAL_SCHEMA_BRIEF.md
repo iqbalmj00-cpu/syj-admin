@@ -1,4 +1,29 @@
-# FINAL CONSOLIDATED BRIEF — Lead Enrichment Expansion (Phases 1–6)
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+Current review collection is capped at 10. No schema addition, migration, or production DB push is required or authorized for this change or the proposed repairs. Archived schema and full-list re-enrichment instructions below are not current execution steps.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Lead Enrichment Expansion Phases 1–6
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The described enrichment field families are present in both live schemas and the current admin result/filter/UI surfaces. The exact field/filter counts, "this commit" language, migration SQL, Prisma commands, and old enrichment-worker paths below describe an earlier rollout and are not current operational instructions. Use `PROJECT_KNOWLEDGE.md`, `OWNER_ENRICHMENT_BRIEF.md`, and the live code.
 
 ## Overview
 

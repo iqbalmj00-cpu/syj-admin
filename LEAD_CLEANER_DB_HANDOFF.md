@@ -1,3 +1,17 @@
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
 # Lead Cleaner DB Handoff For ScaleYourJunk Developer
 
 Status: handoff only. Do not run this from the Admin Dashboard repo.
@@ -69,8 +83,10 @@ Leave active un-enriched/unarchived rows with `cleanedAt = NULL`; those are legi
 
 ## Rollout Order
 
-1. Apply the migration in the ScaleYourJunk/shared-DB owner workflow.
-2. Update both checked-in Prisma schemas as needed.
+> Status (2026-07-10): steps 1-2 are reported complete — the shared-DB migration was reported done on 2026-07-10 (owner statement; not verifiable from this repo), and the fields/indexes are present in the admin checked-in schema (`prisma/schema.prisma` ~1867-1872/1895-1896) and in the DB-owner checkout `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma` (~2470-2475/2499-2500). Steps 3-4 (regenerate/deploy the admin Prisma Client, then set the flag) remain outstanding. Note: the old `/Volumes/CODE/scaleyourjunk` checkout no longer exists (it was deleted); the scaleyourjunk checkout now mounted under `/Volumes/CODE` is `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk`, which is byte-identical to the DB-owner schema and already carries all 6 cleaner columns and both indexes (as an uncommitted working-tree change), so no column-less checkout remains that could diff as dropping them.
+
+1. Apply the migration in the ScaleYourJunk/shared-DB owner workflow. *(Reported complete 2026-07-10.)*
+2. Update both checked-in Prisma schemas as needed. *(Done in the admin repo and the DB-owner checkout; the old `/Volumes/CODE/scaleyourjunk` copy no longer exists, and the scaleyourjunk checkout now mounted at `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk` is byte-identical to the DB-owner schema and already carries the cleaner columns.)*
 3. Regenerate/deploy the Prisma Client in the approved deployment environment.
 4. Only after the deployed Admin Dashboard client includes these fields, set:
 

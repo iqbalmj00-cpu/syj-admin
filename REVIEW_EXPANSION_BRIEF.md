@@ -1,4 +1,29 @@
-# Review Analysis Expansion — Developer Brief
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+The expansion to 50 described below is superseded: the current fetch default and full pipeline use the latest 10 reviews. Saved samples from older runs can still contain 50. The historical per-request/equal-cost claim in the Cost Impact section is incorrect; see its correction and the current workflow.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Review Analysis Expansion Brief
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The three review-count fields exist in both live schemas, are accepted/displayed by the current dashboard, and the current enrichment worker still requests up to 50 reviews and computes analyzed/positive/negative counts. Do not run the archived schema push, Prisma generate, rollback, or old-path commands below. Provider pricing claims are historical and were not revalidated by this documentation audit.
 
 **Date:** 2026-04-17
 **Scope:** `ScrapedLead` model — add 3 new fields for richer review analytics
@@ -129,7 +154,7 @@ Then `prisma db push` again. Clean rollback — no foreign keys, all nullable.
 
 ## Cost Impact
 
-- **Outscraper:** no cost change — Outscraper charges per request, not per review returned. Same cost for 10 or 50 reviews.
+- **Historical cost claim — corrected September 25, 2026:** the former statement that 10 and 50 reviews necessarily cost the same was incorrect. [Outscraper pricing](https://outscraper.com/pricing/) lists Google Maps review charges by review volume. The current cap is 10; actual charges depend on collected volume and applicable allowances. The full enrichment bill remains separate and unverified.
 - **Claude Haiku:** slight increase — the analysis prompt is ~2x longer (25 reviews vs 15 sent). Estimated +$0.001-0.002 per analysis call. Still negligible.
 - **Outscraper response time:** slightly slower for larger review pulls — bumped the httpx timeout from 15s to 30s to accommodate.
 

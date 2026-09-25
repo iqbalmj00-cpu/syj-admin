@@ -1,4 +1,29 @@
-# Booking Detection Schema Changes — Developer Brief
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+Booking-platform presence alone is still capable of producing an unsupported confirmed legacy summary. The independent review proposed reconciling summaries from actual route evidence; this fix is pending.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Booking Detection Schema Changes
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The booking fields described below already exist in both live Prisma schema files and are wired through the current enrichment worker, enrichment-results allowlist, scraped-leads filters/detail UI, and outreach variables. No schema, SQL, `db push`, migration, generate, or old-path action should be taken from this file. Use `PROJECT_KNOWLEDGE.md`, `OWNER_ENRICHMENT_BRIEF.md`, and the live code for current behavior.
 
 **Date:** 2026-04-17
 **Scope:** `ScrapedLead` model — add 5 new fields for richer online booking detection

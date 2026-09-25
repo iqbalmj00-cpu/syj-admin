@@ -1,4 +1,20 @@
-# ContentAsset Schema Brief
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: ContentAsset Schema Brief
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** `ContentAsset` exists in both live schema files. The current dashboard has a DB-backed content library, fallback assets, six registered templates, content generation/upload routes, Vercel Blob output, `GeneratedContent` persistence, and Content UI in the Agents page. The migration and "not yet built" statements below are historical and must not be followed.
 
 **For:** SYJ developer (maintains both JAMALS ADMIN DASH and JAMALS WEBSITE codebases)
 **Reason:** Content Generator agent rebuild — adds a screenshot/asset library the agent picks from when composing social media ads.

@@ -1,4 +1,29 @@
-# Pain & Praise Taxonomy — Developer Brief
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+Complaint and praise analysis now receives up to the latest 10 reviews during full enrichment. The taxonomy is unchanged; absence in this sample does not establish absence across all reviews.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Pain and Praise Taxonomy Brief
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The canonical admin taxonomy remains in `src/lib/pain-taxonomy.ts`; the current external enrichment worker writes the associated pain/praise fields, and the dashboard route/UI consume them. Both live schemas already include the fields. The migration order, SQL, Prisma, re-enrichment, and old-path instructions below are historical and must not be treated as a current deployment plan.
 
 Applies the canonical tag taxonomy (20 pain + 11 praise tags) end-to-end so the
 leads table can segment on specific pain points instead of free-text strings.

@@ -1,0 +1,54 @@
+{
+  "runs": [
+    {
+      "date": "2026-08-13T12:20:14.253399+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 368,
+      "historical": true
+    },
+    {
+      "date": "2026-09-25T06:44:01.030459+00:00",
+      "mode": "local-ast-only",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 411,
+      "historical": true
+    },
+    {
+      "date": "2026-09-25T06:45:25.616317+00:00",
+      "mode": "local-ast-only",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 411,
+      "historical": true
+    },
+    {
+      "date": "2026-09-25T06:46:00.441053+00:00",
+      "mode": "local-ast-only",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 411,
+      "historical": true
+    },
+    {
+      "date": "2026-09-25T07:14:17.104111+00:00",
+      "mode": "local-ast-only",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 411,
+      "historical": true
+    },
+    {
+      "date": "2026-09-25T07:15:38.113587+00:00",
+      "mode": "local-ast-only",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 411,
+      "historical": false
+    }
+  ],
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "note": "Prior runs are historical cost observations, not current graph evidence. This refresh makes no paid API calls."
+}

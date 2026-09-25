@@ -1,9 +1,25 @@
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
 # Lead Cleaner — Schema Push Brief (for the SYJ / shared-DB developer)
 
 **To:** whoever owns the shared Neon Postgres database and runs `prisma db push`.
 **From:** Admin Dashboard (Jamals Admin Dash).
 **Date:** 2026-07-03.
 **Ask:** Add 6 nullable columns + 2 indexes to the `ScrapedLead` table so the admin repo's Lead Cleaner agent can enable **enforce/archive** mode. Everything is **additive and non-destructive**.
+
+> **Status update (2026-07-10):** this migration is reported complete — the ScaleYourJunk developer updated the shared Neon DB on 2026-07-10 (owner statement; not verifiable from the admin repo). The columns/indexes are verified present in the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma` (~2470-2475/2499-2500). Remaining steps are admin-side only: regenerate/deploy the admin Prisma Client, then set `LEAD_CLEANER_SCHEMA_READY=true`. **Note:** the old `/Volumes/CODE/scaleyourjunk` checkout no longer exists — it was deleted. The scaleyourjunk checkout now mounted under `/Volumes/CODE` is `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk/prisma/schema.prisma`, which is byte-identical to the DB-owner schema above and already contains all 6 cleaner columns (~2470-2475) and both indexes (~2499-2500) as an uncommitted working-tree change — so no column-less checkout remains that could diff as dropping the live cleaner columns.
 
 ---
 
@@ -17,8 +33,7 @@ The admin code is gated: it will **not** read or write these columns until you m
 
 ## What to add
 
-All changes go on **`model ScrapedLead`** in the **website (source-of-truth) schema**:
-`/Volumes/CODE/scaleyourjunk/prisma/schema.prisma` (currently around line 2185; the existing archive fields `archivedAt` / `archiveReason` / `archiveSource` are ~line 2466).
+All changes go on **`model ScrapedLead`** in the **website (source-of-truth) schema** — the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma` (where these additions are now present: columns ~2470-2475, indexes ~2499-2500). The old `/Volumes/CODE/scaleyourjunk/prisma/schema.prisma` checkout no longer exists; the scaleyourjunk checkout now mounted under `/Volumes/CODE` is `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk/prisma/schema.prisma`, which is byte-identical to the DB-owner schema and already carries all 6 cleaner columns and both indexes (as an uncommitted working-tree change).
 
 ### 1. Six nullable columns — no defaults
 
@@ -52,7 +67,7 @@ The composite index matches the agent's hot candidate query:
 
 ## `db push` — safety checklist
 
-1. **Push from the website schema**, not the admin one. The two checked-in schemas have some unrelated drift, so pushing from the website schema (the one that matches production) keeps this change scoped to just these additions.
+1. **Push from the updated DB-owner website schema** (`/Users/jamal/Downloads/Projects/scaleyourjunk`), not the admin one — (the old `/Volumes/CODE/scaleyourjunk` copy no longer exists — it was deleted, so there is no longer a column-less checkout that could diff as dropping the live cleaner columns; the scaleyourjunk checkout now mounted under `/Volumes/CODE` is `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk`, which already matches the DB-owner schema). The checked-in schemas have some unrelated drift, so pushing from the schema that matches production keeps any change scoped and additive.
 2. **This diff must be additive only.** 6 new nullable columns (no defaults) + 2 new indexes. A correct `db push` will report only *added* columns/indexes.
 3. **Never pass `--accept-data-loss`.** These additions don't need it.
 4. **If Prisma shows ANY data-loss / column-drop / "will be lost" warning: STOP and tell us.** That means the diff picked up something *other* than these six columns (pre-existing schema drift), and it must not be pushed blind against production.
@@ -79,7 +94,7 @@ Leave active, un-enriched, un-archived rows with `cleanedAt = NULL` — those ar
 1. Add the 6 columns + 2 indexes to the **website** `schema.prisma` (`ScrapedLead`).
 2. `npx prisma db push` from the website repo. Confirm additive-only; abort on any data-loss warning.
 3. (Recommended) Run the backfill SQL above.
-4. Tell the Admin Dashboard team it's done. The admin checked-in schema in `/Volumes/CODE/JAMALS ADMIN DASH/prisma/schema.prisma` already carries the same 6 columns + 2 indexes as the target client shape; if your active admin checkout differs, mirror them there. *(No second `db push` from the admin repo — the admin repo never pushes; this is only to keep the client in sync.)*
+4. Tell the Admin Dashboard team it's done. Mirroring the same 6 columns + 2 indexes into the **admin** checked-in schema (`/Volumes/CODE/JAMALS ADMIN DASH/prisma/schema.prisma`, `ScrapedLead`) is **already complete** as of 2026-07-04 (columns ~1867-1872, indexes ~1895-1896); the admin's generated Prisma Client still needs to be regenerated/deployed to pick them up. *(No `db push` from the admin repo — the admin repo never pushes; the mirror is only to keep the client in sync.)*
 5. Regenerate/redeploy the Prisma Client(s) in the normal deploy pipeline.
 6. **Only after** the deployed Admin Dashboard client includes these fields, the admin side sets `LEAD_CLEANER_SCHEMA_READY="true"`. (The admin code additionally runs a runtime probe — if the flag is set but the deployed client doesn't actually have the columns, it safely downgrades to "not ready" instead of erroring, so a premature flag is not catastrophic. Still, please confirm the deploy first.)
 

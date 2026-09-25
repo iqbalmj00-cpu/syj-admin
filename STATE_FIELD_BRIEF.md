@@ -1,4 +1,29 @@
-# Developer Brief — `state` field on `ScrapedLead` (TCPA filtering)
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+Current enrichment status and the ten-review limit are maintained at the linked workflow. This historical field brief does not authorize schema work or certify the current agent as complete.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: `state` Field on `ScrapedLead`
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** `ScrapedLead.state` and its index already exist in both live schemas. The Lead Scraper writes state directly for new discoveries, the enrichment worker can derive/write it, and the dashboard supports state filtering. Do not run the archived SQL, Prisma, backfill, restart, or old-path commands below. The listed TCPA state set is historical compliance context, not current legal guidance.
 
 One additive column on `ScrapedLead`. Same pattern as Round 7/8.
 

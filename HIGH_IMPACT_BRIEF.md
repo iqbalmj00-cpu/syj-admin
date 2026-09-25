@@ -1,4 +1,29 @@
-# HIGH-Impact Personalization Fields — Round 7
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+<a id="enrichment-current-2026-09-25"></a>
+## Enrichment update — September 25, 2026
+
+Current review collection is capped at the latest 10 reviews; the independent review still identifies unresolved save and booking interpretation issues. Historical completed-work statements below are not a current acceptance certificate.
+
+See the [current enrichment workflow and status](</Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/JAMALS ADMIN DASHBOARD/Enrichment Agent - Workflow and Code Map.md#enrichment-current-2026-09-25>). Original snapshot bodies, prior edits, and stale-document notices are preserved.
+
+---
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: High-Impact Personalization Fields Round 7
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** The Round 7 personalization fields already exist in both live schemas and remain accepted by the enrichment route, displayed/filterable in the scraped-leads UI, and exposed through outreach variables. Do not execute the archived migration, rollback, Prisma, deployment, or old-path steps below.
 
 Adds 10 template-ready fields that make outreach emails dramatically more personalized.
 Follows the same shipping pattern as `FINAL_SCHEMA_BRIEF.md` (which is already applied —

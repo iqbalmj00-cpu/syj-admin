@@ -1,6 +1,20 @@
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
 # Lead Cleaner Code Map
 
-Status: current implementation map, source-only. Fully rewritten and source-verified: 2026-07-04 (supersedes the 2026-07-02 version; the pre-enforcement gap register it carried is resolved — see `LEAD_CLEANER_AGENT_DETAILS.md` → "Resolved history").
+Status: current implementation map, source-only. Fully rewritten and source-verified: 2026-07-04; last verified 2026-07-10 by source-only inspection plus `tsc --noEmit`, `tsc -p tsconfig.test.json`, and `npm test` (45/45) — no DB/Prisma/provider/deploy/Git commands (supersedes the 2026-07-02 version; the pre-enforcement gap register it carried is resolved — see `LEAD_CLEANER_AGENT_DETAILS.md` → "Resolved history").
 
 This document maps the Lead Cleaner agent code that exists in this repo right now. It is descriptive, not a runbook. Do not run Prisma, DB, seed, migration, SQL, provider, deploy, or Git commands from this document.
 
@@ -18,7 +32,7 @@ Operator reviews the preview in the dashboard review panel
 
 Manual runs: the agent card's Run Now (always an explicit preview) or the review panel's Preview / Preview (rules only) / Enforce actions — via `POST /api/agents/[id]` or `POST /api/agents/lead-cleaner`.
 
-Current status: **preview fully usable now; enforce implemented and server-gated but blocked on the external DB-owner schema rollout** (`LEAD_CLEANER_DB_HANDOFF.md`, `LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md`).
+Current status: **preview fully usable now; enforce implemented and server-gated but blocked on admin Prisma Client regeneration/deploy + the `LEAD_CLEANER_SCHEMA_READY` flag** — the external DB-owner schema rollout was reported complete on 2026-07-10 (owner statement; cleaner columns verified in the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma`, ~2470-2475/2499-2500). The old `/Volumes/CODE/scaleyourjunk` path no longer exists (deleted); the ScaleYourJunk checkout now lives at `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk`, whose `prisma/schema.prisma` is **not** stale — it too carries the six cleaner columns + both indexes (~2470-2475/2499-2500), currently as an uncommitted working-tree change, so it is not a safe push source either (`LEAD_CLEANER_DB_HANDOFF.md`, `LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md`).
 
 ## File Map
 
@@ -66,9 +80,9 @@ Current status: **preview fully usable now; enforce implemented and server-gated
 - **`src/app/api/agents/lead-cleaner/route.ts`** (admin session; `maxDuration=300`): GET → schema readiness + gate (try/caught, `{error}` JSON). POST → `{recover}` runs recovery; otherwise strict validation (`mode` must be preview/enforce → else 400; `limit` positive integer → else 400) and `runLeadCleaner({ trigger:"manual", mode: explicit-only, dryRun, skipLlm, limit })`; typed failures map via `leadCleanerErrorStatus`.
 - **`src/app/api/agents/[id]/route.ts`** (admin session on GET/PATCH/POST; `maxDuration=300`): `lead_cleaner` slug branch mirrors the dedicated route's validation/semantics; `lead_scraper` Run Now rejected; `lead_enrichment` full-pool runs pass `evaluateLeadCleanerGate()` (block → 409, warn → metadata) and **requests carrying `leadIds` are rejected with 400** (selected enrichment must use `/api/agents/enrichment`).
 - **`src/app/api/agents/enrichment/route.ts`** (admin session): selected-run creation; gate result `{blocked, totalBlocked}`; `force=true` records a durable approval on the run config (`forcedLeadCleanerGate`, `forcedAt`, `forcedBlockedCount`).
-- **`src/app/api/agents/enrichment-data/route.ts`** (agent secret): full-pool requires `cleanedAt != null` once schema-live; **selected fetches hard-gate archived + uncleaned leads** unless force-approved; strict claimed-run force resolution (`runId` in query/body is final; content fallback across ≤25 running forced runs only when no run is claimed); `excludedLeadIds`, `cleanerSchemaActive`, and empty-gated-pool `cleanerGated` diagnostics in the payload; `marketLeads` excludes archived.
+- **`src/app/api/agents/enrichment-data/route.ts`** (agent secret): full-pool requires `cleanedAt != null` once schema-live; **selected fetches hard-gate archived + uncleaned leads** unless force-approved; strict claimed-run force resolution (`runId` in query/body is final when it resolves to a `lead_enrichment` run; content fallback across ≤25 running forced runs when no run is claimed or the claimed id is unresolvable); `excludedLeadIds`, `cleanerSchemaActive`, and empty-gated-pool `cleanerGated` diagnostics in the payload; `marketLeads` excludes archived.
 - **`src/app/api/agents/enrichment-results/route.ts`** (agent secret): `validateTargetLead` before any action — 404 unknown; 409 `skipped:"archived"`; 409 `skipped:"uncleaned"` (schema-live) — unless `runForceApprovalCoversLead` (claimed run final + must be running; content fallback only when unresolvable; unknown claimed ids warn-logged, warn-first pending the worker contract).
-- **`src/app/api/agents/leads/route.ts`**: PATCH supports `{archive:true, ids}` (soft archive, `archiveSource:"manual"`) and `{restore:true, ids}` (clears the archive triplet always + the six cleaner fields when schema-live); DELETE is compatibility-mapped to the same manual soft archive and returns both `archived` and `deleted` counts.
+- **`src/app/api/agents/leads/route.ts`**: PATCH supports `{archive:true, ids}` (soft archive, `archiveSource:"manual"`) and `{restore:true, ids}` (clears the archive triplet always + the six cleaner fields when schema-live); DELETE remains the explicit permanent bulk delete.
 - **`src/app/api/agents/lead-scraper/route.ts`** (`maxDuration=300`): `done` triggers the cleaner via `after()` (platform-tracked, still best-effort; the gate is the correctness boundary).
 - **`src/app/api/agents/seed/route.ts`** (admin session): includes the `lead_cleaner` definition; the upsert **update branch omits `config` and `schedule`** so re-seeding never resets a tuned policy.
 - **`src/app/api/agents/pending-runs/route.ts`**: the stuck-run sweep only auto-fails **unclaimed** runs (`trigger:"manual"`) older than 150 min, so an in-flight claimed run (and its force approval) is never expired mid-run.
@@ -83,7 +97,7 @@ Current status: **preview fully usable now; enforce implemented and server-gated
 
 ### `src/app/(dashboard)/leads/scraped/page.tsx`
 
-- "Discard" soft-archives (PATCH `archive:true`); a Restore button appears on the archived/all view (PATCH `restore:true`).
+- "Discard" soft-archives (PATCH `archive:true`); a Restore button appears on the archived view (PATCH `restore:true`); permanent delete is separate and explicit.
 - "Enrich Selected" handles the 409 gate with an explicit force-confirm dialog before re-sending `force:true`.
 
 ### Tests & tooling
@@ -96,13 +110,13 @@ Current status: **preview fully usable now; enforce implemented and server-gated
 
 ## Models And Shared DB Boundaries
 
-Used by current code: `SyjAgent` (row/config/status), `SyjAgentRun` (lifecycle, results incl. the preview decision snapshot), `AdminSetting` (lock), `ScrapedLead` (warehouse — has `enrichedAt`/`isExistingClient`/`archivedAt`/`archiveReason`/`archiveSource`, and this commit adds the six nullable `cleaner*`/`cleanedAt` fields to the checked-in admin Prisma schema for the generated client; runtime access remains schema-ready-gated until the shared DB rollout is done), `User` (client roster).
+Used by current code: `SyjAgent` (row/config/status), `SyjAgentRun` (lifecycle, results incl. the preview decision snapshot), `AdminSetting` (lock), `ScrapedLead` (warehouse — has `enrichedAt`/`isExistingClient`/`archivedAt`/`archiveReason`/`archiveSource`, and as of 2026-07-04 the six `cleaner*` columns + two indexes are now present in the **admin checked-in schema** at ~1867-1872/1895-1896; the code still accesses them only through schema-ready-gated loose casts, and the **generated Prisma Client does not yet include them** — `prisma generate` has not run — so `tsc` passes and the capability probe correctly reports not-ready), `User` (client roster).
 
 DB ownership: this repo shares the Neon database with ScaleYourJunk and never runs the migration itself. Handoffs: `LEAD_CLEANER_DB_HANDOFF.md` (field spec) and `LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md` (condensed pre-`db push` brief for the SYJ developer).
 
-## Verification Status (2026-07-04)
+## Verification Status (2026-07-10)
 
 - `./node_modules/.bin/tsc --noEmit --pretty false --incremental false` — passes.
 - `./node_modules/.bin/tsc -p tsconfig.test.json --pretty false` — passes.
 - `npm test` — 45/45 pass (no DB/network).
-- Multiple independent adversarial review passes over the remediation confirmed the fixes; remaining externals: DB-owner schema rollout, worker `runId` adoption (warn-first unknown-run logging until confirmed), and the accepted limitations listed in `LEAD_CLEANER_AGENT_DETAILS.md`.
+- Multiple independent adversarial review passes over the remediation confirmed the fixes; remaining externals: admin Prisma Client regeneration/deploy + the `LEAD_CLEANER_SCHEMA_READY` flag (the DB-owner schema rollout was reported done 2026-07-10, owner statement), worker `runId` adoption (warn-first unknown-run logging until confirmed), and the accepted limitations listed in `LEAD_CLEANER_AGENT_DETAILS.md`. Verification method 2026-07-10: source-only inspection plus the three commands above; no DB/Prisma/provider/deploy/Git commands were run.

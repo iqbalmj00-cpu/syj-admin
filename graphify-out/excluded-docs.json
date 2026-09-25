@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-25T07:15:38.113587+00:00",
+  "reason": "All prose is excluded from structural extraction. Inventory/hashes establish freshness tracking, not factual verification or active authority.",
+  "documents": {
+    ".agents/PROJECT_KNOWLEDGE.md": {
+      "category": "document",
+      "bytes": 64633,
+      "sha256": "825348b8c0969327c8b226b31e593aaa504563121043f9b28268820bb71f3fac"
+    },
+    ".agents/README.md": {
+      "category": "document",
+      "bytes": 1918,
+      "sha256": "be673cffa065bc9b7cb67995a8eedec874f3b183157fd3ac47460a70c7ab08b8"
+    },
+    ".agents/workflows/database-safety.md": {
+      "category": "document",
+      "bytes": 2087,
+      "sha256": "b3a27e8b2fad069679799e768b089c727b8b221f4e4ffdd41132a7f8ddce7d7b"
+    },
+    "AGENTSSTALEmd.md": {
+      "category": "document",
+      "bytes": 10370,
+      "sha256": "65e6b223f6a924daf6e227bf2fd304e42b1856a0119884a2f8cc38376ef37bed"
+    },
+    "BOOKING_DETECTION_BRIEF.md": {
+      "category": "document",
+      "bytes": 8904,
+      "sha256": "02b58edbc2a61fbfc6bf5a1cd4761ef5af15103b5b1c1ba940d4b59dee8d0427"
+    },
+    "BOOKING_FLOW_BRIEF.md": {
+      "category": "document",
+      "bytes": 7696,
+      "sha256": "2d55942e60d75a28fd794114968328af284502fde0e412f8d00947692e8b2d7c"
+    },
+    "CLAUDESTALEmd.md": {
+      "category": "document",
+      "bytes": 11622,
+      "sha256": "3eee5f95c2bf24f120352dc2b07a103ca3f287d662ee102456c2c28c866f86f0"
+    },
+    "COLD_EMAIL_CONSOLE_V3_SPEC.md": {
+      "category": "document",
+      "bytes": 30877,
+      "sha256": "8924376b716db723cd5902a3ba61dad54d6daf2132e1315ae06b3ebc00184c80"
+    },
+    "COLD_EMAIL_V3_SCHEMA_PUSH_BRIEF.md": {
+      "category": "document",
+      "bytes": 13030,
+      "sha256": "18bbe1453bc204906373d2ffffd4675c4d2972a25fa1b53bed097ae04d8f66e7"
+    },
+    "CONTENT_ASSET_BRIEF.md": {
+      "category": "document",
+      "bytes": 4955,
+      "sha256": "1322f072ca4532906c743837cd791d2cc606afa7691b67139d88978938b58014"
+    },
+    "DEV_BRIEF_ROUND_8.md": {
+      "category": "document",
+      "bytes": 4907,
+      "sha256": "d23f7efc5aa12771f8641c29a9a9f374d04f37a4f7de706f3c68c645ea7ca142"
+    },
+    "DOCUMENTATION_INDEX.md": {
+      "category": "document",
+      "bytes": 25751,
+      "sha256": "003c1e1af51c7f77840b1bf9bab0518f85c6ddc9c4349380c74c5c7daf915efc"
+    },
+    "EMAIL_EXTRACTION_BRIEF.md": {
+      "category": "document",
+      "bytes": 7561,
+      "sha256": "9df3fa600b77b04fa1d16c3931e2d1a3e42601a7dc56f0b804f51530aaf28e9b"
+    },
+    "ENRICHMENT_TASK_UPDATE_2026-09-12.md": {
+      "category": "document",
+      "bytes": 10755,
+      "sha256": "f720d1b3c66a7523967d82e73994789d1568a91e8dfa884e0033fb6b9858b4f9"
+    },
+    "FINAL_SCHEMA_BRIEF.md": {
+      "category": "document",
+      "bytes": 30429,
+      "sha256": "7683eda201552ec10428a7982bd6fb3a452f2084870a641468ceaa908df67574"
+    },
+    "HIGH_IMPACT_BRIEF.md": {
+      "category": "document",
+      "bytes": 9432,
+      "sha256": "f2bea60afeb1f7454cf42917e7bf0b3970814e7b26d40ce580cfe66478a1be14"
+    },
+    "LEAD_CLEANER_AGENT_DETAILS.md": {
+      "category": "document",
+      "bytes": 23723,
+      "sha256": "965c4b9f44387636b106290ff6ca39bb69faed3646b2db7388efad6aab723529"
+    },
+    "LEAD_CLEANER_CODE_MAP.md": {
+      "category": "document",
+      "bytes": 16636,
+      "sha256": "f65bb50ca41d66a9c901b89e74727066c1c7e79c456c43ada042cc37f62a8b28"
+    },
+    "LEAD_CLEANER_DB_HANDOFF.md": {
+      "category": "document",
+      "bytes": 6036,
+      "sha256": "8b595e6012fa037993887ea3e813b41cd241710c4b213b14ac38c821e034b9d0"
+    },
+    "LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md": {
+      "category": "document",
+      "bytes": 9009,
+      "sha256": "da06f862db7cdb2bdb60e9598ea9ba84d5eecb706e2792a432ecf39522f367fe"
+    },
+    "Lead Scraper Agent/IMPLEMENTATION_PLAN.md": {
+      "category": "document",
+      "bytes": 9989,
+      "sha256": "8b0dbbcd2c54bb407814e58618708cd28f09466d20098582207da7e16005f701"
+    },
+    "Lead Scraper Agent/README.md": {
+      "category": "document",
+      "bytes": 11701,
+      "sha256": "fa8e61945ce72732165499cac46f92b237c9e51bbe6ba8dd34d6c24bd3e86283"
+    },
+    "Lead Scraper Agent/admin/ADMIN_CHANGES.md": {
+      "category": "document",
+      "bytes": 3919,
+      "sha256": "b1e3d7f13ee877400c8f72683ce061dc5d4d161f37ab1b8cb3e41e57851f2682"
+    },
+    "Lead Scraper Agent/docs/DB_BRIEF_FOR_SYJ_DEVELOPER.md": {
+      "category": "document",
+      "bytes": 6777,
+      "sha256": "21ee134e353504bcd65a7a7aa24f29ceed50259c78d7724ac6b00e55d5a120df"
+    },
+    "Lead Scraper Agent/docs/LEAD_SCRAPER_BRIEF.md": {
+      "category": "document",
+      "bytes": 6505,
+      "sha256": "9a22555b4c15aefbde32e12994f720908d48bf4eb89eb3759a29ec19595240ac"
+    },
+    "Lead Scraper Agent/docs/LEAD_SCRAPER_BUILD_STATUS.md": {
+      "category": "document",
+      "bytes": 11885,
+      "sha256": "e9e2e95ed98d22babcc3071fb4395ad312f0f71794852955e2bd155b94c18f7e"
+    },
+    "Lead Scraper Agent/docs/LEAD_SCRAPER_TECHNICAL_PLAN.md": {
+      "category": "document",
+      "bytes": 20148,
+      "sha256": "d3f275752d83f96f7e4f9e11a374f9822cd574b6ae1c577d40492df5ea46a203"
+    },
+    "Lead Scraper Agent/worker/README.md": {
+      "category": "document",
+      "bytes": 17486,
+      "sha256": "c6df921f278e6742728156093a9ac74a39c8f0cb8f19ccfca30c108f1f3bf6fd"
+    },
+    "OWNER_ENRICHMENT_BRIEF.md": {
+      "category": "document",
+      "bytes": 10384,
+      "sha256": "03f8e03d12d7e6621499d14d7c5411d8467b7a99b0f97574f995388ff41f6117"
+    },
+    "PAIN_TAXONOMY_BRIEF.md": {
+      "category": "document",
+      "bytes": 16792,
+      "sha256": "5c50e742ac919b981e52332199b1aff9a60fd14dfe40aacff0d3cf74be8a1d17"
+    },
+    "PROJECT_KNOWLEDGE.md": {
+      "category": "document",
+      "bytes": 95239,
+      "sha256": "5fac11cd26c2ce845d5efdce073d2f0a570c3d3eee0bb71d97438db759b889b3"
+    },
+    "REPO_MAP.md": {
+      "category": "document",
+      "bytes": 13676,
+      "sha256": "10cfe4e5e6e15c60e6c734ea57ce52221b6d5bf47b4017215844b686dfffe63c"
+    },
+    "RESEARCH_REPORT_BRIEF.md": {
+      "category": "document",
+      "bytes": 15117,
+      "sha256": "12b9445d79af1dff575521bc59e4e18daddb7801f257242a31d64310246d45d3"
+    },
+    "REVIEW_EXPANSION_BRIEF.md": {
+      "category": "document",
+      "bytes": 8462,
+      "sha256": "c2bb76baca0c67e288fea76fd6962b6f0e285aab534e2fc767b1858df4b04b88"
+    },
+    "ROUND_8_BRIEF.md": {
+      "category": "document",
+      "bytes": 9319,
+      "sha256": "5debb63f7c7057c44a340722c8f58e6a051046396fd8ec30fdc6c4e257ac69a9"
+    },
+    "SCALEYOURJUNK_LEAD_CLEANER_DB_BRIEF.md": {
+      "category": "document",
+      "bytes": 5921,
+      "sha256": "7508e751299d976ec0dc3bbbcbd037eeaa7b41a97977461455b35c74ef267399"
+    },
+    "STATE_FIELD_BRIEF.md": {
+      "category": "document",
+      "bytes": 5286,
+      "sha256": "9aac0a65d5383db6d8c6e48cd41bbe90fbec31e83a27466a0edf23642f66cadc"
+    },
+    "TASK_REPO_COMPARISON.md": {
+      "category": "document",
+      "bytes": 12812,
+      "sha256": "342b1993ed506017bf8d7c7bd1c573f9f0b6baddf012adb0adba6f069ad5c31d"
+    },
+    "WEBSITE_SCHEMA_SYNC_BRIEF.md": {
+      "category": "document",
+      "bytes": 12442,
+      "sha256": "2f91c392933566294c3c0f8f8daa7807233dce4e8735f6759c9829d11c5781fe"
+    },
+    "WORKING_KNOWLEDGE.md": {
+      "category": "document",
+      "bytes": 13843,
+      "sha256": "f2003d80ceb1f27f68e18777325b05fa28fd7a689bed0be826a73544d0a77638"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/implementation-results.md": {
+      "category": "historical-document",
+      "bytes": 16841,
+      "sha256": "f012b01225a5abe729a5f77b876165b58c594c38bd78f76e4967563ccd12d269"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/issues-log.md": {
+      "category": "historical-document",
+      "bytes": 45868,
+      "sha256": "f6cfe9d067ac257a54182d5d00e0a4d9d33ea86f251f1f9d92c435b833e3540c"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/operating-guide.md": {
+      "category": "historical-document",
+      "bytes": 65341,
+      "sha256": "3a1be2718ef5d592b5383bca7b964a7dd61d03e11c92d4083f329f82211238b2"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/remediation-plan.md": {
+      "category": "historical-document",
+      "bytes": 62502,
+      "sha256": "5ef791042cd455a3567a5bd9d13d3224671bcb90d80b383897dca3dffa012602"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/root-cause-analysis.md": {
+      "category": "historical-document",
+      "bytes": 38236,
+      "sha256": "bce4186cc7e5150125b9a32b99cedb1ed9a906199ab8382cd0536838e1c157ec"
+    },
+    "reports/admin-dashboard-assessment-2026-09-08/verification/test-types.txt": {
+      "category": "historical-document",
+      "bytes": 209,
+      "sha256": "3da86686ba0f1bf17c3898251ea6d81dce4af0dcaf34e2f56634bfd965678d2f"
+    }
+  }
+}

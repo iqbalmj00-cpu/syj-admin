@@ -1,4 +1,20 @@
-# Research Report Agent — Unified Developer Brief
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
+# Historical: Research Report Agent Build Brief
+
+> **Archived implementation snapshot, rechecked 2026-06-29.** `ResearchReport` exists in both live schemas, and the current dashboard includes the `research_writer` seed entry, generation/list/detail routes, PDF generator, Agents-page review UI, Blob upload, and GitHub publish/archive flow. The website now has a `/research` listing and `/reports/[slug]` detail page. The schema push and "website pages do not exist" steps below are obsolete. Current generator code uploads report PDFs with `access: "private"`, so public download behavior must be verified before assuming the older "public Blob" statement is true.
 
 **For:** SYJ developer (maintains both JAMALS ADMIN DASH and JAMALS WEBSITE codebases)
 **Reason:** New Research Report agent — generates professional research PDFs + commits JSON fixtures to `scaleyourjunk.com/reports` page.

@@ -1,8 +1,24 @@
+# STALE DOCUMENT / DO NOT READ OR REFERENCE
+
+> **Do not use this file as evidence about the repository.** It is kept for history only.
+> Statements here may contradict current source and have not been reverified.
+>
+> The authoritative knowledge base is the verified corpus at
+> `/Volumes/CODE/SYJ THINKING- CODEX/Documents/New documents/`.
+> Start from `00 - START HERE - DOCUMENT ROUTING INDEX.md` and read only the documents it routes you to.
+>
+> Live, maintained documentation for the worker agents lives with the agents themselves:
+> `Lead Scraper Agent/` in this repo, and `/Volumes/CODE/ENRICHMENT AGENT/`.
+
+---
+
 # Lead Cleaner Agent Details
 
-Status: current-state design and behavior document. Fully rewritten and source-verified: 2026-07-04 (supersedes the 2026-07-02 version and its gap register — every code gap listed there has been fixed in source; see "Resolved history" at the bottom).
+Status: current-state design and behavior document. Fully rewritten and source-verified: 2026-07-04; last verified 2026-07-10 by source-only inspection plus `tsc --noEmit`, `tsc -p tsconfig.test.json`, and `npm test` (45/45) — no DB/Prisma/provider/deploy/Git commands (supersedes the 2026-07-02 version and its gap register — every code gap listed there has been fixed in source; see "Resolved history" at the bottom).
 
 This document explains what the Lead Cleaner agent does, how the current code does it, and what must still happen externally before enforcement is enabled. It is source documentation only. Do not run Prisma, DB, seed, migration, SQL, provider, deploy, or Git commands from this document.
+
+> Enforcement status (2026-07-10): the six cleaner columns + two indexes are mirrored into the **admin checked-in schema**, and the shared-DB migration is **reported complete as of 2026-07-10** (owner statement — not verifiable from this repo; the cleaner columns are verified present in the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma`, columns ~2470-2475, indexes ~2499-2500). The remaining blockers are admin-side: the deployed Prisma Client has not been regenerated (verified: `node_modules/.prisma/client` has no cleaner fields), and `LEAD_CLEANER_SCHEMA_READY` is not yet set — so enforce is still correctly blocked. Note: the old `/Volumes/CODE/scaleyourjunk` path no longer exists (deleted); the checkout now lives at `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk`, and its `prisma/schema.prisma` already contains all six cleaner columns and both indexes (verified 2026-07-13), so there is no stale zero-cleaner tree to guard against as a push source. See "Schema Rollout Status" below.
 
 ## Plain-English Goal
 
@@ -132,12 +148,12 @@ Typed failures map to HTTP status via `leadCleanerErrorStatus`: `bad_request →
 - **Selected run creation** (`POST /api/agents/enrichment`): `findSelectedLeadsNeedingCleaner` blocks archived leads always and uncleaned leads once the schema is live, returning the true `totalBlocked` plus a capped sample; the operator can override with `force=true`, which records a **durable approval** on the run config (`forcedLeadCleanerGate`, `forcedAt`, `forcedBlockedCount`). The dashboard shows a confirm dialog before forcing.
 - **Worker data fetch** (`/api/agents/enrichment-data`, agent secret): full-pool fetches require `cleanedAt != null` once the schema is live and always exclude archived leads; **selected fetches are hard-gated the same way** — blocked leads are served only when covered by a run force-approval, and dropped ids are reported in `excludedLeadIds`. `marketLeads` competitor context excludes archived leads. The payload includes `cleanerSchemaActive` and, when a gated full-pool fetch comes back empty, `cleanerGated: { schemaActive, uncleanedEligible }` so an empty pool is distinguishable from a gated one.
 - **Worker result writes** (`/api/agents/enrichment-results`, agent secret): every action (enrich/delete/skip) validates the target first — unknown lead → 404; archived → 409 `skipped:"archived"`; uncleaned (schema-live) → 409 `skipped:"uncleaned"` — unless a run force-approval covers the lead.
-- **Force-approval resolution is strict-first**: when the caller identifies its run (`runId` in enrichment-data requests, `runId`/`data.enrichmentRunId` in enrichment-results), that run's approval is **final** — it must be a currently-running `lead_enrichment` run whose forced `leadIds` cover the lead; another run's approval never authorizes it. Only when no run is claimed (the current worker's enrichment-data calls) does a content-based fallback across running forced runs apply; it is removable once the worker sends `runId` everywhere. Unknown claimed run ids are warn-logged (warn-first pending the worker-owner contract confirmation).
+- **Force-approval resolution is strict-first**: when the caller identifies its run (`runId` in enrichment-data requests, `runId`/`data.enrichmentRunId` in enrichment-results), that run's approval is **final** — it must be a currently-running `lead_enrichment` run whose forced `leadIds` cover the lead; another run's approval never authorizes it. Only when no run is claimed (the current worker's enrichment-data calls) does a content-based fallback across running forced runs apply; it is removable once the worker sends `runId` everywhere. Unknown claimed run ids are warn-logged in enrichment-results only; in enrichment-data an unresolvable claimed run id silently falls through to the content-based fallback (warn-first pending the worker-owner contract confirmation).
 
 ## Archive / Restore Lifecycle
 
 - Cleaner rejects soft-archive only (no delete, no outreach-status mutation).
-- Dashboard "Discard" on the scraped-leads page is a **soft archive** (`archiveSource: "manual"`). The bulk `DELETE /api/agents/leads` endpoint is also mapped to the same soft-archive behavior for compatibility with older UI callers.
+- Dashboard "Discard" on the scraped-leads page is a **soft archive** (`archiveSource: "manual"`); permanent delete is a separate explicit action.
 - **Restore** (`PATCH /api/agents/leads { restore: true, ids }`, with a Restore button on the archived view) clears `archivedAt/archiveReason/archiveSource` always, plus all six cleaner fields once the schema is live, so a restored lead is re-judged from scratch.
 
 ## Summary Metrics
@@ -149,7 +165,7 @@ Per run: `checked, kept, archivedFranchise, archivedCategory, archivedLlm, ambig
 - Agent card: Run Now (always an explicit preview), cleaner-aware Reset (recovery), Configure panel with policy controls.
 - **Review panel** (in the config panel): latest run summary + sample rejects, "Preview run" / "Preview (rules only)" buttons, "Mark preview reviewed" (disabled for rules-only previews), and an **Enforce (archive)** button enabled only when schema ✓ + archiving ✓ + full preview reviewed ✓ — with a confirmation stating the approximate archive count. The backend independently re-verifies all of it.
 
-## Required DB-Owner Work (the only enforcement blocker)
+## Schema Rollout Status (the remaining enforcement blocker)
 
 `ScrapedLead` needs six nullable columns (no defaults) and two indexes:
 
@@ -165,7 +181,13 @@ cleanedAt          DateTime?
 @@index([enrichedAt, archivedAt, isExistingClient, cleanedAt])
 ```
 
-Plus the recommended one-time backfill grandfathering already-enriched/archived rows. Full spec and `db push` safety checklist: `LEAD_CLEANER_DB_HANDOFF.md` and `LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md`. Do not run any of it from this repo; do not set `LEAD_CLEANER_SCHEMA_READY=true` until the migrated client is deployed.
+**Status as of 2026-07-10:** these six columns and both indexes are present in the **admin checked-in schema** (`prisma/schema.prisma`, `ScrapedLead` — columns ~1867-1872, indexes ~1895-1896), mirrored by the DB owner. Rollout status:
+
+1. ~~The **shared Neon database** must actually be migrated~~ — **reported complete 2026-07-10** (owner statement; not verifiable from this repo). The cleaner columns and both indexes are verified present in the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk/prisma/schema.prisma` (columns ~2470-2475, indexes ~2499-2500). **Note:** the old `/Volumes/CODE/scaleyourjunk/prisma/schema.prisma` no longer exists (deleted). The checkout now lives at `/Volumes/CODE/SYJ:PHONEAGENT/scaleyourjunk/prisma/schema.prisma`, which already contains all six cleaner columns (~2470-2475) and both indexes (~2499-2500), identical to the DB-owner checkout — so there is no stale zero-cleaner tree to guard against as a push source.
+2. The **admin Prisma Client must be regenerated and deployed** — the currently generated client under `node_modules/.prisma/client` does **not** yet include the cleaner fields (verified 2026-07-10), so the runtime capability probe still (correctly) reports not-ready and `tsc` still passes via the schema-ready-gated loose casts.
+3. Only then set `LEAD_CLEANER_SCHEMA_READY="true"` and enable `archiveEnabled`.
+
+Plus the recommended one-time backfill grandfathering already-enriched/archived rows. Full spec and `db push` safety checklist: `LEAD_CLEANER_DB_HANDOFF.md`, `LEAD_CLEANER_SCHEMA_PUSH_BRIEF.md`, and the DB owner's own `SCALEYOURJUNK_LEAD_CLEANER_DB_BRIEF.md`. Do not run any of it from this repo; do not set the flag until the migrated client is deployed.
 
 ## Enablement Runbook (after the DB rollout)
 
@@ -194,4 +216,4 @@ ESLint 9 is installed but has no flat config file, so `npm run lint` does not ru
 
 ## Resolved history
 
-The 2026-07-02 version of this document carried a 29-item pre-enforcement gap register. All of its **code** gaps were fixed in the 2026-07-03/04 remediation (verified by type-check, 45 unit tests, and multiple independent adversarial review passes), including: LLM parse/missing/truncated rows stamped as keeps; env-only schema gating; unguarded non-transactional enforce writes; enrichment-data/results bypasses; lock-TTL/route-timeout mismatch; detached auto-trigger; substring franchise matching; scrap allow-collision bypass; hardcoded LLM corroboration; unsanitized limits; seed config overwrite; schedule clobbering; missing restore path; dead `llmKeepOnUncertainty`; the legacy raw-SQL migrate route (deleted); and the missing review workflow — now server-enforced and snapshot-bound. The only remaining blocker is the external DB-owner schema rollout (B1), plus the accepted limitations above.
+The 2026-07-02 version of this document carried a 29-item pre-enforcement gap register. All of its **code** gaps were fixed in the 2026-07-03/04 remediation (verified by type-check, 45 unit tests, and multiple independent adversarial review passes), including: LLM parse/missing/truncated rows stamped as keeps; env-only schema gating; unguarded non-transactional enforce writes; enrichment-data/results bypasses; lock-TTL/route-timeout mismatch; detached auto-trigger; substring franchise matching; scrap allow-collision bypass; hardcoded LLM corroboration; unsanitized limits; seed config overwrite; schedule clobbering; missing restore path; dead `llmKeepOnUncertainty`; the legacy raw-SQL migrate route (deleted); and the missing review workflow — now server-enforced and snapshot-bound. The shared-DB migration is reported complete as of 2026-07-10 (owner statement; cleaner columns verified in the DB-owner checkout at `/Users/jamal/Downloads/Projects/scaleyourjunk`); the remaining blocker is admin-side: the admin Prisma Client must be regenerated/deployed before the flag is set — plus the accepted limitations above.
